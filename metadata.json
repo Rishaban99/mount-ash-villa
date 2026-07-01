@@ -1,0 +1,6 @@
+{
+  "name": "Hotel POS System",
+  "description": "A modern and full-featured Hotel Point of Sale (POS) and reservation system with billing, guest, room, and food management, and analytics dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

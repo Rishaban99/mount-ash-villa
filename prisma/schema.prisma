@@ -1,0 +1,239 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  manager
+  receptionist
+}
+
+enum RoomType {
+  Single
+  Double
+  Triple
+}
+
+enum RoomStatus {
+  Available
+  Occupied
+}
+
+enum BillStatus {
+  Active
+  Completed
+}
+
+enum MemoType {
+  handover
+  reminder
+  maintenance
+  guest_request
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+}
+
+type GuestEmbed {
+  id           String
+  name         String
+  phone        String
+  nic          String
+  address      String
+  checkInDate  String
+  checkOutDate String
+}
+
+type RoomItem {
+  roomId                String
+  roomNumber            String
+  roomType              String
+  pricePerNight         Float
+  nights                Int
+  originalPricePerNight Float?
+  discount              Float?
+}
+
+type FoodItem {
+  foodId    String
+  foodName  String
+  price     Float
+  quantity  Int
+}
+
+model User {
+  id                  String   @id @map("_id")
+  username            String
+  name                String
+  role                UserRole
+  password            String
+  salary              Float?
+  lastPaid            String?
+  joinDate            String?
+  leftDate            String?
+  monthlyBaseSalaries Json?
+
+  @@map("users")
+}
+
+model Room {
+  id         String     @id @map("_id")
+  roomNumber String
+  roomType   RoomType
+  price      Float
+  status     RoomStatus
+
+  @@map("rooms")
+}
+
+model Guest {
+  id           String @id @map("_id")
+  name         String
+  phone        String
+  nic          String
+  address      String
+  checkInDate  String
+  checkOutDate String
+
+  @@map("guests")
+}
+
+model Food {
+  id       String @id @map("_id")
+  foodName String
+  category String
+  price    Float
+
+  @@map("foods")
+}
+
+model Bill {
+  id            String     @id @map("_id")
+  guestId       String
+  guestDetails  GuestEmbed
+  roomItems     RoomItem[]
+  foodItems     FoodItem[]
+  foodSubtotal  Float
+  serviceCharge Float
+  roomSubtotal  Float
+  totalAmount   Float
+  status        BillStatus
+  createdAt     String
+  updatedAt     String
+
+  @@map("bills")
+}
+
+model Expense {
+  id            String  @id @map("_id")
+  title         String
+  amount        Float
+  category      String
+  date          String
+  description   String
+  approvedBy    String?
+  paymentMethod String
+
+  @@map("expenses")
+}
+
+model Settings {
+  id                            String  @id @map("_id")
+  hotelName                     String
+  phone                         String
+  address                       String
+  currency                      String
+  serviceChargePercent          Float
+  vatPercent                    Float
+  allowReceptionistDelete       Boolean
+  allowReceptionistDiscount     Boolean
+  allowReceptionistModifyPrice  Boolean
+  allowManagerSalaryChange      Boolean
+  allowManagerUserEdit          Boolean
+  allowReceptionistAddFoods       Boolean
+  allowReceptionistEditFoods      Boolean
+  allowReceptionistDeleteFoods    Boolean
+  allowReceptionistManageGuests   Boolean
+  allowReceptionistAddExpenses    Boolean
+  allowReceptionistAddRooms       Boolean
+  allowReceptionistEditRooms      Boolean
+  allowReceptionistDeleteRooms    Boolean
+  allowManagerManageRooms         Boolean
+  allowManagerAddRooms            Boolean
+  allowManagerEditRooms           Boolean
+  allowManagerDeleteRooms         Boolean
+  allowManagerAddFoods            Boolean
+  allowManagerEditFoods           Boolean
+  allowManagerDeleteFoods         Boolean
+  allowManagerViewReports         Boolean
+  allowManagerDeleteExpenses      Boolean
+  taxNumber                       String
+  email                           String
+  checkInTime                     String
+  checkOutTime                    String
+  receiptFooterMessage            String
+  printerType                     String
+  paperWidth                      String
+  printerConnection               String
+  printerIpAddress                String
+  autoPrintOnSettle               Boolean
+  showLogoOnReceipt               Boolean
+  showTaxDetails                  Boolean
+
+  @@map("settings")
+}
+
+model Memo {
+  id         String   @id @map("_id")
+  content    String
+  authorName String
+  authorRole String
+  type       MemoType
+  resolved   Boolean
+  resolvedBy String?
+  createdAt  String
+  updatedAt  String?
+
+  @@map("memos")
+}
+
+model ClosedMonth {
+  id               String  @id @map("_id")
+  month            String
+  totalRevenue     Float
+  totalExpenses    Float
+  netProfit        Float
+  ownerTakeaway    Float
+  retainedEarnings Float
+  closedAt         String
+  closedBy         String
+  notes            String?
+
+  @@map("closed_months")
+}
+
+model AuditLog {
+  id          String      @id @map("_id")
+  action      AuditAction
+  entityType  String
+  entityId    String?
+  entityLabel String?
+  actorUserId String
+  actorName   String
+  actorRole   String
+  timestamp   String
+  summary     String
+  details     Json?
+
+  @@map("audit_logs")
+}
