@@ -522,16 +522,8 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
                           <span>Nights & Rate:</span>
                           <span>{item.nights} Night(s) x {activeCurrency}{originalPerNight.toLocaleString()}</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span>Standard Amount:</span>
-                          <span>{activeCurrency}{originalTotal.toLocaleString()}</span>
-                        </div>
-                        {discountTotal > 0 && (
-                          <div className="flex justify-between text-rose-600 font-bold">
-                            <span>Discount Amount:</span>
-                            <span>-{activeCurrency}{discountTotal.toLocaleString()}</span>
-                          </div>
-                        )}
+                        
+                       
                       </div>
                     </div>
                   );
@@ -570,10 +562,7 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
                   const finalRoomDiscountTotal = Math.max(0, finalOriginalRoomTotal - bill.roomSubtotal);
                   return (
                     <>
-                      <div className="flex justify-between font-medium text-slate-700">
-                        <span>Room Standard Amount:</span>
-                        <span>{activeCurrency} {finalOriginalRoomTotal.toLocaleString()}</span>
-                      </div>
+                     
                       {finalRoomDiscountTotal > 0 && (
                         <div className="flex justify-between font-medium text-rose-600">
                           <span>Room Discount Amount:</span>
@@ -612,7 +601,7 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
                 ) : null}
 
                 <div className="border-t border-dotted border-slate-400 pt-1.5 flex justify-between text-xs font-bold text-slate-950 mt-1.5">
-                  <span className="tracking-tight">GRAND TOTAL:</span>
+                  <span className="tracking-tight"></span>
                   <span className="font-black underline">{activeCurrency} {bill.totalAmount.toLocaleString()}</span>
                 </div>
               </div>
