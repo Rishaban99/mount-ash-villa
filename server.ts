@@ -6,7 +6,6 @@
 import 'dotenv/config';
 import express from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import {
   initializeDatabase,
   getUsers,
@@ -44,6 +43,23 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+
+// Vercel: connect to the database before handling any request.
+let dbInitPromise: Promise<void> | undefined;
+if (process.env.VERCEL) {
+  app.use(async (_req, res, next) => {
+    try {
+      if (!dbInitPromise) dbInitPromise = initializeDatabase();
+      await dbInitPromise;
+      next();
+    } catch (err) {
+      console.error('Database initialization failed:', err);
+      res.status(503).json({
+        error: 'Service unavailable. Check that DATABASE_URL is set in Vercel environment variables.',
+      });
+    }
+  });
+}
 
 // API Routes
 
@@ -923,6 +939,7 @@ async function startServer() {
   await initializeDatabase();
 
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -955,19 +972,14 @@ async function startServer() {
 export default app;
 
 if (process.env.VERCEL) {
-  // Vercel cold-start: initialize DB and serve static frontend via Express.
-  (async () => {
-    try {
-      await initializeDatabase();
-      const distPath = path.join(process.cwd(), 'dist');
-      app.use(express.static(distPath));
-      app.get('*', (_req, _res) => {
-        _res.sendFile(path.join(distPath, 'index.html'));
-      });
-    } catch (err) {
-      console.error('Failed to initialize on Vercel:', err);
-    }
-  })();
+  const distPath = path.join(process.cwd(), 'dist');
+  app.use(express.static(distPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(distPath, 'index.html'), (err) => {
+      if (err) next(err);
+    });
+  });
 } else {
   startServer();
 }

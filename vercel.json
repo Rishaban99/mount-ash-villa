@@ -1,15 +1,17 @@
 {
   "version": 2,
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
   "builds": [
     {
-      "src": "server.ts",
+      "src": "dist/server.mjs",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/server.ts"
+      "dest": "/dist/server.mjs"
     }
   ]
 }
