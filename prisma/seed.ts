@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { prisma } from '../server/prisma';
-import { UserRole, RoomType, RoomStatus, BillStatus, MemoType } from '../generated/prisma/client';
+import { UserRole, RoomType, RoomStatus, BillStatus, MemoType } from '@prisma/client';
 import { DEFAULT_SETTINGS } from './defaults';
 
 const DEFAULT_GUESTS = [

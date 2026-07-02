@@ -6,7 +6,7 @@
 import { prisma } from './prisma';
 import { DEFAULT_SETTINGS } from '../prisma/defaults';
 import { User, Room, Guest, Food, Bill, Expense, SystemSettings, FrontdeskMemo, ClosedMonth, AuditLog, AuditAction } from '../src/types';
-import type { User as PrismaUser, Prisma } from '../generated/prisma/client';
+import type { User as PrismaUser, Prisma } from '@prisma/client';
 
 function mapUser(user: PrismaUser): User {
   return {
