@@ -948,4 +948,26 @@ async function startServer() {
   process.on('SIGTERM', shutdown);
 }
 
-startServer();
+// ─── Vercel Serverless Export ─────────────────────────────────────────────
+// On Vercel: export the Express app as the default handler (no app.listen).
+// Locally: call startServer() which sets up Vite dev middleware and listens on PORT.
+
+export default app;
+
+if (process.env.VERCEL) {
+  // Vercel cold-start: initialize DB and serve static frontend via Express.
+  (async () => {
+    try {
+      await initializeDatabase();
+      const distPath = path.join(process.cwd(), 'dist');
+      app.use(express.static(distPath));
+      app.get('*', (_req, _res) => {
+        _res.sendFile(path.join(distPath, 'index.html'));
+      });
+    } catch (err) {
+      console.error('Failed to initialize on Vercel:', err);
+    }
+  })();
+} else {
+  startServer();
+}
