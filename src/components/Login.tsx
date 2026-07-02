@@ -50,20 +50,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const autofill = (userType: 'admin' | 'manager' | 'receptionist') => {
-    if (userType === 'admin') {
-      setUsername('rishaban');
-      setPassword('adminpassword');
-    } else if (userType === 'manager') {
-      setUsername('manager1');
-      setPassword('password123');
-    } else {
-      setUsername('receptionist1');
-      setPassword('password123');
-    }
-    setError(null);
-  };
-
+  
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8">
       
@@ -108,7 +95,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="e.g. rishaban"
+                placeholder="Enter your username"
                 className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-sans text-sm text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 focus:bg-white transition-all"
               />
             </div>
@@ -125,7 +112,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="Enter your password"
                 className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-sans text-sm text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 focus:bg-white transition-all"
               />
             </div>
@@ -149,39 +136,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
           </form>
 
-          {/* Quick Sandbox Autofill */}
-          <div className="mt-8 pt-6 border-t border-slate-100">
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">
-              <Shield className="h-3 w-3" />
-              <span>Autofill Sandbox Credentials</span>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => autofill('admin')}
-                className="py-2.5 px-2 bg-slate-50 hover:bg-indigo-50 border border-slate-100 hover:border-indigo-100 rounded-xl text-xs text-slate-600 hover:text-indigo-600 transition-all text-left"
-              >
-                <span className="block font-bold">Admin</span>
-                <span className="block text-[10px] text-slate-400 font-mono mt-0.5">rishaban</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => autofill('manager')}
-                className="py-2.5 px-2 bg-slate-50 hover:bg-indigo-50 border border-slate-100 hover:border-indigo-100 rounded-xl text-xs text-slate-600 hover:text-indigo-600 transition-all text-left"
-              >
-                <span className="block font-bold">Manager</span>
-                <span className="block text-[10px] text-slate-400 font-mono mt-0.5">manager1</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => autofill('receptionist')}
-                className="py-2.5 px-2 bg-slate-50 hover:bg-indigo-50 border border-slate-100 hover:border-indigo-100 rounded-xl text-xs text-slate-600 hover:text-indigo-600 transition-all text-left"
-              >
-                <span className="block font-bold">Reception</span>
-                <span className="block text-[10px] text-slate-400 font-mono mt-0.5">receptionist1</span>
-              </button>
-            </div>
-          </div>
+          
 
         </div>
 
