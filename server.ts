@@ -938,23 +938,6 @@ app.get('/api/audit-logs', async (req, res) => {
 async function startServer() {
   await initializeDatabase();
 
-  if (process.env.NODE_ENV !== 'production') {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      if (!req.path.startsWith('/api')) {
-        res.sendFile(path.join(distPath, 'index.html'));
-      }
-    });
-  }
-
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Hotel POS Server booting on http://localhost:${PORT}`);
   });
