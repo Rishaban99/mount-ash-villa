@@ -6,7 +6,6 @@
 import 'dotenv/config';
 import express from 'express';
 import path from 'path';
-import fs from 'fs';
 import {
   initializeDatabase,
   getUsers,
@@ -946,25 +945,13 @@ async function startServer() {
       appType: 'spa',
     });
     app.use(vite.middlewares);
-    // SPA fallback: serve index.html for non-API routes in development
-    app.get('*', async (req, res) => {
-      if (req.path.startsWith('/api')) {
-        return res.status(404).json({ error: 'API endpoint not found' });
-      }
-      try {
-        const url = '/index.html';
-        const template = fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf-8');
-        const html = await vite.transformIndexHtml(url, template);
-        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
-      } catch (e) {
-        res.status(500).end(e instanceof Error ? e.message : 'Unknown error');
-      }
-    });
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      if (!req.path.startsWith('/api')) {
+        res.sendFile(path.join(distPath, 'index.html'));
+      }
     });
   }
 
