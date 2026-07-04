@@ -945,6 +945,13 @@ async function startServer() {
       appType: 'spa',
     });
     app.use(vite.middlewares);
+    // SPA fallback: serve index.html for non-API routes in development
+    app.get('*', (req, res) => {
+      if (req.path.startsWith('/api')) {
+        return res.status(404).json({ error: 'API endpoint not found' });
+      }
+      res.redirect('/');
+    });
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
@@ -971,15 +978,6 @@ async function startServer() {
 
 export default app;
 
-if (process.env.VERCEL) {
-  const distPath = path.join(process.cwd(), 'dist');
-  app.use(express.static(distPath));
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api')) return next();
-    res.sendFile(path.join(distPath, 'index.html'), (err) => {
-      if (err) next(err);
-    });
-  });
-} else {
+if (!process.env.VERCEL) {
   startServer();
 }
