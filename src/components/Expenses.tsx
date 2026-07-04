@@ -512,6 +512,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ currentUser, initialAction, 
   const foodSuppliesTotal = filteredExpensesForStats.filter(exp => exp.category === 'Food & Supplies').reduce((acc, exp) => acc + exp.amount, 0);
   const marketingTotal = filteredExpensesForStats.filter(exp => exp.category === 'Marketing').reduce((acc, exp) => acc + exp.amount, 0);
   const otherTotal = filteredExpensesForStats.filter(exp => exp.category === 'Other').reduce((acc, exp) => acc + exp.amount, 0);
+  const RoomCommison = filteredExpensesForStats.filter(exp => exp.category === 'Room Commission').reduce((acc, exp) => acc + exp.amount, 0);
 
   // Category breakdown for progress bar insight widget
   const categoriesBreakdown = [
@@ -521,6 +522,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ currentUser, initialAction, 
     { name: 'Maintenance', amount: maintenanceTotal, color: 'bg-rose-500', pct: grandTotalExpenses > 0 ? (maintenanceTotal / grandTotalExpenses) * 100 : 0 },
     { name: 'Marketing', amount: marketingTotal, color: 'bg-indigo-500', pct: grandTotalExpenses > 0 ? (marketingTotal / grandTotalExpenses) * 100 : 0 },
     { name: 'Other', amount: otherTotal, color: 'bg-slate-500', pct: grandTotalExpenses > 0 ? (otherTotal / grandTotalExpenses) * 100 : 0 },
+    { name: 'Room Commission', amount: RoomCommison, color: 'bg-cyan-500', pct: grandTotalExpenses > 0 ? (RoomCommison / grandTotalExpenses) * 100 : 0 },
   ].sort((a, b) => b.amount - a.amount);
 
   // Helper to format date string to YYYY-MM-DD format based on local/system timezone safely
@@ -830,6 +832,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ currentUser, initialAction, 
                     <option value="Food & Supplies">Food & Supplies</option>
                     <option value="Maintenance">Maintenance</option>
                     <option value="Marketing">Marketing</option>
+                    <option value="Room Commission">Room Commission</option>
                     <option value="Other">Other</option>
                   </select>
                 </div>
@@ -1573,6 +1576,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ currentUser, initialAction, 
                     <option value="Food & Supplies">Food & Supplies</option>
                     <option value="Maintenance">Maintenance</option>
                     <option value="Marketing">Marketing</option>
+                    <option value="Room Commission">Room Commission</option>
                     <option value="Other">Other</option>
                   </>
                 )}
@@ -2043,6 +2047,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ currentUser, initialAction, 
                     <option value="Food & Supplies">Food & Supplies</option>
                     <option value="Maintenance">Maintenance</option>
                     <option value="Marketing">Marketing</option>
+                    <option value="Room Commission">Room Commission</option>
                     <option value="Other">Other</option>
                   </select>
                 </div>
