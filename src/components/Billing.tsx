@@ -698,7 +698,7 @@ export const Billing: React.FC<BillingProps> = ({
                             <th className="py-4 px-6">Room Details</th>
                             <th className="py-4 px-6">Ledger Balance</th>
                             <th className="py-4 px-6">State Status</th>
-                            <th className="py-4 px-6 text-right">Actions</th>
+                            <th className="py-4 px-6 ">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 text-slate-700">
@@ -765,12 +765,12 @@ export const Billing: React.FC<BillingProps> = ({
 
                                 <td className="py-4 px-6">
                                   {!isCompleted ? (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
                                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                       LIVE STAY
                                     </span>
                                   ) : (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold gap-1 bg-slate-100 text-slate-600 border border-slate-200">
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold gap-1 bg-slate-100 text-slate-600 border border-slate-200">
                                       <CheckCircle className="h-3 w-3 text-slate-400" />
                                       CONCLUDED
                                     </span>

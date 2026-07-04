@@ -317,10 +317,10 @@ export const Foods: React.FC<FoodsProps> = ({ currentUser }) => {
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition-all font-sans"
                 />
                 <datalist id="categories-list">
-                  <option value="Snacks" />
-                  <option value="Main Course" />
-                  <option value="Desserts" />
-                  <option value="Beverages" />
+                  {categories.filter((cat) => cat !== 'All')
+                    .map((cat) => (
+                      <option key={cat} value={cat} />
+                    ))}
                 </datalist>
               </div>
 

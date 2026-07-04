@@ -409,48 +409,31 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onNavigateTab
                      </span>
                   </div>
                 </div>
+                      {/*single,double,triple */}
+                {sortedFloors.map((floor) => (
+                  <div key={floor} className="mb-4">
+                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">{floor}</h4>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                      {floorMap[floor].map((room) => (
+                        <button
+                          key={room.id}
+                          type="button"
+                          onClick={() => onNavigateTab('rooms', room.id)}
+                          className={`p-3 rounded-lg border text-[11px] font-bold transition-all flex flex-col items-center justify-center gap-1 ${
+                            room.status === 'Available'
+                              ? 'bg-emerald-50 border-emerald-100 text-emerald-700 hover:bg-emerald-100/50'
+                              : 'bg-rose-50 border-rose-100 text-rose-700 hover:bg-rose-100/50'
+                          }`}
+                        >
+                          <Bed className={`h-4 w-4 ${room.status === 'Available' ? 'text-emerald-500' : 'text-rose-500'}`} />
+                          <span>Rm {room.roomNumber}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
 
-                {rooms.length === 0 ? (
-                  <div className="py-12 text-center text-xs text-slate-400 bg-slate-50 rounded-xl">
-                    No room stock configured.
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {sortedFloors.map((floorName) => {
-                      const floorRooms = floorMap[floorName];
-                      return (
-                        <div key={floorName} className="border-b border-slate-100 last:border-0 pb-3 last:pb-0">
-                          <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                            <span className="w-1 h-3.5 bg-indigo-500 rounded-sm inline-block" />
-                            {floorName}
-                          </p>
-                          <div className="grid grid-cols-4 gap-2">
-                            {floorRooms.map((room) => {
-                              const isOccupied = room.status === 'Occupied';
-                              return (
-                                <div
-                                  key={room.id}
-                                  onClick={() => onNavigateTab('rooms')}
-                                  className={`h-9 rounded-xl text-[11px] font-bold text-white flex flex-col items-center justify-center cursor-pointer transition-all hover:scale-105 border-0 shadow-2xs ${
-                                    isOccupied 
-                                      ? 'bg-rose-500 hover:bg-rose-600 shadow-rose-100' 
-                                      : 'bg-emerald-500 hover:bg-emerald-650 shadow-emerald-100'
-                                  }`}
-                                  title={`Room ${room.roomNumber} [${room.roomType}] - Rs. ${room.price}`}
-                                >
-                                  <span className="text-[12px] tracking-tight">{room.roomNumber}</span>
-                                  <span className="text-[8px] opacity-80 uppercase leading-none font-medium mt-0.5">
-                                    {room.roomType.substring(0, 3)}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+              
                 <p className="mt-4 text-[10px] text-slate-450 text-center italic border-t border-slate-100 pt-3">
                   Click any room brick to verify and configure properties.
                 </p>

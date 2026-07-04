@@ -282,9 +282,7 @@ export default function App() {
               <span className="hidden sm:inline-flex px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded uppercase tracking-wider border border-emerald-100">
                 System Online
               </span>
-              <span className="hidden sm:inline-flex px-2 py-0.5 bg-slate-50 text-slate-500 text-[10px] font-bold rounded uppercase tracking-wider italic border border-slate-100">
-                v1.0.4 - Developer Edition
-              </span>
+              
             </div>
           </div>
 
