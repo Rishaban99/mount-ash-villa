@@ -363,30 +363,7 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
               </div>
             </div>
 
-            {/* Toggle Switch Taps */}
-            <div className="space-y-2 pt-1.5">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Automation Layout Flags</label>
-              
-              <label className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl cursor-pointer border border-slate-100">
-                <span className="text-[10px] font-bold text-slate-700">Include Base Brand Logo</span>
-                <input
-                  type="checkbox"
-                  checked={localShowLogo}
-                  onChange={(e) => setLocalShowLogo(e.target.checked)}
-                  className="accent-indigo-600 font-bold rounded cursor-pointer h-3.5 w-3.5"
-                />
-              </label>
-
-              <label className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl cursor-pointer border border-slate-100">
-                <span className="text-[10px] font-bold text-slate-700">Calculate Tax Breakdown</span>
-                <input
-                  type="checkbox"
-                  checked={localShowTax}
-                  onChange={(e) => setLocalShowTax(e.target.checked)}
-                  className="accent-indigo-600 font-bold rounded cursor-pointer h-3.5 w-3.5"
-                />
-              </label>
-            </div>
+            
           </div>
 
           {/* Large Screen Trigger Suite */}
@@ -438,7 +415,7 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
               className={`bg-white shadow-md border border-dashed border-slate-400 text-slate-900 font-mono leading-relaxed transition-all duration-200 ${paperWidthClass}`}
             >
               {/* Receipt Header Logo */}
-              {localShowLogo && (
+           
                 <div 
                   className="mx-auto mb-2 text-center" 
                   style={{ 
@@ -451,7 +428,7 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
                 >
                   <Logo size={90} showText={true} className="text-slate-950 mx-auto" style={{ margin: '0 auto' }} />
                 </div>
-              )}
+              
 
               {/* Title & Static Info */}
               <div className="text-center">
@@ -534,8 +511,8 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
               {bill.foodItems.length > 0 && (
                 <>
                   <div className="border-b border-dashed border-slate-400 my-3" />
-                  <div className="text-[10px] leading-normal">
-                    <p className="font-bold underline uppercase mb-1 flex items-center gap-1">
+                  <div className="text-[10px] leading-normal font-mono">
+                    <p className="font-bold underline uppercase mb-1.5 flex items-center gap-1 font-sans">
                       Food Orders
                     </p>
                     {bill.foodItems.map((item, idx) => (
@@ -556,13 +533,13 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
               <div className="border-b border-dashed border-slate-400 my-3" />
 
               {/* Totals Sheet */}
-              <div className="space-y-1 text-[10px] leading-relaxed">
+              <div className="space-y-1  leading-relaxed">
                 {(() => {
                   const finalOriginalRoomTotal = bill.roomItems.reduce((acc, item: any) => acc + (item.originalPricePerNight || (item.pricePerNight + (item.discount || 0))) * item.nights, 0);
                   const finalRoomDiscountTotal = Math.max(0, finalOriginalRoomTotal - bill.roomSubtotal);
                   return (
                     <>
-                      {finalRoomDiscountTotal > 0 && (
+                    {finalRoomDiscountTotal > 0 && (
                         <div className="flex justify-between font-medium text-rose-600">
                           <span>Room Discount Amount:</span>
                           <span>-{activeCurrency} {finalRoomDiscountTotal.toLocaleString()}</span>
@@ -582,7 +559,7 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
                   </div>
                 )}
                 
-                {localShowTax ? (
+                
                   <>
                     {bill.foodItems.length > 0 && (
                       <div className="flex justify-between text-slate-600 text-[9px]">
@@ -597,7 +574,7 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
                       </div>
                     )}
                   </>
-                ) : null}
+                
 
                 <div className="border-t border-dotted border-slate-400 pt-1.5 flex justify-between text-[20px] font-bold text-slate-950 mt-1.5">
                   <span className="tracking-tight">TOTAL</span>
