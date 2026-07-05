@@ -367,12 +367,15 @@ export async function getSettings(): Promise<SystemSettings> {
 }
 
 export async function saveSettings(settings: SystemSettings): Promise<SystemSettings> {
-  const settingsToSave = { ...settings, id: 'system_settings' };
+  const { id, ...settingsData } = settings as SystemSettings & { id?: string };
 
   await prisma.settings.upsert({
     where: { id: 'system_settings' },
-    create: settingsToSave,
-    update: settingsToSave,
+    create: {
+      ...settingsData,
+      id: 'system_settings',
+    },
+    update: settingsData,
   });
 
   return settings;

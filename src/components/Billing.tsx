@@ -1310,10 +1310,10 @@ export const Billing: React.FC<BillingProps> = ({
               </div>
 
               {/* MAIN TERMINAL DESK: EXPRESS TAP SELECTOR + INTEGRATED ACTIVE LEDGER SELECTIONS */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-lg overflow-hidden grid grid-cols-1 md:grid-cols-12">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-lg overflow-hidden ">
                 
                 {/* LEFT PORTION: ⚡ EXPRESS TAP SELECTOR BOARD (md:col-span-7) */}
-                <div className="md:col-span-7 flex flex-col">
+                <div className="">
                   <div className="p-4 bg-slate-950 border-b border-slate-850 flex items-center justify-between">
                     <h3 className="text-xs font-black uppercase text-yellow-400 tracking-wider flex items-center gap-1.5">
                       <span>⚡ EXPRESS TAP SELECTOR</span>
@@ -1454,13 +1454,57 @@ export const Billing: React.FC<BillingProps> = ({
                   </div>
                 </div>
 
-                {/* RIGHT PORTION: LIVE HIGH-DENSITY SELECTIONS (md:col-span-5) */}
-                <div className="md:col-span-5 bg-slate-950/40 border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col overflow-hidden">
-                  <div className="pb-3 mb-3 border-b border-slate-800 flex justify-between items-center shrink-0">
-                    <h4 className="text-[11px] font-extrabold uppercase text-slate-400 tracking-widest">
+                
+
+              </div>
+            </div>
+
+            {/* COLUMN 3: RIGHT PANEL - ⚡ LIVE LEDGER TOTALS & CHECKOUT SCREEN (span 4) */}
+            <div className="lg:col-span-4 space-y-4">
+                <h3 className="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-slate-50">
+                  <Layers className="h-4 w-4 text-indigo-500" />
+                  Terminal Live Totals Sheet
+                </h3>
+
+                {/* show BILL*/}
+                <div className="bg-slate-50/60 border border-slate-100 rounded-lg p-3.5 space-y-3.5">
+                  {terminalBillId && bills.find((b) => b.id === terminalBillId) ? (
+                    <div className="space-y-2.5">
+                      {(() => {
+                        const currentBill = bills.find((b) => b.id === terminalBillId);
+                        if (!currentBill) return null;
+                        return (
+                          <>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase">Bill ID</span>
+                              <span className="text-xs font-mono font-bold text-slate-700">{currentBill.id}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase">Guest Name</span>
+                              <span className="text-xs font-bold text-slate-800">{currentBill.guestDetails.name}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase">Status</span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                currentBill.status === 'Active' 
+                                  ? 'bg-emerald-100 text-emerald-700' 
+                                  : 'bg-slate-200 text-slate-700'
+                              }`}>
+                                {currentBill.status}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="font-bold text-slate-500 uppercase">Created</span>
+                              <span className="text-slate-600 font-mono">{new Date(currentBill.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            
+                  {/* RIGHT PORTION: LIVE HIGH-DENSITY SELECTIONS (md:col-span-5) */}
+                <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm flex flex-col overflow-hidden">
+                  <div className="pb-3 mb-3 border-b border-slate-200 flex justify-between items-center shrink-0">
+                    <h4 className="text-[11px] font-extrabold uppercase text-slate-700 tracking-widest">
                       Live Terminal Cart
                     </h4>
-                    <span className="text-[10px] font-bold font-mono text-indigo-400">
+                    <span className="text-[10px] font-bold font-mono text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md">
                       {selectedRooms.length + selectedFoods.length} items
                     </span>
                   </div>
@@ -1469,8 +1513,8 @@ export const Billing: React.FC<BillingProps> = ({
                     
                     {/* Selected Rooms Sub-List */}
                     <div className="space-y-2">
-                      <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-1">
-                        <Bed className="h-3 w-3 text-indigo-400" />
+                      <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1 flex items-center gap-1">
+                        <Bed className="h-3 w-3 text-blue-500" />
                         Allocated Rooms ({selectedRooms.length})
                       </div>
 
@@ -1482,14 +1526,14 @@ export const Billing: React.FC<BillingProps> = ({
                         return (
                           <div
                             key={rm.roomId}
-                            className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl space-y-2"
+                            className="bg-blue-50 border border-blue-200 p-2.5 rounded-xl space-y-2"
                           >
                             <div className="flex justify-between items-start">
                               <div>
-                                <span className="font-bold text-xs text-slate-100 block">
+                                <span className="font-bold text-xs text-slate-900 block">
                                   Room {rm.roomNumber} ({rm.roomType})
                                 </span>
-                                <span className="text-[10px] text-slate-405 font-mono">
+                                <span className="text-slate-600 text-[10px] text-slate-405 font-mono">
                                   Stay: {rm.nights || 1} {rm.nights === 1 ? 'night' : 'nights'}
                                 </span>
                               </div>
@@ -1499,7 +1543,7 @@ export const Billing: React.FC<BillingProps> = ({
                                 type="button"
                                 onClick={() => handleRemoveRoom(rm.roomId)}
                                 disabled={currentUser?.role === 'receptionist' && settings?.allowReceptionistDelete === false}
-                                className={`text-slate-500 hover:text-red-400 transition-colors bg-transparent border-0 cursor-pointer p-1 ${
+                                className={`text-slate-400 hover:text-red-600 transition-colors bg-transparent border-0 cursor-pointer p-1 ${
                                   currentUser?.role === 'receptionist' && settings?.allowReceptionistDelete === false
                                     ? "opacity-30 cursor-not-allowed"
                                     : ""
@@ -1510,10 +1554,10 @@ export const Billing: React.FC<BillingProps> = ({
                               </button>
                             </div>
 
-                            <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1.5 border-t border-slate-800/60">
+                            <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1.5 border-t border-blue-200">
                               {/* Inline Room Discount Amount Setting */}
-                              <div className="flex items-center gap-1 bg-slate-955 border border-slate-800 p-1 rounded-lg">
-                                <span className="text-[8px] uppercase font-extrabold text-slate-400 px-1">
+                              <div className="flex items-center gap-1 bg-white border border-blue-200 p-1 rounded-lg">
+                                <span className="text-[8px] uppercase font-extrabold text-slate-500 px-1">
                                   Disc
                                 </span>
                                 <input
@@ -1523,7 +1567,7 @@ export const Billing: React.FC<BillingProps> = ({
                                   placeholder="0"
                                   disabled={currentUser?.role === 'receptionist' && settings?.allowReceptionistDiscount === false}
                                   title={currentUser?.role === 'receptionist' && settings?.allowReceptionistDiscount === false ? "Discounts disabled by Admin configuration" : "Set room discount"}
-                                  className={`w-14 text-center text-[10px] font-bold bg-slate-900 text-rose-400 border border-slate-800 rounded p-0.5 focus:outline-hidden ${
+                                  className={`w-14 text-center text-[10px] font-bold bg-blue-50 text-rose-600 border border-blue-200 rounded p-0.5 focus:outline-hidden ${
                                     currentUser?.role === 'receptionist' && settings?.allowReceptionistDiscount === false
                                       ? "opacity-50 cursor-not-allowed"
                                       : ""
@@ -1558,7 +1602,7 @@ export const Billing: React.FC<BillingProps> = ({
                                     Rs. {originalPriceTotal}
                                   </p>
                                 )}
-                                <span className="font-mono font-bold text-slate-200 text-xs text-rose-350">
+                                <span className="font-mono font-bold text-slate-900 text-xs">
                                   Rs. {finalCost}
                                 </span>
                               </div>
@@ -1569,49 +1613,49 @@ export const Billing: React.FC<BillingProps> = ({
                     </div>
 
                     {/* Selected Cuisine Meals Sub-List */}
-                    <div className="space-y-2 pt-2 border-t border-slate-800/60">
-                      <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-1">
-                        <Coffee className="h-3 w-3 text-amber-500" />
+                    <div className="space-y-2 pt-2 border-t border-slate-200">
+                      <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1 flex items-center gap-1">
+                        <Coffee className="h-3 w-3 text-amber-600" />
                         Kitchen Meals ({selectedFoods.length})
                       </div>
 
                       {selectedFoods.map((fd) => (
                         <div
                           key={fd.foodId}
-                          className="bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex items-center justify-between gap-2"
+                          className="bg-amber-50 border border-amber-200 p-2.5 rounded-xl flex items-center justify-between gap-2"
                         >
                           <div className="min-w-0 flex-1">
-                            <span className="font-bold text-xs text-slate-100 block truncate">
+                            <span className="font-bold text-xs text-slate-900 block truncate">
                               {fd.foodName}
                             </span>
-                            <span className="text-[10px] text-slate-405 font-mono">
+                            <span className="text-slate-600 text-[10px] font-mono">
                               Unit: Rs. {fd.price}
                             </span>
                           </div>
 
                           <div className="flex items-center gap-2.5 shrink-0">
                             {/* Qty Controls */}
-                            <div className="flex items-center border border-slate-800 bg-slate-950 rounded-lg p-0.5">
+                            <div className="flex items-center border border-amber-200 bg-white rounded-lg p-0.5">
                               <button
                                 type="button"
                                 onClick={() => updateFoodQty(fd.foodId, -1)}
-                                className="px-1.5 py-0.5 text-[10px] font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors bg-transparent border-0 cursor-pointer"
+                                className="px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:text-slate-900 hover:bg-amber-100 transition-colors bg-transparent border-0 cursor-pointer"
                               >
                                 -
                               </button>
-                              <span className="px-2 text-[10px] font-bold font-mono text-slate-200">
+                              <span className="px-2 text-[10px] font-bold font-mono text-slate-700">
                                 {fd.quantity}
                               </span>
                               <button
                                 type="button"
                                 onClick={() => updateFoodQty(fd.foodId, 1)}
-                                className="px-1.5 py-0.5 text-[10px] font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors bg-transparent border-0 cursor-pointer"
+                                className="px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:text-slate-900 hover:bg-amber-100 transition-colors bg-transparent border-0 cursor-pointer"
                               >
                                 +
                               </button>
                             </div>
 
-                            <span className="font-mono font-bold text-slate-200 text-xs w-16 text-right">
+                            <span className="font-mono font-bold text-slate-900 text-xs w-16 text-right">
                               Rs. {fd.price * fd.quantity}
                             </span>
 
@@ -1620,7 +1664,7 @@ export const Billing: React.FC<BillingProps> = ({
                               type="button"
                               onClick={() => handleRemoveFood(fd.foodId)}
                               disabled={currentUser?.role === 'receptionist' && settings?.allowReceptionistDelete === false}
-                              className={`text-slate-500 hover:text-red-400 transition-colors bg-transparent border-0 cursor-pointer p-1 ${
+                              className={`text-slate-400 hover:text-red-600 transition-colors bg-transparent border-0 cursor-pointer p-1 ${
                                 currentUser?.role === 'receptionist' && settings?.allowReceptionistDelete === false
                                   ? "opacity-30 cursor-not-allowed"
                                   : ""
@@ -1635,27 +1679,29 @@ export const Billing: React.FC<BillingProps> = ({
                     </div>
 
                     {selectedRooms.length === 0 && selectedFoods.length === 0 && (
-                      <p className="text-center py-8 text-[11px] text-slate-500 italic font-sans dark:text-slate-500">
+                      <p className="text-center py-8 text-[11px] text-slate-500 italic font-sans">
                         Terminal cart is empty. Tap items on the left side to instantly allocate rooms and meals.
                       </p>
                     )}
 
                   </div>
                 </div>
-
-              </div>
-            </div>
-
-            {/* COLUMN 3: RIGHT PANEL - ⚡ LIVE LEDGER TOTALS & CHECKOUT SCREEN (span 4) */}
-            <div className="lg:col-span-4 space-y-4">
-                <h3 className="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-slate-50">
-                  <Layers className="h-4 w-4 text-indigo-500" />
-                  Terminal Live Totals Sheet
-                </h3>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    <div className="py-4 text-center">
+                      <p className="text-[11px] text-slate-400 font-sans italic">
+                        New bill summary will appear here once customer and items are selected
+                      </p>
+                    </div>
+                  )}
+                </div>
 
                 <div className="text-xs font-sans space-y-2.5">
                   <div className="flex justify-between text-slate-550">
-                    <span>Cuisine Base Price</span>
+                    <span>Food Base Price</span>
                     <span className="font-semibold text-slate-800">
                       Rs. {foodSubtotal.toLocaleString()}
                     </span>
@@ -1663,7 +1709,7 @@ export const Billing: React.FC<BillingProps> = ({
 
                   {foodSubtotal > 0 && (
                     <div className="flex justify-between text-[11px] text-slate-450 px-2 py-1 bg-yellow-50/60 border border-yellow-100 rounded-sm">
-                      <span>Cuisine service charge ({settings?.serviceChargePercent ?? 10}%)</span>
+                      <span>Food service charge ({settings?.serviceChargePercent ?? 10}%)</span>
                       <span className="font-bold text-yellow-700">
                         Rs. {serviceCharge.toLocaleString()}
                       </span>
@@ -1703,6 +1749,8 @@ export const Billing: React.FC<BillingProps> = ({
                 {((customerInputMode === "new" && newGuestName.trim() && newGuestNic.trim()) ||
                   (customerInputMode === "existing" && selectedGuest)) ? (
                   <div className="space-y-2 pt-3 border-t border-slate-100">
+                    
+                    
                     <button
                       type="button"
                       onClick={() => handleSaveBill("Active")}
@@ -1711,6 +1759,8 @@ export const Billing: React.FC<BillingProps> = ({
                       <Clock className="h-4 w-4" />
                       Make Active Check-Stay
                     </button>
+
+
 
                     <button
                       type="button"

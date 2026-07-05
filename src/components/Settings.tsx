@@ -224,49 +224,7 @@ const permissionDefinitions: PermissionDef[] = [
 ];
 
 export const Settings: React.FC<SettingsProps> = ({ currentUser }) => {
-  const [settings, setSettings] = useState<SystemSettings>({
-    hotelName: 'Mount Ash Villa',
-    phone: '+94 52 222 3456',
-    address: 'No. 24, Ash Mount Road, Nuwara Eliya, Sri Lanka',
-    currency: 'Rs.',
-    serviceChargePercent: 10,
-    vatPercent: 0,
-    allowReceptionistDelete: false,
-    allowReceptionistDiscount: false,
-    allowReceptionistModifyPrice: false,
-    allowManagerSalaryChange: false,
-    allowManagerUserEdit: true,
-    allowReceptionistAddFoods: false,
-    allowReceptionistEditFoods: false,
-    allowReceptionistDeleteFoods: false,
-    allowReceptionistManageGuests: true,
-    allowReceptionistAddExpenses: false,
-    allowReceptionistAddRooms: false,
-    allowReceptionistEditRooms: false,
-    allowReceptionistDeleteRooms: false,
-    allowManagerManageRooms: true,
-    allowManagerAddRooms: true,
-    allowManagerEditRooms: true,
-    allowManagerDeleteRooms: true,
-    allowManagerAddFoods: true,
-    allowManagerEditFoods: true,
-    allowManagerDeleteFoods: true,
-    allowManagerViewReports: true,
-    allowManagerDeleteExpenses: false,
-    taxNumber: '',
-    email: 'reservations@grandpalace.com',
-    checkInTime: '14:00',
-    checkOutTime: '12:00',
-    receiptFooterMessage: 'Thank you for staying with us! Please visit again.',
-    printerType: 'thermal',
-    paperWidth: '80mm',
-    printerConnection: 'browser',
-    printerIpAddress: '192.168.1.100',
-    autoPrintOnSettle: false,
-    showLogoOnReceipt: true,
-    showTaxDetails: true,
-  });
-
+  const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -287,7 +245,7 @@ export const Settings: React.FC<SettingsProps> = ({ currentUser }) => {
       const res = await fetch('/api/settings');
       if (res.ok) {
         const data = await res.json();
-        setSettings(prev => ({ ...prev, ...data }));
+        setSettings(data);
       } else {
         setErrorMsg('Failed to fetch system settings from database.');
       }
@@ -300,6 +258,7 @@ export const Settings: React.FC<SettingsProps> = ({ currentUser }) => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!settings) return;
     if (currentUser.role !== 'admin') {
       setErrorMsg('Unauthorized: Only administrators are permitted to save settings.');
       return;
@@ -323,7 +282,7 @@ export const Settings: React.FC<SettingsProps> = ({ currentUser }) => {
 
       if (res.ok) {
         const data = await res.json();
-        setSettings(prev => ({ ...prev, ...data }));
+        setSettings(data);
         setSuccessMsg('System configuration and role privileges updated successfully.');
         
         // Expose settings to local storage as client cache helper
@@ -399,6 +358,16 @@ export const Settings: React.FC<SettingsProps> = ({ currentUser }) => {
           </div>
         </div>
         <p className="text-[11px] text-slate-400 italic">Please authenticate using the admin passcode if required.</p>
+      </div>
+    );
+  }
+
+  // Guard for null settings
+  if (!settings) {
+    return (
+      <div className="flex flex-col items-center justify-center p-20 space-y-3 bg-white border border-slate-200/60 rounded-3xl shrink-0 min-h-[400px]">
+        <RefreshCw className="h-8 w-8 text-indigo-500 animate-spin" />
+        <p className="text-sm font-semibold text-slate-500 font-sans tracking-wide">Loading Settings from Database...</p>
       </div>
     );
   }
@@ -777,320 +746,38 @@ export const Settings: React.FC<SettingsProps> = ({ currentUser }) => {
 
           </div>
 
-          {/* Column Right (Privileges) - Spans 5 cols */}
+         {/* Column Right (Role Permissions) - Spans 5 cols */}
           <div className="lg:col-span-5 space-y-6">
 
-            {/* Dynamic Staff Security Matrix Container */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200/50 shadow-xs space-y-5">
+            {/* Role Privileges Block */}
+            {/*manager and receptionist permissions*/
+            }
+
+            <div className="bg-white p-6 rounded-3xl border border-slate-200/50 shadow-xs space-y-4">
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                  <Users className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-display font-medium text-sm text-slate-800">Role Privileges & Permissions</h3>
+                  <p className="text-[10px] text-slate-400">Enable or disable specific features for receptionists and managers</p>
+                </div>
+              </div>
+
+              {/*manager permissions*/}
               
-              {/* Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-                    <Shield className="h-4.5 w-4.5 text-indigo-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-display font-medium text-sm text-slate-800">Dynamic Staff Permissions</h3>
-                    <p className="text-[10px] text-slate-404 text-slate-400 font-sans">Toggle operational boundaries for system operator accounts</p>
-                  </div>
-                </div>
 
-                <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-150 text-[9px] font-black rounded uppercase tracking-wider">
-                  Live Matrix
-                </span>
-              </div>
+              <hr className="my-3 border-slate-100" />
 
-              {/* Presets Row */}
-              <div className="p-2 py-2.5 bg-slate-50/50 rounded-2xl border border-slate-200/40 space-y-2">
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block pl-1">Apply Preset Security Configuration:</span>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSettings(prev => ({
-                        ...prev,
-                        allowReceptionistDelete: false,
-                        allowReceptionistDiscount: false,
-                        allowReceptionistModifyPrice: false,
-                        allowReceptionistAddRooms: false,
-                        allowReceptionistEditRooms: false,
-                        allowReceptionistDeleteRooms: false,
-                        allowReceptionistAddFoods: false,
-                        allowReceptionistEditFoods: false,
-                        allowReceptionistDeleteFoods: false,
-                        allowReceptionistManageGuests: true,
-                        allowReceptionistAddExpenses: false,
-                        allowManagerSalaryChange: false,
-                        allowManagerUserEdit: true,
-                        allowManagerManageRooms: true,
-                        allowManagerAddRooms: true,
-                        allowManagerEditRooms: true,
-                        allowManagerDeleteRooms: false,
-                        allowManagerAddFoods: true,
-                        allowManagerEditFoods: true,
-                        allowManagerDeleteFoods: false,
-                        allowManagerViewReports: true,
-                        allowManagerDeleteExpenses: false,
-                      }));
-                      setSuccessMsg('Operational boundary preset (RESTRICTIVE MODE) applied. Click Commit Settings.');
-                      setTimeout(() => setSuccessMsg(null), 4000);
-                    }}
-                    className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[9px] font-bold rounded-xl transition-all cursor-pointer text-center outline-none leading-tight"
-                  >
-                    🛡️ Restrictive
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSettings(prev => ({
-                        ...prev,
-                        allowReceptionistDelete: false,
-                        allowReceptionistDiscount: false,
-                        allowReceptionistModifyPrice: false,
-                        allowReceptionistAddRooms: false,
-                        allowReceptionistEditRooms: false,
-                        allowReceptionistDeleteRooms: false,
-                        allowReceptionistAddFoods: false,
-                        allowReceptionistEditFoods: false,
-                        allowReceptionistDeleteFoods: false,
-                        allowReceptionistManageGuests: true,
-                        allowReceptionistAddExpenses: false,
-                        allowManagerSalaryChange: false,
-                        allowManagerUserEdit: true,
-                        allowManagerManageRooms: true,
-                        allowManagerAddRooms: true,
-                        allowManagerEditRooms: true,
-                        allowManagerDeleteRooms: true,
-                        allowManagerAddFoods: true,
-                        allowManagerEditFoods: true,
-                        allowManagerDeleteFoods: true,
-                        allowManagerViewReports: true,
-                        allowManagerDeleteExpenses: false,
-                      }));
-                      setSuccessMsg('Operational boundary preset (STANDARD DEFAULTS) applied. Click Commit Settings.');
-                      setTimeout(() => setSuccessMsg(null), 4000);
-                    }}
-                    className="p-2 bg-slate-100 hover:bg-slate-200/80 text-slate-600 border border-slate-200 text-[9px] font-bold rounded-xl transition-all cursor-pointer text-center outline-none leading-tight"
-                  >
-                    ⚙️ Defaults
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSettings(prev => ({
-                        ...prev,
-                        allowReceptionistDelete: true,
-                        allowReceptionistDiscount: true,
-                        allowReceptionistModifyPrice: true,
-                        allowReceptionistAddRooms: true,
-                        allowReceptionistEditRooms: true,
-                        allowReceptionistDeleteRooms: true,
-                        allowReceptionistAddFoods: true,
-                        allowReceptionistEditFoods: true,
-                        allowReceptionistDeleteFoods: true,
-                        allowReceptionistManageGuests: true,
-                        allowReceptionistAddExpenses: true,
-                        allowManagerSalaryChange: true,
-                        allowManagerUserEdit: true,
-                        allowManagerManageRooms: true,
-                        allowManagerAddRooms: true,
-                        allowManagerEditRooms: true,
-                        allowManagerDeleteRooms: true,
-                        allowManagerAddFoods: true,
-                        allowManagerEditFoods: true,
-                        allowManagerDeleteFoods: true,
-                        allowManagerViewReports: true,
-                        allowManagerDeleteExpenses: true,
-                      }));
-                      setSuccessMsg('Operational boundary preset (HIGH AUTONOMY) applied. Click Commit Settings.');
-                      setTimeout(() => setSuccessMsg(null), 4000);
-                    }}
-                    className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[9px] font-bold rounded-xl transition-all cursor-pointer text-center outline-none leading-tight"
-                  >
-                    🚀 Full Power
-                  </button>
-                </div>
-              </div>
+              {/*receptionist permissions*/}
+              
+               
+               
 
-              {/* Dynamic Filter Input */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Filter privileges (e.g. Delete, Food, etc)..."
-                  className="w-full pl-9 pr-7 py-2 text-slate-800 placeholder-slate-400 bg-slate-50 hover:bg-slate-50/80 border border-slate-200 focus:bg-white transition-all rounded-xl text-xs outline-none"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 hover:text-slate-700 border-0 bg-transparent cursor-pointer"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-
-              {/* Operational toggles matrix rendering */}
-              <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1">
-                
-                {permissionDefinitions.filter(p => {
-                  return searchQuery === '' || 
-                    p.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                    p.description.toLowerCase().includes(searchQuery.toLowerCase());
-                }).length === 0 && (
-                  <div className="text-center py-6 text-slate-400 text-[10px] font-sans">
-                    No matching staff privileges found. Try checking your spelling.
-                  </div>
-                )}
-
-                {[
-                  { key: 'Room', label: 'Room operational privileges', icon: Bed, colorText: 'text-indigo-600', colorBg: 'bg-indigo-50/20', colorBorder: 'border-indigo-150', colorToggle: 'bg-indigo-600', borderLine: 'border-indigo-50/50' },
-                  { key: 'Food', label: 'Food & Dining operational privileges', icon: Utensils, colorText: 'text-emerald-600', colorBg: 'bg-emerald-50/20', colorBorder: 'border-emerald-150', colorToggle: 'bg-emerald-600', borderLine: 'border-emerald-50/50' },
-                  { key: 'Report', label: 'Report & Statistics privileges', icon: TrendingUp, colorText: 'text-purple-600', colorBg: 'bg-purple-50/20', colorBorder: 'border-purple-150', colorToggle: 'bg-purple-600', borderLine: 'border-purple-50/50' },
-                  { key: 'Staff', label: 'Staff & Guest directories access', icon: Users, colorText: 'text-sky-600', colorBg: 'bg-sky-50/20', colorBorder: 'border-sky-150', colorToggle: 'bg-sky-600', borderLine: 'border-sky-50/50' },
-                  { key: 'Expenses', label: 'Expenses & voids boundaries', icon: Receipt, colorText: 'text-rose-600', colorBg: 'bg-rose-50/20', colorBorder: 'border-rose-150', colorToggle: 'bg-rose-600', borderLine: 'border-rose-50/50' }
-                ].map(cat => {
-                  const filtered = permissionDefinitions.filter(p => {
-                    const meetsSearch = searchQuery === '' || 
-                      p.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                      p.description.toLowerCase().includes(searchQuery.toLowerCase());
-                    return meetsSearch && p.category === cat.key;
-                  });
-
-                  if (filtered.length === 0) return null;
-
-                  return (
-                    <div key={cat.key} className="space-y-2 first:pt-0 pt-2">
-                      <div className="flex items-center gap-1.5 pb-1 border-b border-slate-100">
-                        <cat.icon className={`h-3.5 w-3.5 ${cat.colorText}`} />
-                        <p className={`text-[9px] font-black uppercase tracking-widest ${cat.colorText}`}>{cat.label}</p>
-                      </div>
-                      <div className="space-y-1.5">
-                        {filtered.map(perm => {
-                          const isChecked = !!settings[perm.key];
-                          return (
-                            <div
-                              key={perm.key}
-                              onClick={() => {
-                                setSettings(prev => ({ ...prev, [perm.key]: !prev[perm.key] }));
-                              }}
-                              className={`p-2.5 px-3 rounded-xl border transition-all duration-100 cursor-pointer flex items-center justify-between gap-3 select-none ${
-                                isChecked ? `${cat.colorBorder} ${cat.colorBg}` : 'border-slate-100 hover:bg-slate-50/60'
-                              }`}
-                            >
-                              <div className="space-y-0.5 pr-2">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="text-xs font-bold text-slate-800">{perm.title}</span>
-                                  <span className={`px-1 text-[7px] font-black rounded uppercase leading-relaxed tracking-wider border ${
-                                    perm.role === 'manager' 
-                                      ? 'bg-amber-50 text-amber-700 border-amber-100' 
-                                      : 'bg-indigo-50 text-indigo-700 border-indigo-100'
-                                  }`}>
-                                    {perm.role}
-                                  </span>
-                                  {perm.sensitive && (
-                                    <span className="px-1 text-[7px] font-black bg-rose-50 text-rose-600 border border-rose-100 rounded leading-relaxed uppercase tracking-wider">Audited</span>
-                                  )}
-                                </div>
-                                <p className="text-[10px] text-slate-400 font-sans leading-normal">{perm.description}</p>
-                              </div>
-
-                              <button
-                                type="button"
-                                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-250 ease-in-out border-0 ${
-                                  isChecked ? cat.colorToggle : 'bg-slate-200'
-                                }`}
-                              >
-                                <span
-                                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out ${
-                                    isChecked ? 'translate-x-4' : 'translate-x-0'
-                                  }`}
-                                />
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-
-              </div>
 
             </div>
-
-            {/* Simulated Access Previews */}
-            <div className="bg-slate-900 text-slate-100 p-5 rounded-3xl border border-slate-800 space-y-3.5 shadow-sm font-sans">
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
-                <Eye className="h-4 w-4 text-indigo-400" />
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">Live Boundary Safeguards</span>
-              </div>
-              <p className="text-[10px] text-slate-400 leading-normal">
-                Real-time simulation showing what capabilities system roles currently have. Yellow/red indicates active restrictions.
-              </p>
-
-              <div className="space-y-3.5 font-sans">
-                {/* Receptionist */}
-                <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1.5">
-                  <div className="flex items-center justify-between border-b border-slate-900 pb-1.5">
-                    <span className="text-[9px] font-bold text-indigo-400 uppercase">Clerk Receptionist access</span>
-                    <span className="text-[8px] bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-1 rounded">Rank 1</span>
-                  </div>
-                  <div className="space-y-1 text-[9px] text-slate-400 font-sans">
-                    <div className="flex items-center justify-between">
-                      <span>Void Stay Bills:</span>
-                      {settings.allowReceptionistDelete ? <span className="text-emerald-400 font-bold">Allowed</span> : <span className="text-amber-500/90 font-bold">🔒 Protected</span>}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Edit Room Rates:</span>
-                      {settings.allowReceptionistModifyPrice ? <span className="text-emerald-400 font-bold">Allowed</span> : <span className="text-slate-500">ReadOnly</span>}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Log Outflow Expenses:</span>
-                      {settings.allowReceptionistAddExpenses ? <span className="text-emerald-400 font-bold">Allowed</span> : <span className="text-slate-500">Restricted</span>}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Manager */}
-                <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1.5">
-                  <div className="flex items-center justify-between border-b border-slate-900 pb-1.5">
-                    <span className="text-[9px] font-bold text-amber-550 text-amber-500 uppercase">Supervisor Manager access</span>
-                    <span className="text-[8px] bg-amber-500/10 text-amber-300 border border-amber-500/20 px-1 rounded">Rank 2</span>
-                  </div>
-                  <div className="space-y-1 text-[9px] text-slate-400 font-sans">
-                    <div className="flex items-center justify-between">
-                      <span>Inspect Financial Reports:</span>
-                      {settings.allowManagerViewReports ? <span className="text-emerald-400 font-bold">Allowed</span> : <span className="text-red-400 font-bold">🔒 Restricted</span>}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Edit Base Salaries:</span>
-                      {settings.allowManagerSalaryChange ? <span className="text-emerald-400 font-bold">Allowed</span> : <span className="text-red-400 font-bold">⚡ Restricted</span>}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Alter Other Accounts:</span>
-                      {settings.allowManagerUserEdit ? <span className="text-emerald-400 font-bold">Allowed</span> : <span className="text-slate-500">Restricted</span>}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Safety policy disclaimer */}
-            <div className="bg-amber-50/50 p-5 rounded-3xl border border-amber-200/50 text-xs text-amber-800 space-y-2">
-              <div className="flex items-center gap-1.5 font-bold">
-                <Info className="h-4 w-4 text-amber-605" /> Setting Guidelines & Governance
-              </div>
-              <p className="text-slate-600 font-sans leading-relaxed text-[10px]">
-                Enforced role constraints operate in real-time. Inactive privileges will instantly lock specific controls across the <strong>POS Terminal</strong>, <strong>Room Stock</strong>, and <strong>Wages Ledger</strong> views for those users.
-              </p>
-            </div>
-
+            
           </div>
-
         </div>
 
       </form>

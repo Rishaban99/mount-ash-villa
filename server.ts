@@ -764,22 +764,31 @@ app.post('/api/settings', async (req, res) => {
 
     const previousSettings = await getSettings();
     const updatedSettings = await saveSettings(settings);
-    await recordAudit({
-      req,
-      action: 'UPDATE',
-      entityType: 'settings',
-      entityId: 'system_settings',
-      entityLabel: 'System Settings',
-      summary: 'Updated system settings',
-      details: buildUpdateDetails(
-        previousSettings as unknown as Record<string, unknown>,
-        updatedSettings as unknown as Record<string, unknown>,
-        ['hotelName', 'allowManagerViewReports', 'allowManagerUserEdit', 'allowReceptionistAddExpenses']
-      ),
-    });
+    
+    try {
+      await recordAudit({
+        req,
+        action: 'UPDATE',
+        entityType: 'settings',
+        entityId: 'system_settings',
+        entityLabel: 'System Settings',
+        summary: 'Updated system settings',
+        details: buildUpdateDetails(
+          previousSettings as unknown as Record<string, unknown>,
+          updatedSettings as unknown as Record<string, unknown>,
+          ['hotelName', 'allowManagerViewReports', 'allowManagerUserEdit', 'allowReceptionistAddExpenses']
+        ),
+      });
+    } catch (auditError) {
+      console.warn('Audit log failed but settings were saved:', auditError);
+      // Don't fail the request if audit fails, just warn
+    }
+    
     res.json(updatedSettings);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to update system settings' });
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Settings update error:', errorMsg, error);
+    res.status(500).json({ error: `Failed to update system settings: ${errorMsg}` });
   }
 });
 
