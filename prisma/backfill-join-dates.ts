@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { prisma } from '../server/prisma';
+import { prisma } from '../lib/prisma';
 
 const JOIN_DATE_BY_USERNAME: Record<string, string> = {
   rishaban: '2026-05-01',

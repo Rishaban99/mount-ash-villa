@@ -1,20 +1,64 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Mount Ash Villa
 
-# Run and deploy your AI Studio app
+Hotel POS & terminal management app built with Next.js, Prisma, and MongoDB.
 
-This contains everything you need to run your app locally.
+## Prerequisites
 
-View your app in AI Studio: https://ai.studio/apps/521ebfb6-a48c-4c6b-839a-a053cfc95e0b
+- Node.js 20.9+ (Next.js 16 requirement)
+- MongoDB Atlas (or local MongoDB) connection string
 
-## Run Locally
-
-**Prerequisites:**  Node.js
-
+## Setup
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+
+   ```bash
+   npm install
+   ```
+
+2. Copy environment variables:
+
+   ```bash
+   cp .env.example .env.local
+   ```
+
+   Set `DATABASE_URL` and `SESSION_SECRET` in `.env.local`.
+
+3. Push schema and seed (optional):
+
+   ```bash
+   npm run db:push
+   npm run db:seed
+   ```
+
+## Development
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+## Production
+
+```bash
+npm run build
+npm start
+```
+
+## Deploy on Vercel
+
+1. Import the repository in Vercel.
+2. Set environment variables: `DATABASE_URL`, `SESSION_SECRET`, and optional seed vars.
+3. Deploy — Next.js is detected automatically (no custom `vercel.json` needed).
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start Next.js dev server |
+| `npm run build` | Generate Prisma client and build for production |
+| `npm start` | Run production server |
+| `npm run lint` | Type-check with TypeScript |
+| `npm run db:push` | Push Prisma schema to database |
+| `npm run db:seed` | Seed initial data |
+| `npm run db:studio` | Open Prisma Studio |

@@ -1,4 +1,4 @@
-import type { SystemSettings } from '../src/types';
+import type { SystemSettings } from '@/lib/types';
 
 export const DEFAULT_SETTINGS: SystemSettings = {
   hotelName: 'Hotel POS System',

@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { prisma } from '../server/prisma';
+import { prisma } from '../lib/prisma';
 import { UserRole, RoomType, RoomStatus, BillStatus, MemoType } from '@prisma/client';
 import { DEFAULT_SETTINGS } from './defaults';
 
@@ -224,7 +224,7 @@ async function main() {
       },
     ],
   });
-  await prisma.settings.create({ data: DEFAULT_SETTINGS });
+  await prisma.settings.create({ data: { id: 'system_settings', ...DEFAULT_SETTINGS } });
   await prisma.memo.createMany({
     data: [
       {
