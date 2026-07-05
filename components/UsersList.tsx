@@ -31,8 +31,11 @@ import {
   Coins,
   FileSpreadsheet,
   CheckCircle,
+  Loader2,
 } from 'lucide-react';
+import { LoadingButton } from '@/components/loading-button';
 import { apiFetch } from '@/lib/api';
+import { toastCreated, toastUpdated, toastError } from '@/lib/crud-toast';
 import { useAuth } from '@/components/auth-provider';
 import { hasPermission } from '@/lib/permissions';
 
@@ -53,6 +56,8 @@ export const UsersList: React.FC = () => {
   const [showPasscode, setShowPasscode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [savingSalaryUserId, setSavingSalaryUserId] = useState<string | null>(null);
+  const [savingJoinDateUserId, setSavingJoinDateUserId] = useState<string | null>(null);
 
   // States for inline salary edit
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
@@ -197,6 +202,7 @@ export const UsersList: React.FC = () => {
         throw new Error(data.error || 'Failed to create account.');
       }
 
+      toastCreated('User');
       await fetchUsers();
       setIsModalOpen(false);
       setUsername('');
@@ -206,6 +212,7 @@ export const UsersList: React.FC = () => {
       setJoinDate(new Date().toISOString().split('T')[0]);
       setShowPasscode(false);
     } catch (err: any) {
+      toastError(err.message);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -214,9 +221,10 @@ export const UsersList: React.FC = () => {
 
   const handleUpdateSalary = async (userId: string, newSalary: number) => {
     if (isNaN(newSalary) || newSalary <= 0) {
-      alert('Please enter a valid salary amount.');
+      toastError('Please enter a valid salary amount.');
       return;
     }
+    setSavingSalaryUserId(userId);
     try {
       const userToUpdate = users.find(u => u.id === userId);
       const existingMonthlySalaries = userToUpdate?.monthlyBaseSalaries || {};
@@ -234,15 +242,18 @@ export const UsersList: React.FC = () => {
           monthlyBaseSalaries: updatedMonthlySalaries
         }),
       });
+      const d = await res.json().catch(() => ({}));
       if (res.ok) {
+        toastUpdated('Salary');
         setEditingUserId(null);
         await fetchUsers();
       } else {
-        const d = await res.json();
-        alert(d.error || 'Failed to update salary');
+        toastError(d.error || 'Failed to update salary');
       }
-    } catch (e) {
-      console.error('Salary update exception:', e);
+    } catch (e: any) {
+      toastError(e.message || 'Failed to update salary');
+    } finally {
+      setSavingSalaryUserId(null);
     }
   };
 
@@ -293,20 +304,18 @@ export const UsersList: React.FC = () => {
         throw new Error('Expense registered, but user profile state stamp failed.');
       }
 
-      setPaySuccessMessage(`Successfully recorded salary of Rs. ${disbursementAmount.toLocaleString()} paid to ${selectedUser.name}!`);
-      
-      // Update data states
+      toastCreated('Payroll disbursement');
+
       await fetchUsers();
       await fetchSalariesHistory();
 
-      setTimeout(() => {
-        setIsPayModalOpen(false);
-        setPaySuccessMessage(null);
-        setSelectedUser(null);
-        setPaymentNote('');
-      }, 2500);
+      setIsPayModalOpen(false);
+      setPaySuccessMessage(null);
+      setSelectedUser(null);
+      setPaymentNote('');
 
     } catch (err: any) {
+      toastError(err.message || 'Wage disbursement aborted due to a database exception.');
       setError(err.message || 'Wage disbursement aborted due to a database exception.');
     } finally {
       setLoading(false);
@@ -335,11 +344,13 @@ export const UsersList: React.FC = () => {
         throw new Error(data.error || 'Failed to mark employee as left.');
       }
 
+      toastUpdated('Employee status');
       await fetchUsers();
       setIsLeftModalOpen(false);
       setUserToMarkLeft(null);
       setLeftDate(todayISO());
     } catch (err: any) {
+      toastError(err.message);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -348,24 +359,28 @@ export const UsersList: React.FC = () => {
 
   const handleUpdateJoinDate = async (userId: string, newJoinDate: string) => {
     if (!newJoinDate) {
-      alert('Please enter a valid salary start date.');
+      toastError('Please enter a valid salary start date.');
       return;
     }
+    setSavingJoinDateUserId(userId);
     try {
       const res = await apiFetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: userId, joinDate: newJoinDate }),
       });
+      const d = await res.json().catch(() => ({}));
       if (res.ok) {
+        toastUpdated('Salary start date');
         setEditingJoinDateUserId(null);
         await fetchUsers();
       } else {
-        const d = await res.json();
-        alert(d.error || 'Failed to update salary start date');
+        toastError(d.error || 'Failed to update salary start date');
       }
-    } catch (e) {
-      console.error('Join date update exception:', e);
+    } catch (e: any) {
+      toastError(e.message || 'Failed to update salary start date');
+    } finally {
+      setSavingJoinDateUserId(null);
     }
   };
 
@@ -663,19 +678,26 @@ export const UsersList: React.FC = () => {
                               <input
                                 type="date"
                                 value={tempJoinDate}
+                                disabled={savingJoinDateUserId === u.id}
                                 onChange={(e) => setTempJoinDate(e.target.value)}
-                                className="text-[10px] border border-slate-200 rounded-md px-1 py-0.5"
+                                className="text-[10px] border border-slate-200 rounded-md px-1 py-0.5 disabled:opacity-50"
                               />
                               <button
                                 onClick={() => handleUpdateJoinDate(u.id, tempJoinDate)}
-                                className="p-0.5 text-emerald-600 border-0 bg-transparent cursor-pointer"
+                                disabled={savingJoinDateUserId === u.id}
+                                className="p-0.5 text-emerald-600 border-0 bg-transparent cursor-pointer disabled:opacity-50"
                                 title="Save"
                               >
-                                <Check className="h-3 w-3" />
+                                {savingJoinDateUserId === u.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Check className="h-3 w-3" />
+                                )}
                               </button>
                               <button
                                 onClick={() => setEditingJoinDateUserId(null)}
-                                className="p-0.5 text-slate-400 border-0 bg-transparent cursor-pointer"
+                                disabled={savingJoinDateUserId === u.id}
+                                className="p-0.5 text-slate-400 border-0 bg-transparent cursor-pointer disabled:opacity-50"
                                 title="Cancel"
                               >
                                 <X className="h-3 w-3" />
@@ -771,20 +793,27 @@ export const UsersList: React.FC = () => {
                                 <input
                                   type="number"
                                   value={tempSalary}
+                                  disabled={savingSalaryUserId === u.id}
                                   onChange={(e) => setTempSalary(e.target.value)}
-                                  className="w-16 text-center outline-none border-0 text-xs font-bold text-slate-800"
+                                  className="w-16 text-center outline-none border-0 text-xs font-bold text-slate-800 disabled:opacity-50"
                                   autoFocus
                                 />
                                 <button
                                   onClick={() => handleUpdateSalary(u.id, Number(tempSalary))}
-                                  className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors border-0 cursor-pointer flex items-center justify-center"
+                                  disabled={savingSalaryUserId === u.id}
+                                  className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors border-0 cursor-pointer flex items-center justify-center disabled:opacity-50"
                                   title="Save base wage"
                                 >
-                                  <Check className="h-3 w-3" />
+                                  {savingSalaryUserId === u.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Check className="h-3 w-3" />
+                                  )}
                                 </button>
                                 <button
                                   onClick={() => setEditingUserId(null)}
-                                  className="p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors border-0 cursor-pointer flex items-center justify-center"
+                                  disabled={savingSalaryUserId === u.id}
+                                  className="p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors border-0 cursor-pointer flex items-center justify-center disabled:opacity-50"
                                   title="Cancel and return"
                                 >
                                   <X className="h-3 w-3" />
@@ -979,6 +1008,7 @@ export const UsersList: React.FC = () => {
             </h3>
 
             <form onSubmit={handleCreate} className="space-y-4">
+              <fieldset disabled={loading} className="space-y-4 border-0 p-0 m-0 min-w-0">
               {error && (
                 <div className="p-3 bg-rose-50 text-xs text-rose-600 rounded-xl border border-rose-100">
                   {error}
@@ -1095,18 +1125,21 @@ export const UsersList: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-all text-sm animate-fade-in border-0 cursor-pointer"
+                  disabled={loading}
+                  className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-all text-sm animate-fade-in border-0 cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
-                <button
+                <LoadingButton
                   type="submit"
-                  disabled={loading}
-                  className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-slate-900 text-white font-medium rounded-xl transition-all text-sm disabled:opacity-50 border-0 cursor-pointer text-center"
+                  loading={loading}
+                  loadingLabel="Saving..."
+                  className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-slate-900 text-white font-medium rounded-xl transition-all text-sm border-0 cursor-pointer text-center flex items-center justify-center gap-2"
                 >
-                  {loading ? 'saving...' : 'Provision User'}
-                </button>
+                  Provision User
+                </LoadingButton>
               </div>
+              </fieldset>
             </form>
           </div>
         </div>
@@ -1117,23 +1150,7 @@ export const UsersList: React.FC = () => {
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 border border-slate-100 relative">
             
-            {paySuccessMessage ? (
-              <div className="py-8 text-center space-y-4 animate-fade-in">
-                <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                  <CheckCircle className="h-10 w-10" />
-                </div>
-                <div className="space-y-1.5">
-                  <h3 className="text-base font-bold text-slate-800">Payroll Logged Success</h3>
-                  <p className="text-xs text-slate-500 max-w-xs mx-auto">
-                    {paySuccessMessage}
-                  </p>
-                </div>
-                <div className="text-[10px] text-slate-400">
-                  Transactions are logged permanently for monthly auditing.
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
+            <div className="space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                   <h3 className="text-lg font-display font-semibold text-slate-900 flex items-center gap-2">
                     <Banknote className="h-5 w-5 text-indigo-600 animate-pulse" />
@@ -1141,7 +1158,8 @@ export const UsersList: React.FC = () => {
                   </h3>
                   <button
                     onClick={() => setIsPayModalOpen(false)}
-                    className="p-1 px-1.5 hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-lg border-0 cursor-pointer bg-transparent"
+                    disabled={loading}
+                    className="p-1 px-1.5 hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-lg border-0 cursor-pointer bg-transparent disabled:opacity-50"
                     title="Close"
                   >
                     <X className="h-4 w-4" />
@@ -1149,6 +1167,7 @@ export const UsersList: React.FC = () => {
                 </div>
 
                 <form onSubmit={handleDisburseSubmit} className="space-y-4">
+                  <fieldset disabled={loading} className="space-y-4 border-0 p-0 m-0 min-w-0">
                   {error && (
                     <div className="p-3 bg-rose-50 text-xs text-rose-600 rounded-xl border border-rose-100">
                       {error}
@@ -1240,21 +1259,23 @@ export const UsersList: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setIsPayModalOpen(false)}
-                      className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs border-0 cursor-pointer transition-colors"
+                      disabled={loading}
+                      className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs border-0 cursor-pointer transition-colors disabled:opacity-50"
                     >
                       Cancel Pay
                     </button>
-                    <button
+                    <LoadingButton
                       type="submit"
-                      disabled={loading}
-                      className="flex-1 py-2.5 px-4 bg-indigo-650 hover:bg-slate-900 bg-indigo-600 text-white font-semibold rounded-xl text-xs border-0 cursor-pointer transition-colors"
+                      loading={loading}
+                      loadingLabel="Disbursing..."
+                      className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-slate-900 text-white font-semibold rounded-xl text-xs border-0 cursor-pointer transition-colors flex items-center justify-center gap-2"
                     >
-                      {loading ? 'Disbursing...' : 'Disburse Outflow'}
-                    </button>
+                      Disburse Outflow
+                    </LoadingButton>
                   </div>
+                  </fieldset>
                 </form>
               </div>
-            )}
             
           </div>
         </div>
@@ -1270,6 +1291,7 @@ export const UsersList: React.FC = () => {
             </h3>
 
             <form onSubmit={handleMarkAsLeft} className="space-y-4">
+              <fieldset disabled={loading} className="space-y-4 border-0 p-0 m-0 min-w-0">
               {error && (
                 <div className="p-3 bg-rose-50 text-xs text-rose-600 rounded-xl border border-rose-100">
                   {error}
@@ -1301,18 +1323,21 @@ export const UsersList: React.FC = () => {
                     setUserToMarkLeft(null);
                     setError(null);
                   }}
-                  className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-all text-sm border-0 cursor-pointer"
+                  disabled={loading}
+                  className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-all text-sm border-0 cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
-                <button
+                <LoadingButton
                   type="submit"
-                  disabled={loading}
-                  className="flex-1 py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-xl transition-all text-sm disabled:opacity-50 border-0 cursor-pointer"
+                  loading={loading}
+                  loadingLabel="Saving..."
+                  className="flex-1 py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-xl transition-all text-sm border-0 cursor-pointer flex items-center justify-center gap-2"
                 >
-                  {loading ? 'Saving...' : 'Confirm Left'}
-                </button>
+                  Confirm Left
+                </LoadingButton>
               </div>
+              </fieldset>
             </form>
           </div>
         </div>

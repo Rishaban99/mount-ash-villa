@@ -37,7 +37,9 @@ import {
   History,
 } from "lucide-react";
 import { Guests } from "@/components/Guests";
+import { LoadingButton } from "@/components/loading-button";
 import { apiFetch } from "@/lib/api";
+import { toastCreated, toastUpdated, toastError } from "@/lib/crud-toast";
 import { useAuth } from "@/components/auth-provider";
 import { hasPermission } from "@/lib/permissions";
 import type { SystemSettings } from "@/lib/types";
@@ -95,6 +97,7 @@ export const Billing: React.FC<BillingProps> = ({
   // Quick taps category state
   const [quickTapsTab, setQuickTapsTab] = useState<"rooms" | "food">("rooms");
   const [selectedFoodCategory, setSelectedFoodCategory] = useState<string>("All");
+  const [savingBill, setSavingBill] = useState(false);
 
   const { user: currentUser } = useAuth();
   const [settings, setSettings] = useState<SystemSettings | null>(null);
@@ -368,7 +371,7 @@ export const Billing: React.FC<BillingProps> = ({
   const ensureGuestRegistered = async (): Promise<Guest | null> => {
     if (customerInputMode === "existing") {
       if (!selectedGuest) {
-        alert("Please select or allocate an existing hotel guest profile.");
+        toastError("Please select or allocate an existing hotel guest profile.");
         return null;
       }
       return selectedGuest;
@@ -376,13 +379,11 @@ export const Billing: React.FC<BillingProps> = ({
 
     // Inline form mode validations
     if (!newGuestName.trim()) {
-      alert("Registration error: Guest Full name is a mandatory field.");
+      toastError("Guest full name is a mandatory field.");
       return null;
     }
     if (!newGuestNic.trim()) {
-      alert(
-        "Registration error: Guest NIC or Passport identify number is mandatory.",
-      );
+      toastError("Guest NIC or Passport identification number is mandatory.");
       return null;
     }
 
@@ -410,28 +411,28 @@ export const Billing: React.FC<BillingProps> = ({
       const registeredObj = await res.json();
       return registeredObj;
     } catch (e: any) {
-      alert(
-        "Critical: Failed to auto-register new customer profile. " + e.message,
-      );
+      toastError(`Failed to auto-register guest profile. ${e.message}`);
       return null;
     }
   };
 
   const handleSaveBill = async (status: BillStatus) => {
-    const activeGuest = await ensureGuestRegistered();
-    if (!activeGuest) return;
+    if (savingBill) return;
 
-    // Package stay payload
-    const payload = {
-      id: terminalBillId || undefined,
-      guestId: activeGuest.id,
-      guestDetails: activeGuest,
-      roomItems: selectedRooms,
-      foodItems: selectedFoods,
-      status,
-    };
-
+    setSavingBill(true);
     try {
+      const activeGuest = await ensureGuestRegistered();
+      if (!activeGuest) return;
+
+      const payload = {
+        id: terminalBillId || undefined,
+        guestId: activeGuest.id,
+        guestDetails: activeGuest,
+        roomItems: selectedRooms,
+        foodItems: selectedFoods,
+        status,
+      };
+
       const res = await apiFetch("/api/bills", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -445,16 +446,23 @@ export const Billing: React.FC<BillingProps> = ({
 
       const savedBill = await res.json();
 
+      if (terminalBillId) {
+        toastUpdated("Bill");
+      } else {
+        toastCreated("Bill");
+      }
+
       await fetchBills();
       await fetchRooms();
       setIsTerminalActive(false);
 
-      // Instantly open the print/receipt roll modal for completed checkouts
       if (status === "Completed") {
         onShowReceipt(savedBill);
       }
     } catch (e: any) {
-      alert(e.message);
+      toastError(e.message || "Failed to save bill.");
+    } finally {
+      setSavingBill(false);
     }
   };
 
@@ -1146,7 +1154,8 @@ export const Billing: React.FC<BillingProps> = ({
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setIsTerminalActive(false)}
-                className="p-2 border border-slate-200 bg-white hover:bg-slate-50 rounded-lg transition-all text-slate-600"
+                disabled={savingBill}
+                className="p-2 border border-slate-200 bg-white hover:bg-slate-50 rounded-lg transition-all text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ArrowLeft className="h-4 w-4" />
               </button>
@@ -1170,7 +1179,8 @@ export const Billing: React.FC<BillingProps> = ({
                 <button
                   type="button"
                   onClick={() => setCustomerInputMode("new")}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                  disabled={savingBill}
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all disabled:opacity-50 ${
                     customerInputMode === "new"
                       ? "bg-white text-indigo-600 shadow-xs"
                       : "text-slate-400"
@@ -1181,7 +1191,8 @@ export const Billing: React.FC<BillingProps> = ({
                 <button
                   type="button"
                   onClick={() => setCustomerInputMode("existing")}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                  disabled={savingBill}
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all disabled:opacity-50 ${
                     customerInputMode === "existing"
                       ? "bg-white text-indigo-600 shadow-xs"
                       : "text-slate-400"
@@ -1213,6 +1224,7 @@ export const Billing: React.FC<BillingProps> = ({
                         <input
                           type="text"
                           required
+                          disabled={savingBill}
                           value={newGuestName}
                           onChange={(e) => setNewGuestName(e.target.value)}
                           placeholder="e.g. David Tennant"
@@ -1226,6 +1238,7 @@ export const Billing: React.FC<BillingProps> = ({
                         <input
                           type="text"
                           required
+                          disabled={savingBill}
                           value={newGuestNic}
                           onChange={(e) => setNewGuestNic(e.target.value)}
                           placeholder="e.g. 1993049102V"
@@ -1241,6 +1254,7 @@ export const Billing: React.FC<BillingProps> = ({
                         </label>
                         <input
                           type="date"
+                          disabled={savingBill}
                           value={newGuestCheckIn}
                           onChange={(e) => setNewGuestCheckIn(e.target.value)}
                           className="w-full px-3 py-2 text-xs bg-slate-50/50 border border-slate-200 rounded-lg font-mono"
@@ -1258,7 +1272,8 @@ export const Billing: React.FC<BillingProps> = ({
                       {!selectedGuest && (
                         <button
                           onClick={() => setIsSelectingGuest(!isSelectingGuest)}
-                          className="text-xs font-bold text-indigo-600 hover:underline"
+                          disabled={savingBill}
+                          className="text-xs font-bold text-indigo-600 hover:underline disabled:opacity-50"
                         >
                           {isSelectingGuest
                             ? "Hide List Selector"
@@ -1293,7 +1308,8 @@ export const Billing: React.FC<BillingProps> = ({
                         <button
                           type="button"
                           onClick={() => setSelectedGuest(null)}
-                          className="text-xs text-rose-500 hover:font-bold hover:underline font-semibold"
+                          disabled={savingBill}
+                          className="text-xs text-rose-500 hover:font-bold hover:underline font-semibold disabled:opacity-50"
                         >
                           De-allocate
                         </button>
@@ -1306,7 +1322,8 @@ export const Billing: React.FC<BillingProps> = ({
                         <button
                           type="button"
                           onClick={() => setIsSelectingGuest(true)}
-                          className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] uppercase rounded-md shadow-xs"
+                          disabled={savingBill}
+                          className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] uppercase rounded-md shadow-xs disabled:opacity-50"
                         >
                           Search guest database
                         </button>
@@ -1329,7 +1346,8 @@ export const Billing: React.FC<BillingProps> = ({
                       <button
                         type="button"
                         onClick={() => setQuickTapsTab("rooms")}
-                        className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all border-0 cursor-pointer ${
+                        disabled={savingBill}
+                        className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all border-0 cursor-pointer disabled:opacity-50 ${
                           quickTapsTab === "rooms"
                             ? "bg-indigo-600 text-white font-extrabold"
                             : "text-slate-300 hover:text-white"
@@ -1340,7 +1358,8 @@ export const Billing: React.FC<BillingProps> = ({
                       <button
                         type="button"
                         onClick={() => setQuickTapsTab("food")}
-                        className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all border-0 cursor-pointer ${
+                        disabled={savingBill}
+                        className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all border-0 cursor-pointer disabled:opacity-50 ${
                           quickTapsTab === "food"
                             ? "bg-indigo-600 text-white font-extrabold"
                             : "text-slate-300 hover:text-white"
@@ -1374,7 +1393,7 @@ export const Billing: React.FC<BillingProps> = ({
                                     ? "bg-slate-850/50 text-slate-600 line-through opacity-30 cursor-not-allowed"
                                     : "bg-slate-800 hover:bg-slate-755 text-emerald-400 border border-emerald-950/20"
                               }`}
-                              disabled={isOccupied && !isAllocated}
+                              disabled={savingBill || (isOccupied && !isAllocated)}
                             >
                               <span className={`text-xs font-black block ${
                                 isAllocated ? "text-white" : "text-emerald-300"
@@ -1404,7 +1423,8 @@ export const Billing: React.FC<BillingProps> = ({
                             key={cat}
                             type="button"
                             onClick={() => setSelectedFoodCategory(cat)}
-                            className={`px-3 py-1 text-[9.5px] uppercase font-bold tracking-wider rounded-lg transition-all border-0 cursor-pointer ${
+                            disabled={savingBill}
+                            className={`px-3 py-1 text-[9.5px] uppercase font-bold tracking-wider rounded-lg transition-all border-0 cursor-pointer disabled:opacity-50 ${
                               selectedFoodCategory === cat
                                 ? "bg-amber-600 text-white shadow-xs font-extrabold"
                                 : "bg-slate-800 text-slate-200 hover:text-white hover:bg-slate-750"
@@ -1427,7 +1447,8 @@ export const Billing: React.FC<BillingProps> = ({
                                 key={f.id}
                                 type="button"
                                 onClick={() => handleQuickTapFood(f)}
-                                className={`p-2.5 rounded-xl text-left transition-all border border-transparent relative flex flex-col justify-between h-14 cursor-pointer ${
+                                disabled={savingBill}
+                                className={`p-2.5 rounded-xl text-left transition-all border border-transparent relative flex flex-col justify-between h-14 cursor-pointer disabled:opacity-50 ${
                                   countSelected > 0
                                     ? "bg-amber-600 text-white shadow-md scale-[1.01]"
                                     : "bg-slate-800 hover:bg-slate-755 text-slate-200"
@@ -1549,8 +1570,8 @@ export const Billing: React.FC<BillingProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleRemoveRoom(rm.roomId)}
-                                disabled={!canDeleteBill}
-                                className={`text-slate-400 hover:text-red-600 transition-colors bg-transparent border-0 cursor-pointer p-1 ${
+                                disabled={savingBill || !canDeleteBill}
+                                className={`text-slate-400 hover:text-red-600 transition-colors bg-transparent border-0 cursor-pointer p-1 disabled:opacity-50 ${
                                   !canDeleteBill
                                     ? "opacity-30 cursor-not-allowed"
                                     : ""
@@ -1572,7 +1593,7 @@ export const Billing: React.FC<BillingProps> = ({
                                   value={rm.discount || 0}
                                   min="0"
                                   placeholder="0"
-                                  disabled={!canApplyDiscount}
+                                  disabled={savingBill || !canApplyDiscount}
                                   title={!canApplyDiscount ? "Discounts disabled by Admin configuration" : "Set room discount"}
                                   className={`w-14 text-center text-[10px] font-bold bg-blue-50 text-rose-600 border border-blue-200 rounded p-0.5 focus:outline-hidden ${
                                     !canApplyDiscount
@@ -1647,7 +1668,8 @@ export const Billing: React.FC<BillingProps> = ({
                               <button
                                 type="button"
                                 onClick={() => updateFoodQty(fd.foodId, -1)}
-                                className="px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:text-slate-900 hover:bg-amber-100 transition-colors bg-transparent border-0 cursor-pointer"
+                                disabled={savingBill}
+                                className="px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:text-slate-900 hover:bg-amber-100 transition-colors bg-transparent border-0 cursor-pointer disabled:opacity-50"
                               >
                                 -
                               </button>
@@ -1657,7 +1679,8 @@ export const Billing: React.FC<BillingProps> = ({
                               <button
                                 type="button"
                                 onClick={() => updateFoodQty(fd.foodId, 1)}
-                                className="px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:text-slate-900 hover:bg-amber-100 transition-colors bg-transparent border-0 cursor-pointer"
+                                disabled={savingBill}
+                                className="px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:text-slate-900 hover:bg-amber-100 transition-colors bg-transparent border-0 cursor-pointer disabled:opacity-50"
                               >
                                 +
                               </button>
@@ -1671,8 +1694,8 @@ export const Billing: React.FC<BillingProps> = ({
                             <button
                               type="button"
                               onClick={() => handleRemoveFood(fd.foodId)}
-                              disabled={!canDeleteBill}
-                              className={`text-slate-400 hover:text-red-600 transition-colors bg-transparent border-0 cursor-pointer p-1 ${
+                              disabled={savingBill || !canDeleteBill}
+                              className={`text-slate-400 hover:text-red-600 transition-colors bg-transparent border-0 cursor-pointer p-1 disabled:opacity-50 ${
                                 !canDeleteBill
                                   ? "opacity-30 cursor-not-allowed"
                                   : ""
@@ -1759,25 +1782,29 @@ export const Billing: React.FC<BillingProps> = ({
                   <div className="space-y-2 pt-3 border-t border-slate-100">
                     
                     
-                    <button
+                    <LoadingButton
                       type="button"
                       onClick={() => handleSaveBill("Active")}
+                      loading={savingBill}
+                      loadingLabel="Saving..."
                       className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg uppercase tracking-widest flex items-center justify-center gap-2 transition-all cursor-pointer border-0"
                     >
                       <Clock className="h-4 w-4" />
                       Make Active Check-Stay
-                    </button>
+                    </LoadingButton>
 
 
 
-                    <button
+                    <LoadingButton
                       type="button"
                       onClick={() => handleSaveBill("Completed")}
+                      loading={savingBill}
+                      loadingLabel="Saving..."
                       className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] rounded-lg uppercase tracking-widest flex items-center justify-center gap-2 transition-all cursor-pointer border-0"
                     >
                       <Printer className="h-4 w-4" />
                       Complete Stay & Print Bill
-                    </button>
+                    </LoadingButton>
                   </div>
                 ) : (
                   <div className="pt-3 border-t border-slate-100 text-center">

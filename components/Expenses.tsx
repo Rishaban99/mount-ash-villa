@@ -31,9 +31,12 @@ import {
   Zap,
   Droplet,
   Phone,
-  Check
+  Check,
+  Loader2
 } from 'lucide-react';
+import { LoadingButton } from '@/components/loading-button';
 import { apiFetch } from '@/lib/api';
+import { toastCreated, toastUpdated, toastDeleted, toastError } from '@/lib/crud-toast';
 import { useAuth } from '@/components/auth-provider';
 import { hasPermission } from '@/lib/permissions';
 import type { SystemSettings } from '@/lib/types';
@@ -107,11 +110,8 @@ export const Expenses: React.FC = () => {
   const [approvedBy, setApprovedBy] = useState(currentUser.name);
 
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  // States for receptionist success screen
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [lastSavedExpense, setLastSavedExpense] = useState<{ title: string; amount: number; category: string; date: string } | null>(null);
 
   const [settings, setSettings] = useState<any>(null);
 
@@ -186,8 +186,6 @@ export const Expenses: React.FC = () => {
   useEffect(() => {
     if (initialAction === 'new') {
       handleOpenAdd();
-      setShowSuccess(false);
-      setLastSavedExpense(null);
       router.replace('/expenses');
     }
   }, [initialAction]);
@@ -274,20 +272,21 @@ export const Expenses: React.FC = () => {
         setSelectedUserForPay(null);
       }
 
-      if (!isAdmin) {
-        setLastSavedExpense({
-          title,
-          amount: Number(amount),
-          category,
-          date,
-        });
-        setShowSuccess(true);
+      if (editingId) {
+        toastUpdated('Expense');
       } else {
+        toastCreated('Expense');
+      }
+
+      if (isAdmin) {
         setIsModalOpen(false);
+      } else {
+        handleOpenAdd();
       }
       await fetchExpenses();
       await fetchUsers();
     } catch (err: any) {
+      toastError(err.message || 'An error occurred while saving.');
       setError(err.message || 'An error occurred while saving.');
     } finally {
       setLoading(false);
@@ -296,7 +295,7 @@ export const Expenses: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     if (!isAdmin) {
-      alert('Only administrative accounts can delete expense ledgers.');
+      toastError('Only administrative accounts can delete expense ledgers.');
       return;
     }
 
@@ -304,18 +303,22 @@ export const Expenses: React.FC = () => {
       return;
     }
 
+    setDeletingId(id);
     try {
       const res = await apiFetch(`/api/expenses/${id}`, {
         method: 'DELETE',
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        toastDeleted('Expense');
         await fetchExpenses();
       } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to delete expense.');
+        toastError(data.error || 'Failed to delete expense.');
       }
-    } catch (err) {
-      console.error('Failed to delete expense:', err);
+    } catch (err: any) {
+      toastError(err.message || 'Failed to delete expense.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -652,67 +655,9 @@ export const Expenses: React.FC = () => {
           </p>
         </div>
 
-        {showSuccess ? (
-          <div className="bg-white border border-emerald-100 rounded-2xl shadow-sm p-6 text-center space-y-5 animate-fade-in" id="receptionist-success-view">
-            <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto animate-bounce">
-              <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            
-            <div className="space-y-1">
-              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Expense Logged Successfully</h3>
-              <p className="text-xs text-slate-500">
-                Your entry has been recorded in the audited outflow ledger.
-              </p>
-            </div>
-
-            {lastSavedExpense && (
-              <div className="bg-slate-50 rounded-xl p-4 text-left border border-slate-100 space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-400 font-medium font-sans">Expense Title</span>
-                  <span className="text-slate-800 font-semibold">{lastSavedExpense.title}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-400 font-medium font-sans">Amount Recorded</span>
-                  <span className="text-slate-800 font-bold">Rs. {lastSavedExpense.amount.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-400 font-medium font-sans">Category / Ledger</span>
-                  <span className="text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded text-[10px]">{lastSavedExpense.category}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-400 font-medium font-sans">Operation Date</span>
-                  <span className="text-slate-800 font-semibold">{lastSavedExpense.date}</span>
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => {
-                  setShowSuccess(false);
-                  handleOpenAdd();
-                }}
-                className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl text-xs transition-colors border-0 cursor-pointer"
-              >
-                <Plus className="h-4 w-4" />
-                Record Another
-              </button>
-              {(
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 px-4 rounded-xl text-xs transition-colors border-0 cursor-pointer"
-                >
-                  Close & Exit
-                </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-6" id="receptionist-form-container">
+        <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-6" id="receptionist-form-container">
             <form onSubmit={handleSave} className="space-y-4">
+              <fieldset disabled={loading} className="space-y-4 border-0 p-0 m-0 min-w-0">
               {error && (
                 <div className="p-3 bg-rose-50 text-rose-700 text-xs font-semibold rounded-lg border border-rose-100">
                   {error}
@@ -891,26 +836,26 @@ export const Expenses: React.FC = () => {
 
               {/* Submit & Cancel Row */}
               <div className="pt-2 flex gap-3">
-                {(
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold border-0 cursor-pointer transition-colors"
-                  >
-                    Cancel & Close
-                  </button>
-                )}
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={onClose}
                   disabled={loading}
-                  className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm border-0 cursor-pointer transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold border-0 cursor-pointer transition-colors disabled:opacity-50"
                 >
-                  {loading ? 'Processing...' : 'Save Outflow Ledger'}
+                  Cancel & Close
                 </button>
+                <LoadingButton
+                  type="submit"
+                  loading={loading}
+                  loadingLabel="Processing..."
+                  className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm border-0 cursor-pointer transition-colors flex items-center justify-center gap-2"
+                >
+                  Save Outflow Ledger
+                </LoadingButton>
               </div>
+              </fieldset>
             </form>
           </div>
-        )}
       </div>
     );
   }
@@ -1793,10 +1738,15 @@ export const Expenses: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleDelete(exp.id)}
+                              disabled={deletingId === exp.id}
                               title="Delete Outbound entry"
-                              className="p-1.5 rounded-md transition-colors border-0 cursor-pointer text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                              className="p-1.5 rounded-md transition-colors border-0 cursor-pointer text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              {deletingId === exp.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
                             </button>
                           </div>
                         </td>
@@ -1926,6 +1876,7 @@ export const Expenses: React.FC = () => {
 
             {/* Modal Form */}
             <form onSubmit={handleSave} className="p-5 space-y-4">
+              <fieldset disabled={loading} className="space-y-4 border-0 p-0 m-0 min-w-0">
               
               {error && (
                 <div className="p-3 bg-rose-50 text-rose-700 text-xs font-semibold rounded-lg border border-rose-100">
@@ -2112,18 +2063,21 @@ export const Expenses: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold border-0 cursor-pointer"
+                  disabled={loading}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold border-0 cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
-                <button
+                <LoadingButton
                   type="submit"
-                  disabled={loading}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs border-0 cursor-pointer hover:shadow-sm"
+                  loading={loading}
+                  loadingLabel="Processing..."
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs border-0 cursor-pointer hover:shadow-sm flex items-center justify-center gap-2"
                 >
-                  {loading ? 'Processing...' : 'Save Outflow Ledger'}
-                </button>
+                  Save Outflow Ledger
+                </LoadingButton>
               </div>
+              </fieldset>
 
             </form>
 

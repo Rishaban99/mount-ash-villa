@@ -8,7 +8,9 @@
 import React, { useState, useEffect } from 'react';
 import { Guest } from '@/lib/types';
 import { Plus, Search, Calendar, Phone, FileText, UserPlus, Home, User, Command } from 'lucide-react';
+import { LoadingButton } from '@/components/loading-button';
 import { apiFetch } from '@/lib/api';
+import { toastCreated, toastError } from '@/lib/crud-toast';
 import { useAuth } from '@/components/auth-provider';
 import { hasPermission } from '@/lib/permissions';
 import type { SystemSettings } from '@/lib/types';
@@ -98,6 +100,8 @@ export const Guests: React.FC<GuestsProps> = ({ onSelectGuest }) => {
         throw new Error(data.error || 'Failed to register guest details.');
       }
 
+      toastCreated('Guest');
+
       // Refresh guest database
       await fetchGuests();
       setIsFormOpen(false);
@@ -113,6 +117,7 @@ export const Guests: React.FC<GuestsProps> = ({ onSelectGuest }) => {
       setNic('');
       setAddress('');
     } catch (err: any) {
+      toastError(err.message);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -259,6 +264,7 @@ export const Guests: React.FC<GuestsProps> = ({ onSelectGuest }) => {
                 <input
                   type="text"
                   required
+                  disabled={loading}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. John Doe"
@@ -274,6 +280,7 @@ export const Guests: React.FC<GuestsProps> = ({ onSelectGuest }) => {
                   <input
                     type="text"
                     required
+                    disabled={loading}
                     value={nic}
                     onChange={(e) => setNic(e.target.value)}
                     placeholder="e.g. 1995029302V"
@@ -287,6 +294,7 @@ export const Guests: React.FC<GuestsProps> = ({ onSelectGuest }) => {
                   </label>
                   <input
                     type="text"
+                    disabled={loading}
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     placeholder="e.g. 45, Galle Rd, Colombo"
@@ -302,6 +310,7 @@ export const Guests: React.FC<GuestsProps> = ({ onSelectGuest }) => {
                 <input
                   type="date"
                   required
+                  disabled={loading}
                   value={checkInDate}
                   onChange={(e) => setCheckInDate(e.target.value)}
                   className="w-full px-4 py-2.5 bg-slate-55 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition-all font-sans"
@@ -312,17 +321,19 @@ export const Guests: React.FC<GuestsProps> = ({ onSelectGuest }) => {
                 <button
                   type="button"
                   onClick={() => setIsFormOpen(false)}
-                  className="flex-1 py-1 px-4 h-11 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-all text-sm"
+                  disabled={loading}
+                  className="flex-1 py-1 px-4 h-11 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-all text-sm disabled:opacity-50"
                 >
                   Cancel
                 </button>
-                <button
+                <LoadingButton
                   type="submit"
-                  disabled={loading}
-                  className="flex-1 py-1 px-4 h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-all text-sm disabled:opacity-50"
+                  loading={loading}
+                  loadingLabel="Processing..."
+                  className="flex-1 py-1 px-4 h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-all text-sm flex items-center justify-center gap-2"
                 >
-                  {loading ? 'Processing...' : 'Register Profile'}
-                </button>
+                  Register Profile
+                </LoadingButton>
               </div>
             </form>
           </div>

@@ -28,9 +28,12 @@ import {
   Coins,
   ChevronDown,
   ChevronUp,
+  Loader2,
 } from 'lucide-react';
+import { LoadingButton } from '@/components/loading-button';
 import { ClosedMonth } from '@/lib/types';
 import { apiFetch } from '@/lib/api';
+import { toastCreated, toastDeleted, toastError } from '@/lib/crud-toast';
 
 interface ReportDetails {
   date?: string;
@@ -64,8 +67,8 @@ export const Reports: React.FC = () => {
   const [ownerTakeaway, setOwnerTakeaway] = useState<number>(0);
   const [closerNotes, setCloserNotes] = useState<string>('');
   const [closingLoading, setClosingLoading] = useState<boolean>(false);
-  const [successMsg, setSuccessMsg] = useState<string>('');
-  const [errorMsg, setErrorMsg] = useState<string>('');
+  const [deletingBillId, setDeletingBillId] = useState<string | null>(null);
+  const [deletingMonthId, setDeletingMonthId] = useState<string | null>(null);
 
   // Folding accordions for daily cashbook listing
   const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
@@ -113,18 +116,23 @@ export const Reports: React.FC = () => {
   };
 
   const handleDeleteBill = async (billId: string) => {
+    setDeletingBillId(billId);
     try {
       const res = await apiFetch(`/api/bills/${billId}`, {
         method: 'DELETE',
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        toastDeleted('Bill');
         setDeleteConfirmId(null);
         fetchReports();
       } else {
-        console.error('Failed to delete invoice');
+        toastError(data.error || 'Failed to delete bill.');
       }
-    } catch (error) {
-      console.error('Failed to delete bill:', error);
+    } catch (error: any) {
+      toastError(error.message || 'Failed to delete bill.');
+    } finally {
+      setDeletingBillId(null);
     }
   };
 
@@ -173,13 +181,10 @@ export const Reports: React.FC = () => {
 
   const handleCloseMonth = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSuccessMsg('');
-    setErrorMsg('');
 
-    // Check if already closed
     const alreadyClosed = closedMonths.some(m => m.month === selectedMonth);
     if (alreadyClosed) {
-      setErrorMsg('This month has already been closed and verified!');
+      toastError('This month has already been closed and verified!');
       return;
     }
 
@@ -206,9 +211,8 @@ export const Reports: React.FC = () => {
       });
 
       if (res.ok) {
-        setSuccessMsg(`✓ Month ${selectedMonth} closed successfully! Net profit of Rs. ${Number(ownerTakeaway).toLocaleString()} distributed to owner.`);
+        toastCreated('Month closure');
         setCloserNotes('');
-        // Reload closed months
         const closedRes = await fetch('/api/closed-months');
         if (closedRes.ok) {
           const list = await closedRes.json();
@@ -216,26 +220,32 @@ export const Reports: React.FC = () => {
         }
       } else {
         const errData = await res.json();
-        setErrorMsg(errData.error || 'Failed to complete month-end closer');
+        toastError(errData.error || 'Failed to complete month-end closer');
       }
-    } catch (err) {
-      console.error(err);
-      setErrorMsg('Network error occurred while closing the month.');
+    } catch (err: any) {
+      toastError(err.message || 'Network error occurred while closing the month.');
     } finally {
       setClosingLoading(false);
     }
   };
 
   const handleDeleteClosedMonth = async (id: string) => {
+    setDeletingMonthId(id);
     try {
       const res = await apiFetch(`/api/closed-months/${id}`, {
         method: 'DELETE'
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        toastDeleted('Month closure');
         setClosedMonths(closedMonths.filter(m => m.id !== id));
+      } else {
+        toastError(data.error || 'Failed to reopen month');
       }
-    } catch (err) {
-      console.error('Failed to reopen month', err);
+    } catch (err: any) {
+      toastError(err.message || 'Failed to reopen month');
+    } finally {
+      setDeletingMonthId(null);
     }
   };
 
@@ -1049,14 +1059,19 @@ export const Reports: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => handleDeleteBill(bill.id)}
-                                className="px-2.5 py-1 bg-red-650 hover:bg-red-700 text-white font-bold text-[9px] uppercase tracking-wide rounded-md border-0 cursor-pointer shadow-xs"
+                                disabled={deletingBillId === bill.id}
+                                className="px-2.5 py-1 bg-red-650 hover:bg-red-700 text-white font-bold text-[9px] uppercase tracking-wide rounded-md border-0 cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1"
                               >
+                                {deletingBillId === bill.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : null}
                                 Confirm
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setDeleteConfirmId(null)}
-                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-605 font-bold text-[9px] uppercase tracking-wide rounded-md border-0 cursor-pointer"
+                                disabled={deletingBillId === bill.id}
+                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-605 font-bold text-[9px] uppercase tracking-wide rounded-md border-0 cursor-pointer disabled:opacity-50"
                               >
                                 Cancel
                               </button>
@@ -1065,7 +1080,8 @@ export const Reports: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => setDeleteConfirmId(bill.id)}
-                              className="p-1.5 text-slate-400 hover:text-red-500 transition-colors rounded-sm hover:bg-red-50 border-y-0 border-x-0 cursor-pointer"
+                              disabled={deletingBillId !== null}
+                              className="p-1.5 text-slate-400 hover:text-red-500 transition-colors rounded-sm hover:bg-red-50 border-y-0 border-x-0 cursor-pointer disabled:opacity-50"
                               title="Delete ledger record"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1324,8 +1340,6 @@ export const Reports: React.FC = () => {
                     value={selectedMonth}
                     onChange={(e) => {
                       setSelectedMonth(e.target.value);
-                      setSuccessMsg('');
-                      setErrorMsg('');
                     }}
                     className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-sans text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all cursor-pointer"
                   />
@@ -1461,18 +1475,21 @@ export const Reports: React.FC = () => {
                             </div>
                           </div>
 
-                          <button
+                          <LoadingButton
                             type="button"
                             onClick={() => handleDeleteClosedMonth(currentCloserObj.id)}
+                            loading={deletingMonthId === currentCloserObj.id}
+                            loadingLabel="Reopening..."
                             className="w-full py-2.5 px-4 bg-slate-850 hover:bg-slate-900 hover:text-red-400 text-white font-bold text-[10px] rounded-lg tracking-widest uppercase cursor-pointer transition-all border-0 shadow-xs flex items-center justify-center gap-1.5"
                           >
                             <Unlock className="h-4 w-4" />
                             Reopen Accounts & Unseal Month
-                          </button>
+                          </LoadingButton>
                         </div>
                       ) : (
                         /* UNCLOSED MONTH CLOSURE FORM PANEL */
                         <form onSubmit={handleCloseMonth} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs space-y-4">
+                          <fieldset disabled={closingLoading} className="space-y-4 border-0 p-0 m-0 min-w-0">
                           <div className="flex items-center gap-2 text-slate-800">
                             <Unlock className="h-5 w-5 text-indigo-500" />
                             <h4 className="font-bold text-sm uppercase tracking-wider">Unsealed Month Balance</h4>
@@ -1537,26 +1554,17 @@ export const Reports: React.FC = () => {
                             />
                           </div>
 
-                          {successMsg && (
-                            <p className="text-xs bg-emerald-50 border border-emerald-100 text-emerald-800 font-semibold p-3 rounded-lg text-center font-sans tracking-wide">
-                              {successMsg}
-                            </p>
-                          )}
-
-                          {errorMsg && (
-                            <p className="text-xs bg-red-50 border border-red-100 text-red-750 font-semibold p-3 rounded-lg text-center font-sans">
-                              {errorMsg}
-                            </p>
-                          )}
-
-                          <button
+                          <LoadingButton
                             type="submit"
-                            disabled={closingLoading || monthMetrics.netProfit <= 0 && ownerTakeaway <= 0}
+                            disabled={monthMetrics.netProfit <= 0 && ownerTakeaway <= 0}
+                            loading={closingLoading}
+                            loadingLabel="Closing and finalizing..."
                             className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-[10px] rounded-lg tracking-widest uppercase cursor-pointer transition-all border-0 shadow-xs flex items-center justify-center gap-1"
                           >
                             <Lock className="h-4 w-4" />
-                            {closingLoading ? 'Closing and finalizing...' : 'Seall Accounts & Lock Period'}
-                          </button>
+                            Seall Accounts & Lock Period
+                          </LoadingButton>
+                          </fieldset>
                         </form>
                       )}
 
@@ -1602,8 +1610,12 @@ export const Reports: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => handleDeleteClosedMonth(m.id)}
-                                    className="p-1 px-2.5 bg-slate-105 rounded hover:bg-red-50 hover:text-red-500 text-slate-400 font-bold border-0 text-[10px] uppercase transition-colors tracking-wide cursor-pointer"
+                                    disabled={deletingMonthId === m.id}
+                                    className="p-1 px-2.5 bg-slate-105 rounded hover:bg-red-50 hover:text-red-500 text-slate-400 font-bold border-0 text-[10px] uppercase transition-colors tracking-wide cursor-pointer disabled:opacity-50 inline-flex items-center gap-1"
                                   >
+                                    {deletingMonthId === m.id ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : null}
                                     Reopen
                                   </button>
                                 </td>

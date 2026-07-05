@@ -7,8 +7,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { Room, RoomType, RoomStatus, User } from '@/lib/types';
-import { Plus, Search, Edit2, Trash2, Hotel, Tag, DollarSign, Command, Sparkles, Filter } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Hotel, Tag, DollarSign, Command, Sparkles, Filter, Loader2 } from 'lucide-react';
+import { LoadingButton } from '@/components/loading-button';
 import { apiFetch } from '@/lib/api';
+import { toastCreated, toastUpdated, toastDeleted, toastError } from '@/lib/crud-toast';
 import { useAuth } from '@/components/auth-provider';
 import { dedupeRoomsByNumber } from '@/lib/rooms';
 import { hasPermission } from '@/lib/permissions';
@@ -31,6 +33,7 @@ export const Rooms: React.FC = () => {
   const [status, setStatus] = useState<RoomStatus>('Available');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchRooms = async () => {
     try {
@@ -131,9 +134,16 @@ export const Rooms: React.FC = () => {
         throw new Error(data.error || 'Failed to save room details.');
       }
 
+      if (editingId) {
+        toastUpdated('Room');
+      } else {
+        toastCreated('Room');
+      }
+
       await fetchRooms();
       setIsModalOpen(false);
     } catch (err: any) {
+      toastError(err.message);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -145,15 +155,22 @@ export const Rooms: React.FC = () => {
       return;
     }
 
+    setDeletingId(id);
     try {
       const res = await apiFetch(`/api/rooms/${id}`, {
         method: 'DELETE',
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        toastDeleted('Room');
         await fetchRooms();
+      } else {
+        toastError(data.error || 'Failed to delete room.');
       }
-    } catch (e) {
-      console.error('Failed to delete room:', e);
+    } catch (e: any) {
+      toastError(e.message || 'Failed to delete room.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -319,9 +336,14 @@ export const Rooms: React.FC = () => {
                   {canDeleteRoom && (
                     <button
                       onClick={() => handleDelete(room.id)}
-                      className="p-1 px-2 text-xs bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-lg flex items-center gap-1.5 transition-all"
+                      disabled={deletingId === room.id}
+                      className="p-1 px-2 text-xs bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-lg flex items-center gap-1.5 transition-all disabled:opacity-50"
                     >
-                      <Trash2 className="h-3 w-3" />
+                      {deletingId === room.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3 w-3" />
+                      )}
                       Delete
                     </button>
                   )}
@@ -355,6 +377,7 @@ export const Rooms: React.FC = () => {
                 <input
                   type="text"
                   required
+                  disabled={loading}
                   value={roomNumber}
                   onChange={(e) => setRoomNumber(e.target.value)}
                   placeholder="e.g. 104"
@@ -369,6 +392,7 @@ export const Rooms: React.FC = () => {
                   </label>
                   <select
                     value={roomType}
+                    disabled={loading}
                     onChange={(e) => setRoomType(e.target.value as RoomType)}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition-all"
                   >
@@ -384,6 +408,7 @@ export const Rooms: React.FC = () => {
                   </label>
                   <select
                     value={status}
+                    disabled={loading}
                     onChange={(e) => setStatus(e.target.value as RoomStatus)}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition-all"
                   >
@@ -402,6 +427,7 @@ export const Rooms: React.FC = () => {
                   <input
                     type="number"
                     required
+                    disabled={loading}
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     placeholder="e.g. 3500"
@@ -414,17 +440,19 @@ export const Rooms: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-all text-sm"
+                  disabled={loading}
+                  className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-all text-sm disabled:opacity-50"
                 >
                   Cancel
                 </button>
-                <button
+                <LoadingButton
                   type="submit"
-                  disabled={loading}
-                  className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-all text-sm disabled:opacity-50"
+                  loading={loading}
+                  loadingLabel="Saving..."
+                  className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-all text-sm flex items-center justify-center gap-2"
                 >
-                  {loading ? 'Saving...' : 'Save Config'}
-                </button>
+                  Save Config
+                </LoadingButton>
               </div>
             </form>
           </div>

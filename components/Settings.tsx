@@ -28,7 +28,9 @@ import {
   Receipt,
   type LucideIcon,
 } from 'lucide-react';
+import { LoadingButton } from '@/components/loading-button';
 import { apiFetch } from '@/lib/api';
+import { toastSaved, toastError } from '@/lib/crud-toast';
 import { useAuth } from '@/components/auth-provider';
 import {
   permissionDefinitions,
@@ -51,7 +53,6 @@ export const Settings: React.FC = () => {
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [activeRoleTab, setActiveRoleTab] = useState<'manager' | 'receptionist'>('manager');
@@ -84,12 +85,11 @@ export const Settings: React.FC = () => {
     e.preventDefault();
     if (!settings) return;
     if (currentUser.role !== 'admin') {
-      setErrorMsg('Unauthorized: Only administrators are permitted to save settings.');
+      toastError('Unauthorized: Only administrators are permitted to save settings.');
       return;
     }
 
     setSaving(true);
-    setSuccessMsg(null);
     setErrorMsg(null);
 
     try {
@@ -107,18 +107,16 @@ export const Settings: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         setSettings(data);
-        setSuccessMsg('System configuration and role privileges updated successfully.');
+        toastSaved('Settings');
         
-        // Expose settings to local storage as client cache helper
         localStorage.setItem('system_settings_cache', JSON.stringify(data));
-        
-        // Automatically clear message after 4s
-        setTimeout(() => setSuccessMsg(null), 4000);
       } else {
         const errData = await res.json();
+        toastError(errData.error || 'Failed to update system settings.');
         setErrorMsg(errData.error || 'Failed to update system settings.');
       }
     } catch (e) {
+      toastError('Error submitting settings payload upstream.');
       setErrorMsg('Error submitting settings payload upstream.');
     } finally {
       setSaving(false);
@@ -199,18 +197,6 @@ export const Settings: React.FC = () => {
   return (
     <div className="space-y-6 text-slate-850 animate-fade-in">
       
-      {/* Toast Alert Indicators */}
-      {successMsg && (
-        <div className="bg-emerald-50 border border-emerald-250 text-emerald-800 p-4 rounded-xl text-xs flex items-center gap-3 shadow-xs font-sans transition-all">
-          <div className="p-1.5 bg-emerald-500 text-white rounded-lg leading-none shrink-0">
-            <Check className="h-4 w-4" />
-          </div>
-          <div>
-            <span className="font-bold">Success Status Saved:</span> {successMsg}
-          </div>
-        </div>
-      )}
-
       {errorMsg && (
         <div className="bg-rose-50 border border-rose-250 text-rose-800 p-4 rounded-xl text-xs flex items-center gap-3 shadow-xs font-sans transition-all animate-shake">
           <div className="p-1.5 bg-rose-500 text-white rounded-lg leading-none shrink-0">
@@ -239,23 +225,25 @@ export const Settings: React.FC = () => {
             <button
               type="button"
               onClick={handleBackup}
+              disabled={saving}
               title="Download backup file of system configuration"
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700/80 text-slate-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 border border-slate-700 cursor-pointer text-center"
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700/80 text-slate-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 border border-slate-700 cursor-pointer text-center disabled:opacity-50"
             >
               <FileDown className="h-4 w-4" /> Export Backup
             </button>
-            <button
+            <LoadingButton
               type="submit"
-              disabled={saving}
-              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 border-0 cursor-pointer text-center"
+              loading={saving}
+              loadingLabel="Writing settings..."
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 border-0 cursor-pointer text-center"
             >
-              <Save className="h-4 w-4" /> {saving ? 'Writing settings...' : 'Commit Settings'}
-            </button>
+              <Save className="h-4 w-4" /> Commit Settings
+            </LoadingButton>
           </div>
         </div>
 
         {/* 2-Column Responsive Body Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <fieldset disabled={saving} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start border-0 p-0 m-0 min-w-0">
           
           {/* Column Left (General & Tax settings) - Spans 7 cols */}
           <div className="lg:col-span-7 space-y-6">
@@ -558,9 +546,9 @@ export const Settings: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    setSuccessMsg(`Test packet successfully spooled to ${settings.paperWidth} ${settings.printerType} printer via ${settings.printerConnection.toUpperCase()}!`);
-                    setTimeout(() => setSuccessMsg(null), 4000);
+                    toastSaved(`Test print spooled to ${settings.paperWidth} ${settings.printerType} printer`);
                   }}
+                  disabled={saving}
                   className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold rounded-lg text-[10px] flex items-center gap-1.5 transition-all outline-none border-0 cursor-pointer"
                 >
                   <SlidersHorizontal className="h-3.5 w-3.5 text-indigo-400" /> Spool Device Test Print
@@ -708,7 +696,7 @@ export const Settings: React.FC = () => {
             </div>
             
           </div>
-        </div>
+        </fieldset>
 
       </form>
 

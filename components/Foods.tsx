@@ -7,8 +7,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { Food, User } from '@/lib/types';
-import { Plus, Search, Edit2, Trash2, Utensils, Filter, DollarSign, Command } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Utensils, Filter, DollarSign, Command, Loader2 } from 'lucide-react';
+import { LoadingButton } from '@/components/loading-button';
 import { apiFetch } from '@/lib/api';
+import { toastCreated, toastUpdated, toastDeleted, toastError } from '@/lib/crud-toast';
 import { useAuth } from '@/components/auth-provider';
 import { hasPermission } from '@/lib/permissions';
 import type { SystemSettings } from '@/lib/types';
@@ -28,6 +30,7 @@ export const Foods: React.FC = () => {
   const [price, setPrice] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchFoods = async () => {
     try {
@@ -128,9 +131,16 @@ export const Foods: React.FC = () => {
         throw new Error(data.error || 'Failed to save food details.');
       }
 
+      if (editingId) {
+        toastUpdated('Food item');
+      } else {
+        toastCreated('Food item');
+      }
+
       await fetchFoods();
       setIsModalOpen(false);
     } catch (err: any) {
+      toastError(err.message);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -142,15 +152,22 @@ export const Foods: React.FC = () => {
       return;
     }
 
+    setDeletingId(id);
     try {
       const res = await apiFetch(`/api/foods/${id}`, {
         method: 'DELETE',
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        toastDeleted('Food item');
         await fetchFoods();
+      } else {
+        toastError(data.error || 'Failed to delete food item.');
       }
-    } catch (e) {
-      console.error('Failed to delete food:', e);
+    } catch (e: any) {
+      toastError(e.message || 'Failed to delete food item.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -260,9 +277,14 @@ export const Foods: React.FC = () => {
                   {canDeleteFood && (
                     <button
                       onClick={() => handleDelete(food.id)}
-                      className="p-1 px-2 text-xs bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-lg flex items-center gap-1.5 transition-all"
+                      disabled={deletingId === food.id}
+                      className="p-1 px-2 text-xs bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-lg flex items-center gap-1.5 transition-all disabled:opacity-50"
                     >
-                      <Trash2 className="h-3 w-3" />
+                      {deletingId === food.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3 w-3" />
+                      )}
                       Delete
                     </button>
                   )}
@@ -296,6 +318,7 @@ export const Foods: React.FC = () => {
                 <input
                   type="text"
                   required
+                  disabled={loading}
                   value={foodName}
                   onChange={(e) => setFoodName(e.target.value)}
                   placeholder="e.g. Club Sandwich with Fries"
@@ -311,6 +334,7 @@ export const Foods: React.FC = () => {
                   type="text"
                   required
                   list="categories-list"
+                  disabled={loading}
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   placeholder="e.g. Snacks, Beverages, Main Course"
@@ -333,6 +357,7 @@ export const Foods: React.FC = () => {
                   <input
                     type="number"
                     required
+                    disabled={loading}
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     placeholder="e.g. 750"
@@ -345,17 +370,19 @@ export const Foods: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-all text-sm"
+                  disabled={loading}
+                  className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-all text-sm disabled:opacity-50"
                 >
                   Cancel
                 </button>
-                <button
+                <LoadingButton
                   type="submit"
-                  disabled={loading}
-                  className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-all text-sm disabled:opacity-50"
+                  loading={loading}
+                  loadingLabel="Saving..."
+                  className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-all text-sm flex items-center justify-center gap-2"
                 >
-                  {loading ? 'Saving...' : 'Add Config'}
-                </button>
+                  {editingId ? 'Save Config' : 'Add Config'}
+                </LoadingButton>
               </div>
             </form>
           </div>
