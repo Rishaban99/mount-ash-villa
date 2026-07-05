@@ -6,6 +6,7 @@
 import { deleteClosedMonth, getClosedMonths } from '@/lib/db';
 import { recordAudit } from '@/lib/auditLog';
 import { ensureDb, errorResponse, jsonResponse } from '@/lib/api-utils';
+import { requirePermission } from '@/lib/api-auth';
 
 export async function DELETE(
   request: Request,
@@ -13,6 +14,9 @@ export async function DELETE(
 ) {
   try {
     await ensureDb();
+    const auth = await requirePermission(request, 'allowManagerViewReports');
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const list = await getClosedMonths();
     const existing = list.find((m) => m.id === id);

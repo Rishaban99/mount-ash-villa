@@ -6,20 +6,24 @@
 import { deleteUser, getUsers } from '@/lib/db';
 import { recordAudit } from '@/lib/auditLog';
 import { ensureDb, errorResponse, jsonResponse } from '@/lib/api-utils';
+import { requirePermission } from '@/lib/api-auth';
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await ensureDb();
+    const auth = await requirePermission(request, 'allowManagerUserEdit');
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const users = await getUsers();
     const existing = users.find((u) => u.id === id);
     const success = await deleteUser(id);
     if (success) {
       await recordAudit({
-        request: _request,
+        request,
         action: 'DELETE',
         entityType: 'user',
         entityId: id,

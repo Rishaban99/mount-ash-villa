@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { User, SystemSettings } from '@/lib/types';
+import { SystemSettings } from '@/lib/types';
 import {
   Shield,
   Coins,
@@ -16,211 +16,34 @@ import {
   Check,
   RefreshCw,
   FileDown,
-  FileUp,
-  Info,
-  Sliders,
   AlertCircle,
   Printer,
   SlidersHorizontal,
   Search,
-  Sparkles,
-  Eye,
-  HelpCircle,
-  ShieldCheck,
-  SlidersHorizontal as Settings2,
   ListFilter,
   Bed,
   Utensils,
   TrendingUp,
   Users,
-  Receipt
+  Receipt,
+  type LucideIcon,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/components/auth-provider';
+import {
+  permissionDefinitions,
+  PERMISSION_CATEGORIES,
+  countEnabledPermissions,
+  type PermissionCategory,
+} from '@/lib/permissions';
 
-interface PermissionDef {
-  key: keyof SystemSettings;
-  title: string;
-  description: string;
-  role: 'receptionist' | 'manager';
-  category: 'Room' | 'Food' | 'Report' | 'Staff' | 'Expenses';
-  sensitive?: boolean;
-}
-
-const permissionDefinitions: PermissionDef[] = [
-  // Room
-  {
-    key: 'allowReceptionistModifyPrice',
-    title: 'Override Base Room Prices',
-    description: 'Allow frontdesk receptionists to change base prices dynamically per stay room.',
-    role: 'receptionist',
-    category: 'Room',
-    sensitive: true,
-  },
-  {
-    key: 'allowReceptionistAddRooms',
-    title: 'Register New Guest Rooms',
-    description: 'Enable clerk credentials to write new items into the room master inventory.',
-    role: 'receptionist',
-    category: 'Room',
-  },
-  {
-    key: 'allowReceptionistEditRooms',
-    title: 'Modify Existing Room Profiles',
-    description: 'Enable clerk credentials to edit price points and attributes of active rooms.',
-    role: 'receptionist',
-    category: 'Room',
-  },
-  {
-    key: 'allowReceptionistDeleteRooms',
-    title: 'Permanently Decommission Rooms',
-    description: 'Erase inactive or retired hotel room records entirely from database logs.',
-    role: 'receptionist',
-    category: 'Room',
-    sensitive: true,
-  },
-  {
-    key: 'allowManagerManageRooms',
-    title: 'Open Rooms Configuration Module',
-    description: 'Grant manager accounts authorization to inspect configurations and inventory stock.',
-    role: 'manager',
-    category: 'Room',
-  },
-  {
-    key: 'allowManagerAddRooms',
-    title: 'Manager: Register Guest Rooms',
-    description: 'Let managers create, price, and publish brand-new room units to receptionist tools.',
-    role: 'manager',
-    category: 'Room',
-  },
-  {
-    key: 'allowManagerEditRooms',
-    title: 'Manager: Edit Room Price/Attributes',
-    description: 'Let managers adjust nightly tier values and service configurations of guest rooms.',
-    role: 'manager',
-    category: 'Room',
-  },
-  {
-    key: 'allowManagerDeleteRooms',
-    title: 'Manager: Delete Guest Room Cards',
-    description: 'Permit manager accounts to drop or wipe guest room files permanently.',
-    role: 'manager',
-    category: 'Room',
-    sensitive: true,
-  },
-
-  // Food
-  {
-    key: 'allowReceptionistAddFoods',
-    title: 'Add Culinary Menu Items',
-    description: 'Allow receptionists to add new items, beverages, or snacks to the live database.',
-    role: 'receptionist',
-    category: 'Food',
-  },
-  {
-    key: 'allowReceptionistEditFoods',
-    title: 'Edit Culinary Descriptions & Rates',
-    description: 'Allow receptionists to modify descriptions, tags, and price points of active foods.',
-    role: 'receptionist',
-    category: 'Food',
-  },
-  {
-    key: 'allowReceptionistDeleteFoods',
-    title: 'Wipe Culinary Menu Dishes',
-    description: 'Enable receptionist clerks to drop foods or culinary files from order registers.',
-    role: 'receptionist',
-    category: 'Food',
-    sensitive: true,
-  },
-  {
-    key: 'allowManagerAddFoods',
-    title: 'Manager: Add Culinary Foods',
-    description: 'Enable managers to add new dishes or custom pricing to the kitchen index.',
-    role: 'manager',
-    category: 'Food',
-  },
-  {
-    key: 'allowManagerEditFoods',
-    title: 'Manager: Edit Food Pricing/Details',
-    description: 'Permit managers to adjust base metrics, descriptions, or groupings of menu dishes.',
-    role: 'manager',
-    category: 'Food',
-  },
-  {
-    key: 'allowManagerDeleteFoods',
-    title: 'Manager: Delete Food Cards',
-    description: 'Permit managers to sweep dishes permanently from restaurant terminal viewports.',
-    role: 'manager',
-    category: 'Food',
-    sensitive: true,
-  },
-
-  // Report
-  {
-    key: 'allowManagerViewReports',
-    title: 'Browse High-Level Financial Turnover',
-    description: 'Permit managers to download tax details, inspect profit graphs, and study revenues.',
-    role: 'manager',
-    category: 'Report',
-  },
-
-  // Staff
-  {
-    key: 'allowReceptionistManageGuests',
-    title: 'Modify Guest File Directories',
-    description: 'Permit clerk accounts to log, edit, or wipe records from the hotel guest folders.',
-    role: 'receptionist',
-    category: 'Staff',
-  },
-  {
-    key: 'allowManagerSalaryChange',
-    title: 'Update Employee Contract Salaries',
-    description: 'Managers can adjust baseline payroll wages of active frontdesk employees.',
-    role: 'manager',
-    category: 'Staff',
-    sensitive: true,
-  },
-  {
-    key: 'allowManagerUserEdit',
-    title: 'Register or Wreak Frontdesk Accounts',
-    description: 'Managers can create, update, or retire receptionist profiles and passwords.',
-    role: 'manager',
-    category: 'Staff',
-    sensitive: true,
-  },
-
-  // Expenses
-  {
-    key: 'allowReceptionistDelete',
-    title: 'Void or Delete Transactions',
-    description: 'Allow frontdesk receptionists to delete, void, or roll back active room stays.',
-    role: 'receptionist',
-    category: 'Expenses',
-    sensitive: true,
-  },
-  {
-    key: 'allowReceptionistDiscount',
-    title: 'Issue Manual Discounts',
-    description: 'Allow frontdesk receptionists to specify arbitrary percentage or flat discounts.',
-    role: 'receptionist',
-    category: 'Expenses',
-  },
-  {
-    key: 'allowReceptionistAddExpenses',
-    title: 'Record Outflow Expenses',
-    description: 'Permit clerks to submit bills and outlays directly into operating ledger registers.',
-    role: 'receptionist',
-    category: 'Expenses',
-  },
-  {
-    key: 'allowManagerDeleteExpenses',
-    title: 'Liquidate Ledger Outflow Records',
-    description: 'Authorize managers to delete historical or erroneous ledger items from system books.',
-    role: 'manager',
-    category: 'Expenses',
-    sensitive: true,
-  },
-];
+const categoryIcons: Record<PermissionCategory, LucideIcon> = {
+  Room: Bed,
+  Food: Utensils,
+  Report: TrendingUp,
+  Staff: Users,
+  Expenses: Receipt,
+};
 
 export const Settings: React.FC = () => {
   const { user: currentUser } = useAuth();
@@ -231,7 +54,7 @@ export const Settings: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const [activeSettingsPanel, setActiveSettingsPanel] = useState<'profile' | 'permissions'>('permissions');
+  const [activeRoleTab, setActiveRoleTab] = useState<'manager' | 'receptionist'>('manager');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
 
@@ -750,32 +573,138 @@ export const Settings: React.FC = () => {
          {/* Column Right (Role Permissions) - Spans 5 cols */}
           <div className="lg:col-span-5 space-y-6">
 
-            {/* Role Privileges Block */}
-            {/*manager and receptionist permissions*/
-            }
-
             <div className="bg-white p-6 rounded-3xl border border-slate-200/50 shadow-xs space-y-4">
               <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
                 <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
                   <Users className="h-4 w-4" />
                 </div>
-                <div>
+                <div className="flex-1">
                   <h3 className="font-display font-medium text-sm text-slate-800">Role Privileges & Permissions</h3>
                   <p className="text-[10px] text-slate-400">Enable or disable specific features for receptionists and managers</p>
                 </div>
+                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-100">
+                  {countEnabledPermissions(activeRoleTab, settings).enabled} of {countEnabledPermissions(activeRoleTab, settings).total} enabled
+                </span>
               </div>
 
-              {/*manager permissions*/}
-              
+              {/* Role tabs */}
+              <div className="flex gap-1 p-1 bg-slate-100 rounded-xl">
+                {(['manager', 'receptionist'] as const).map((role) => (
+                  <button
+                    key={role}
+                    type="button"
+                    onClick={() => setActiveRoleTab(role)}
+                    className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg transition-all capitalize ${
+                      activeRoleTab === role
+                        ? 'bg-white text-indigo-700 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {role}
+                  </button>
+                ))}
+              </div>
 
-              <hr className="my-3 border-slate-100" />
+              {/* Search + category filter */}
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search permissions..."
+                    className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-hidden focus:ring-1 focus:ring-indigo-500 bg-white"
+                  />
+                </div>
+                <div className="relative">
+                  <ListFilter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="pl-8 pr-6 py-2 border border-slate-200 rounded-xl text-xs focus:outline-hidden focus:ring-1 focus:ring-indigo-500 bg-white appearance-none"
+                  >
+                    <option value="All">All</option>
+                    {PERMISSION_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-              {/*receptionist permissions*/}
-              
-               
-               
+              {/* Permission groups */}
+              <div className="space-y-4 max-h-[520px] overflow-y-auto pr-1">
+                {(() => {
+                  const query = searchQuery.toLowerCase().trim();
+                  const filtered = permissionDefinitions.filter((def) => {
+                    if (def.role !== activeRoleTab) return false;
+                    if (categoryFilter !== 'All' && def.category !== categoryFilter) return false;
+                    if (!query) return true;
+                    return (
+                      def.title.toLowerCase().includes(query) ||
+                      def.description.toLowerCase().includes(query) ||
+                      def.category.toLowerCase().includes(query)
+                    );
+                  });
 
+                  if (filtered.length === 0) {
+                    return (
+                      <p className="text-xs text-slate-400 italic text-center py-6">
+                        No permissions match your search.
+                      </p>
+                    );
+                  }
 
+                  const grouped = PERMISSION_CATEGORIES.map((cat) => ({
+                    category: cat,
+                    items: filtered.filter((d) => d.category === cat),
+                  })).filter((g) => g.items.length > 0);
+
+                  return grouped.map(({ category, items }) => {
+                    const CatIcon = categoryIcons[category];
+                    return (
+                      <div key={category} className="space-y-2">
+                        <div className="flex items-center gap-1.5 pt-1">
+                          <CatIcon className="h-3.5 w-3.5 text-indigo-500" />
+                          <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">{category}</span>
+                        </div>
+                        <div className="space-y-2">
+                          {items.map((def) => (
+                            <label
+                              key={def.key}
+                              className={`flex items-start gap-2.5 cursor-pointer select-none p-3 rounded-xl border transition-colors ${
+                                settings[def.key]
+                                  ? 'border-indigo-100 bg-indigo-50/40'
+                                  : 'border-slate-100 bg-slate-50/50'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={settings[def.key] as boolean}
+                                onChange={(e) =>
+                                  setSettings({ ...settings, [def.key]: e.target.checked })
+                                }
+                                className="mt-0.5 accent-indigo-600 rounded shrink-0"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-xs font-semibold text-slate-700 leading-tight">{def.title}</span>
+                                  {def.sensitive && (
+                                    <span className="text-[8px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                      Sensitive
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[9px] text-slate-400 block mt-0.5 leading-relaxed">{def.description}</span>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
             </div>
             
           </div>

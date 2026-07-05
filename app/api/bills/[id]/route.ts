@@ -6,6 +6,7 @@
 import { deleteBill, getBills } from '@/lib/db';
 import { recordAudit } from '@/lib/auditLog';
 import { ensureDb, errorResponse, jsonResponse } from '@/lib/api-utils';
+import { requireStaffOrPermission } from '@/lib/api-auth';
 
 export async function DELETE(
   request: Request,
@@ -13,6 +14,9 @@ export async function DELETE(
 ) {
   try {
     await ensureDb();
+    const auth = await requireStaffOrPermission(request, 'allowReceptionistDelete');
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const bills = await getBills();
     const existing = bills.find((b) => b.id === id);

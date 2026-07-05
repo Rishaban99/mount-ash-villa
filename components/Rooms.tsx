@@ -11,6 +11,8 @@ import { Plus, Search, Edit2, Trash2, Hotel, Tag, DollarSign, Command, Sparkles,
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/components/auth-provider';
 import { dedupeRoomsByNumber } from '@/lib/rooms';
+import { hasPermission } from '@/lib/permissions';
+import type { SystemSettings } from '@/lib/types';
 
 export const Rooms: React.FC = () => {
   const { user: currentUser } = useAuth();
@@ -42,7 +44,7 @@ export const Rooms: React.FC = () => {
     }
   };
 
-  const [settings, setSettings] = useState<any>(null);
+  const [settings, setSettings] = useState<SystemSettings | null>(null);
 
   useEffect(() => {
     const cached = localStorage.getItem('system_settings_cache');
@@ -68,17 +70,14 @@ export const Rooms: React.FC = () => {
     fetchRooms();
   }, []);
 
-  const canAddRoom = currentUser.role === 'admin' || 
-    (currentUser.role === 'manager' && settings?.allowManagerAddRooms !== false) ||
-    (currentUser.role === 'receptionist' && settings?.allowReceptionistAddRooms === true);
+  const canAddRoom = hasPermission(currentUser.role, 'allowReceptionistAddRooms', settings) ||
+    hasPermission(currentUser.role, 'allowManagerAddRooms', settings);
 
-  const canEditRoom = currentUser.role === 'admin' || 
-    (currentUser.role === 'manager' && settings?.allowManagerEditRooms !== false) ||
-    (currentUser.role === 'receptionist' && settings?.allowReceptionistEditRooms === true);
+  const canEditRoom = hasPermission(currentUser.role, 'allowReceptionistEditRooms', settings) ||
+    hasPermission(currentUser.role, 'allowManagerEditRooms', settings);
 
-  const canDeleteRoom = currentUser.role === 'admin' || 
-    (currentUser.role === 'manager' && settings?.allowManagerDeleteRooms !== false) ||
-    (currentUser.role === 'receptionist' && settings?.allowReceptionistDeleteRooms === true);
+  const canDeleteRoom = hasPermission(currentUser.role, 'allowReceptionistDeleteRooms', settings) ||
+    hasPermission(currentUser.role, 'allowManagerDeleteRooms', settings);
 
   const isAdmin = canAddRoom || canEditRoom || canDeleteRoom;
 

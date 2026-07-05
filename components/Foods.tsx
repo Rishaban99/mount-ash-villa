@@ -10,6 +10,8 @@ import { Food, User } from '@/lib/types';
 import { Plus, Search, Edit2, Trash2, Utensils, Filter, DollarSign, Command } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/components/auth-provider';
+import { hasPermission } from '@/lib/permissions';
+import type { SystemSettings } from '@/lib/types';
 
 export const Foods: React.FC = () => {
   const { user: currentUser } = useAuth();
@@ -39,7 +41,7 @@ export const Foods: React.FC = () => {
     }
   };
 
-  const [settings, setSettings] = useState<any>(null);
+  const [settings, setSettings] = useState<SystemSettings | null>(null);
 
   useEffect(() => {
     const cached = localStorage.getItem('system_settings_cache');
@@ -65,17 +67,14 @@ export const Foods: React.FC = () => {
     fetchFoods();
   }, []);
 
-  const canAddFood = currentUser.role === 'admin' || 
-    (currentUser.role === 'manager' && settings?.allowManagerAddFoods !== false) ||
-    (currentUser.role === 'receptionist' && settings?.allowReceptionistAddFoods === true);
+  const canAddFood = hasPermission(currentUser.role, 'allowReceptionistAddFoods', settings) ||
+    hasPermission(currentUser.role, 'allowManagerAddFoods', settings);
 
-  const canEditFood = currentUser.role === 'admin' || 
-    (currentUser.role === 'manager' && settings?.allowManagerEditFoods !== false) ||
-    (currentUser.role === 'receptionist' && settings?.allowReceptionistEditFoods === true);
+  const canEditFood = hasPermission(currentUser.role, 'allowReceptionistEditFoods', settings) ||
+    hasPermission(currentUser.role, 'allowManagerEditFoods', settings);
 
-  const canDeleteFood = currentUser.role === 'admin' || 
-    (currentUser.role === 'manager' && settings?.allowManagerDeleteFoods !== false) ||
-    (currentUser.role === 'receptionist' && settings?.allowReceptionistDeleteFoods === true);
+  const canDeleteFood = hasPermission(currentUser.role, 'allowReceptionistDeleteFoods', settings) ||
+    hasPermission(currentUser.role, 'allowManagerDeleteFoods', settings);
 
   const isAdmin = canAddFood || canEditFood || canDeleteFood;
 

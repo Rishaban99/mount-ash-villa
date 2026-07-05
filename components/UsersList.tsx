@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/components/auth-provider';
+import { hasPermission } from '@/lib/permissions';
 
 export const UsersList: React.FC = () => {
   const { user: currentUser } = useAuth();
@@ -162,6 +163,9 @@ export const UsersList: React.FC = () => {
       console.error('Failed to fetch expenses for payroll:', e);
     }
   };
+
+  const canManageUsers = hasPermission(currentUser.role, 'allowManagerUserEdit', settings);
+  const canChangeSalary = hasPermission(currentUser.role, 'allowManagerSalaryChange', settings);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -429,7 +433,7 @@ export const UsersList: React.FC = () => {
           </p>
         </div>
 
-        {(currentUser.role === 'admin' || (currentUser.role === 'manager' && settings?.allowManagerUserEdit)) && (
+        {canManageUsers && (
           <button
             onClick={() => setIsModalOpen(true)}
             className="self-start sm:self-center flex items-center gap-2 py-2.5 px-4 bg-indigo-600 hover:bg-slate-900 text-white font-medium rounded-xl shadow-xs transition-all text-sm border-0 cursor-pointer"
@@ -617,7 +621,7 @@ export const UsersList: React.FC = () => {
                         {u.role === 'admin' ? 'Super Admin' : u.role}
                       </span>
 
-                      {(currentUser.role === 'admin' || (currentUser.role === 'manager' && settings?.allowManagerUserEdit)) && u.role !== 'admin' && u.id !== currentUser.id && !departed && (
+                      {canManageUsers && u.role !== 'admin' && u.id !== currentUser.id && !departed && (
                         <button
                           onClick={() => openMarkAsLeftModal(u)}
                           className="p-1.5 px-2.5 text-[11px] bg-slate-50 hover:bg-amber-50 text-slate-500 hover:text-amber-700 rounded-xl flex items-center gap-1.5 transition-all outline-none border-0 cursor-pointer"
@@ -684,7 +688,7 @@ export const UsersList: React.FC = () => {
                           ) : (
                             <span className="text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded-md">Not set</span>
                           )}
-                          {!editingJoinDateUserId && (currentUser.role === 'admin' || (currentUser.role === 'manager' && settings?.allowManagerUserEdit)) && u.role !== 'admin' && (
+                          {!editingJoinDateUserId && canManageUsers && u.role !== 'admin' && (
                             <button
                               onClick={() => {
                                 setEditingJoinDateUserId(u.id);
@@ -791,7 +795,7 @@ export const UsersList: React.FC = () => {
                                 <span className="text-slate-800 font-bold font-mono text-xs">
                                   Rs. {baseSalary.toLocaleString()}
                                 </span>
-                                {(currentUser.role === 'admin' || (currentUser.role === 'manager' && settings?.allowManagerSalaryChange)) && (
+                                {canChangeSalary && (
                                   <button
                                     onClick={() => {
                                       setEditingUserId(u.id);
@@ -848,7 +852,7 @@ export const UsersList: React.FC = () => {
 
                   {/* Actions & Passcode Footer */}
                   <div className="p-6 pt-0 space-y-3">
-                    {(currentUser.role === 'admin' || (currentUser.role === 'manager' && settings?.allowManagerSalaryChange)) && u.role !== 'admin' && (
+                    {canChangeSalary && u.role !== 'admin' && (
                       <button
                         disabled={!isJoinedInMonth || departed}
                         onClick={() => {

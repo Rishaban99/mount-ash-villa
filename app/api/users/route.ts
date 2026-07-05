@@ -10,10 +10,13 @@ import {
 } from '@/lib/db';
 import { buildUpdateDetails, recordAudit } from '@/lib/auditLog';
 import { ensureDb, errorResponse, jsonResponse } from '@/lib/api-utils';
+import { checkSessionPermission, requirePermission, requireSession } from '@/lib/api-auth';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureDb();
+    const auth = await requirePermission(request, 'allowManagerUserEdit');
+    if (!auth.ok) return auth.response;
     const users = await getUsers();
     const safeUsers = users.map(({ password, ...u }) => u);
     return jsonResponse(safeUsers);
@@ -25,6 +28,9 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await ensureDb();
+    const auth = await requirePermission(request, 'allowManagerUserEdit');
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { id, username, name, role, password, salary, lastPaid, joinDate, leftDate, monthlyBaseSalaries } = body;
 
@@ -33,6 +39,18 @@ export async function POST(request: Request) {
       const existingUser = users.find((u) => u.id === id);
       if (!existingUser) {
         return errorResponse('User not found', 404);
+      }
+
+      const salaryChanging =
+        salary !== undefined && Number(salary) !== existingUser.salary;
+      const monthlySalariesChanging =
+        monthlyBaseSalaries !== undefined &&
+        JSON.stringify(monthlyBaseSalaries) !== JSON.stringify(existingUser.monthlyBaseSalaries);
+
+      if (salaryChanging || monthlySalariesChanging) {
+        if (!(await checkSessionPermission(auth.session, 'allowManagerSalaryChange'))) {
+          return errorResponse('Forbidden: Salary changes are restricted by administrator policy.', 403);
+        }
       }
 
       const updatedUser = await saveUser({
@@ -68,6 +86,12 @@ export async function POST(request: Request) {
 
     if (!username || !name || !role || !password) {
       return errorResponse('All fields are required', 400);
+    }
+
+    if (salary !== undefined || monthlyBaseSalaries !== undefined) {
+      if (!(await checkSessionPermission(auth.session, 'allowManagerSalaryChange'))) {
+        return errorResponse('Forbidden: Salary changes are restricted by administrator policy.', 403);
+      }
     }
 
     const users = await getUsers();

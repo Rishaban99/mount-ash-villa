@@ -6,10 +6,13 @@
 import { getGuests, saveGuest } from '@/lib/db';
 import { buildUpdateDetails, recordAudit } from '@/lib/auditLog';
 import { ensureDb, errorResponse, jsonResponse } from '@/lib/api-utils';
+import { requireSession, requireStaffOrPermission } from '@/lib/api-auth';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureDb();
+    const auth = await requireSession(request);
+    if (!auth.ok) return auth.response;
     const guests = await getGuests();
     return jsonResponse(guests);
   } catch {
@@ -20,6 +23,8 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await ensureDb();
+    const auth = await requireStaffOrPermission(request, 'allowReceptionistManageGuests');
+    if (!auth.ok) return auth.response;
     const { id, name, phone, nic, address, checkInDate, checkOutDate } = await request.json();
     if (!name || !nic || !checkInDate) {
       return errorResponse('Name, Identification (NIC/Passport), and Check-In Date are required.', 400);

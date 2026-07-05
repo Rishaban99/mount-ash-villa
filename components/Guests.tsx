@@ -9,14 +9,19 @@ import React, { useState, useEffect } from 'react';
 import { Guest } from '@/lib/types';
 import { Plus, Search, Calendar, Phone, FileText, UserPlus, Home, User, Command } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/components/auth-provider';
+import { hasPermission } from '@/lib/permissions';
+import type { SystemSettings } from '@/lib/types';
 
 interface GuestsProps {
   onSelectGuest?: (guest: Guest) => void; 
 }
 
 export const Guests: React.FC<GuestsProps> = ({ onSelectGuest }) => {
+  const { user: currentUser } = useAuth();
   const [guests, setGuests] = useState<Guest[]>([]);
   const [search, setSearch] = useState('');
+  const [settings, setSettings] = useState<SystemSettings | null>(null);
   
   // Registration Form
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -43,6 +48,23 @@ export const Guests: React.FC<GuestsProps> = ({ onSelectGuest }) => {
 
   useEffect(() => {
     fetchGuests();
+    const cached = localStorage.getItem('system_settings_cache');
+    if (cached) {
+      try {
+        setSettings(JSON.parse(cached));
+      } catch {}
+    }
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          setSettings(data);
+          localStorage.setItem('system_settings_cache', JSON.stringify(data));
+        }
+      } catch {}
+    };
+    fetchSettings();
   }, []);
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -97,6 +119,12 @@ export const Guests: React.FC<GuestsProps> = ({ onSelectGuest }) => {
     }
   };
 
+  const canManageGuests =
+    !currentUser ||
+    currentUser.role === 'admin' ||
+    currentUser.role === 'manager' ||
+    hasPermission(currentUser.role, 'allowReceptionistManageGuests', settings);
+
   const filteredGuests = guests.filter((guest) => {
     const term = search.toLowerCase();
     return (
@@ -120,6 +148,7 @@ export const Guests: React.FC<GuestsProps> = ({ onSelectGuest }) => {
           </p>
         </div>
         
+        {canManageGuests && (
         <button
           onClick={() => setIsFormOpen(true)}
           className="self-start sm:self-center flex items-center gap-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shadow-md shadow-indigo-100 transition-all text-sm"
@@ -127,6 +156,7 @@ export const Guests: React.FC<GuestsProps> = ({ onSelectGuest }) => {
           <UserPlus className="h-4 w-4" />
           Register New Guest
         </button>
+        )}
       </div>
 
       {/* Toolbar Search */}

@@ -6,6 +6,7 @@
 import { getSettings, saveSettings, getUsers } from '@/lib/db';
 import { buildUpdateDetails, recordAudit } from '@/lib/auditLog';
 import { ensureDb, errorResponse, jsonResponse } from '@/lib/api-utils';
+import { PERMISSION_KEYS } from '@/lib/permissions';
 
 export async function GET() {
   try {
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
         details: buildUpdateDetails(
           previousSettings as unknown as Record<string, unknown>,
           updatedSettings as unknown as Record<string, unknown>,
-          ['hotelName', 'allowManagerViewReports', 'allowManagerUserEdit', 'allowReceptionistAddExpenses']
+          ['hotelName', ...PERMISSION_KEYS]
         ),
       });
     } catch (auditError) {

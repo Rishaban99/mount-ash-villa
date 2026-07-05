@@ -7,10 +7,13 @@ import { getClosedMonths, saveClosedMonth, deleteClosedMonth } from '@/lib/db';
 import type { ClosedMonth } from '@/lib/types';
 import { buildUpdateDetails, recordAudit } from '@/lib/auditLog';
 import { ensureDb, errorResponse, jsonResponse } from '@/lib/api-utils';
+import { requirePermission } from '@/lib/api-auth';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureDb();
+    const auth = await requirePermission(request, 'allowManagerViewReports');
+    if (!auth.ok) return auth.response;
     const list = await getClosedMonths();
     const sorted = [...list].sort((a, b) => b.month.localeCompare(a.month));
     return jsonResponse(sorted);
@@ -22,6 +25,8 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await ensureDb();
+    const auth = await requirePermission(request, 'allowManagerViewReports');
+    if (!auth.ok) return auth.response;
     const closedMonth = (await request.json()) as ClosedMonth;
     if (!closedMonth.month || closedMonth.ownerTakeaway === undefined) {
       return errorResponse('Month and owner profit takeaway values are required', 400);

@@ -3,14 +3,45 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { getBills, saveBill, deleteBill } from '@/lib/db';
-import type { Bill } from '@/lib/types';
+import { getBills, saveBill, getRooms, getSettings } from '@/lib/db';
+import type { Bill, RoomItem } from '@/lib/types';
 import { buildUpdateDetails, recordAudit } from '@/lib/auditLog';
 import { ensureDb, errorResponse, jsonResponse } from '@/lib/api-utils';
+import { requireSession } from '@/lib/api-auth';
+import { hasPermission } from '@/lib/permissions';
 
-export async function GET() {
+async function validateReceptionistBillRestrictions(
+  role: string,
+  roomItems: RoomItem[]
+): Promise<string | null> {
+  if (role !== 'receptionist') return null;
+
+  const settings = await getSettings();
+  const rooms = await getRooms();
+
+  for (const item of roomItems) {
+    const room = rooms.find((r) => r.id === item.roomId);
+    const basePrice = room?.price ?? item.originalPricePerNight ?? item.pricePerNight;
+    const discount = item.discount || 0;
+
+    if (discount > 0 && !hasPermission('receptionist', 'allowReceptionistDiscount', settings)) {
+      return 'Receptionists are not permitted to apply discounts on room stays.';
+    }
+
+    if (item.pricePerNight !== basePrice && discount === 0 &&
+        !hasPermission('receptionist', 'allowReceptionistModifyPrice', settings)) {
+      return 'Receptionists are not permitted to override base room prices.';
+    }
+  }
+
+  return null;
+}
+
+export async function GET(request: Request) {
   try {
     await ensureDb();
+    const auth = await requireSession(request);
+    if (!auth.ok) return auth.response;
     const bills = await getBills();
     return jsonResponse(bills);
   } catch {
@@ -21,13 +52,24 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await ensureDb();
+    const auth = await requireSession(request);
+    if (!auth.ok) return auth.response;
+
     const billData = await request.json();
     if (!billData.guestId || !billData.guestDetails) {
       return errorResponse('Guest details are required for creating a bill', 400);
     }
 
     const foodItems = billData.foodItems || [];
-    const roomItems = billData.roomItems || [];
+    const roomItems: RoomItem[] = billData.roomItems || [];
+
+    const restrictionError = await validateReceptionistBillRestrictions(
+      auth.session.role,
+      roomItems
+    );
+    if (restrictionError) {
+      return errorResponse(restrictionError, 403);
+    }
 
     const foodSubtotal = foodItems.reduce((acc: number, item: { price: number; quantity: number }) => acc + item.price * item.quantity, 0);
     const serviceCharge = Math.round(foodSubtotal * 0.1);

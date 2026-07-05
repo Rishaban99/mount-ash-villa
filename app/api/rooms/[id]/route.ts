@@ -6,6 +6,7 @@
 import { deleteRoom, getRooms } from '@/lib/db';
 import { recordAudit } from '@/lib/auditLog';
 import { ensureDb, errorResponse, jsonResponse } from '@/lib/api-utils';
+import { checkSessionPermission, requireSession, roomDeletePermission } from '@/lib/api-auth';
 
 export async function DELETE(
   request: Request,
@@ -13,6 +14,14 @@ export async function DELETE(
 ) {
   try {
     await ensureDb();
+    const auth = await requireSession(request);
+    if (!auth.ok) return auth.response;
+
+    const permissionKey = roomDeletePermission(auth.session.role);
+    if (!(await checkSessionPermission(auth.session, permissionKey))) {
+      return errorResponse('Forbidden: This action is restricted by administrator policy.', 403);
+    }
+
     const { id } = await params;
     const rooms = await getRooms();
     const existing = rooms.find((r) => r.id === id);

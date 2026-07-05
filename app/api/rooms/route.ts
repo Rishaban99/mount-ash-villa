@@ -6,10 +6,17 @@
 import { getRooms, saveRoom, deleteRoom } from '@/lib/db';
 import { buildUpdateDetails, recordAudit } from '@/lib/auditLog';
 import { ensureDb, errorResponse, jsonResponse } from '@/lib/api-utils';
+import {
+  checkSessionPermission,
+  requireSession,
+  roomMutationPermission,
+} from '@/lib/api-auth';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureDb();
+    const auth = await requireSession(request);
+    if (!auth.ok) return auth.response;
     const rooms = await getRooms();
     return jsonResponse(rooms);
   } catch {
@@ -20,9 +27,17 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await ensureDb();
+    const auth = await requireSession(request);
+    if (!auth.ok) return auth.response;
+
     const { id, roomNumber, roomType, price, status } = await request.json();
     if (!roomNumber || !roomType || !price || !status) {
       return errorResponse('All room fields are required', 400);
+    }
+
+    const permissionKey = roomMutationPermission(auth.session.role, Boolean(id));
+    if (!(await checkSessionPermission(auth.session, permissionKey))) {
+      return errorResponse('Forbidden: This action is restricted by administrator policy.', 403);
     }
 
     const rooms = await getRooms();

@@ -39,6 +39,8 @@ import {
 import { Guests } from "@/components/Guests";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/components/auth-provider";
+import { hasPermission } from "@/lib/permissions";
+import type { SystemSettings } from "@/lib/types";
 
 interface BillingProps {
   onShowReceipt: (bill: Bill) => void;
@@ -95,7 +97,14 @@ export const Billing: React.FC<BillingProps> = ({
   const [selectedFoodCategory, setSelectedFoodCategory] = useState<string>("All");
 
   const { user: currentUser } = useAuth();
-  const [settings, setSettings] = useState<any>(null);
+  const [settings, setSettings] = useState<SystemSettings | null>(null);
+
+  const canDeleteBill = !currentUser || currentUser.role !== 'receptionist' ||
+    hasPermission(currentUser.role, 'allowReceptionistDelete', settings);
+  const canApplyDiscount = !currentUser || currentUser.role !== 'receptionist' ||
+    hasPermission(currentUser.role, 'allowReceptionistDiscount', settings);
+  const canModifyPrice = !currentUser || currentUser.role !== 'receptionist' ||
+    hasPermission(currentUser.role, 'allowReceptionistModifyPrice', settings);
 
   const displayRooms = useMemo(() => dedupeRoomsByNumber(rooms), [rooms]);
 
@@ -256,6 +265,10 @@ export const Billing: React.FC<BillingProps> = ({
 
     const discountAmount = Number(addRoomDiscount) || 0;
     const finalPricePerNight = Math.max(0, room.price - discountAmount);
+    if (currentUser?.role === 'receptionist') {
+      if (discountAmount > 0 && !canApplyDiscount) return;
+      if (finalPricePerNight !== room.price && !canModifyPrice && !canApplyDiscount) return;
+    }
 
     const existingIndex = selectedRooms.findIndex(
       (ri) => ri.roomId === room.id || ri.roomNumber === room.roomNumber,
@@ -1536,13 +1549,13 @@ export const Billing: React.FC<BillingProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleRemoveRoom(rm.roomId)}
-                                disabled={currentUser?.role === 'receptionist' && settings?.allowReceptionistDelete === false}
+                                disabled={!canDeleteBill}
                                 className={`text-slate-400 hover:text-red-600 transition-colors bg-transparent border-0 cursor-pointer p-1 ${
-                                  currentUser?.role === 'receptionist' && settings?.allowReceptionistDelete === false
+                                  !canDeleteBill
                                     ? "opacity-30 cursor-not-allowed"
                                     : ""
                                 }`}
-                                title={currentUser?.role === 'receptionist' && settings?.allowReceptionistDelete === false ? "Deletion restricted by Administrator" : "Delete Room stay"}
+                                title={!canDeleteBill ? "Deletion restricted by Administrator" : "Delete Room stay"}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
@@ -1559,14 +1572,15 @@ export const Billing: React.FC<BillingProps> = ({
                                   value={rm.discount || 0}
                                   min="0"
                                   placeholder="0"
-                                  disabled={currentUser?.role === 'receptionist' && settings?.allowReceptionistDiscount === false}
-                                  title={currentUser?.role === 'receptionist' && settings?.allowReceptionistDiscount === false ? "Discounts disabled by Admin configuration" : "Set room discount"}
+                                  disabled={!canApplyDiscount}
+                                  title={!canApplyDiscount ? "Discounts disabled by Admin configuration" : "Set room discount"}
                                   className={`w-14 text-center text-[10px] font-bold bg-blue-50 text-rose-600 border border-blue-200 rounded p-0.5 focus:outline-hidden ${
-                                    currentUser?.role === 'receptionist' && settings?.allowReceptionistDiscount === false
+                                    !canApplyDiscount
                                       ? "opacity-50 cursor-not-allowed"
                                       : ""
                                   }`}
                                   onChange={(e) => {
+                                    if (!canApplyDiscount) return;
                                     const discVal = Number(e.target.value) || 0;
                                     const updated = selectedRooms.map((sr: any) => {
                                       if (sr.roomId === rm.roomId) {
@@ -1657,13 +1671,13 @@ export const Billing: React.FC<BillingProps> = ({
                             <button
                               type="button"
                               onClick={() => handleRemoveFood(fd.foodId)}
-                              disabled={currentUser?.role === 'receptionist' && settings?.allowReceptionistDelete === false}
+                              disabled={!canDeleteBill}
                               className={`text-slate-400 hover:text-red-600 transition-colors bg-transparent border-0 cursor-pointer p-1 ${
-                                currentUser?.role === 'receptionist' && settings?.allowReceptionistDelete === false
+                                !canDeleteBill
                                   ? "opacity-30 cursor-not-allowed"
                                   : ""
                               }`}
-                              title={currentUser?.role === 'receptionist' && settings?.allowReceptionistDelete === false ? "Deletion restricted by Administrator" : "Delete food item"}
+                              title={!canDeleteBill ? "Deletion restricted by Administrator" : "Delete food item"}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>

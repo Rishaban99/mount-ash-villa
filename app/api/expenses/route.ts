@@ -6,10 +6,13 @@
 import { getExpenses, saveExpense, deleteExpense } from '@/lib/db';
 import { buildUpdateDetails, recordAudit } from '@/lib/auditLog';
 import { ensureDb, errorResponse, jsonResponse } from '@/lib/api-utils';
+import { requireSession, requireStaffOrPermission, requirePermission } from '@/lib/api-auth';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureDb();
+    const auth = await requireSession(request);
+    if (!auth.ok) return auth.response;
     const expenses = await getExpenses();
     return jsonResponse(expenses);
   } catch {
@@ -20,6 +23,8 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await ensureDb();
+    const auth = await requireStaffOrPermission(request, 'allowReceptionistAddExpenses');
+    if (!auth.ok) return auth.response;
     const { id, title, amount, category, date, description, approvedBy, paymentMethod } = await request.json();
     if (!title || !amount || !category || !date || !paymentMethod) {
       return errorResponse('Title, amount, category, date, and payment method are required.', 400);

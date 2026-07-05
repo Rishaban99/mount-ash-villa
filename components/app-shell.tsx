@@ -25,6 +25,8 @@ import {
 import { Logo } from '@/components/Logo';
 import { useAuth } from '@/components/auth-provider';
 import { ReceiptProvider } from '@/components/receipt-provider';
+import { hasPermission } from '@/lib/permissions';
+import type { SystemSettings } from '@/lib/types';
 
 const viewTitles: Record<string, string> = {
   dashboard: 'Reception Dashboard',
@@ -42,7 +44,7 @@ const viewTitles: Record<string, string> = {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user: currentUser, loading, logout } = useAuth();
-  const [settings, setSettings] = useState<any>(null);
+  const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -82,16 +84,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const isAdminOnly = currentUser.role === 'admin';
-  const canViewReports =
-    currentUser.role === 'admin' ||
-    (currentUser.role === 'manager' && settings?.allowManagerViewReports !== false);
-  const canViewUsers =
-    currentUser.role === 'admin' ||
-    (currentUser.role === 'manager' && settings?.allowManagerUserEdit !== false);
+  const canViewReports = hasPermission(currentUser.role, 'allowManagerViewReports', settings);
+  const canViewUsers = hasPermission(currentUser.role, 'allowManagerUserEdit', settings);
   const canViewExpenses =
     currentUser.role === 'admin' ||
     currentUser.role === 'manager' ||
-    (currentUser.role === 'receptionist' && settings?.allowReceptionistAddExpenses === true);
+    hasPermission(currentUser.role, 'allowReceptionistAddExpenses', settings);
+  const canViewRooms =
+    currentUser.role === 'admin' ||
+    currentUser.role === 'receptionist' ||
+    hasPermission(currentUser.role, 'allowManagerManageRooms', settings);
 
   const formatDateString = (d: Date) =>
     d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
@@ -107,7 +109,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const navItems = [
     { id: 'dashboard', label: 'Dash', icon: LayoutDashboard },
     { id: 'billing', label: 'POS', icon: ShoppingCart },
-    { id: 'rooms', label: 'Rooms', icon: Hotel },
+    ...(canViewRooms ? [{ id: 'rooms', label: 'Rooms', icon: Hotel }] : []),
     { id: 'foods', label: 'Kitchen', icon: Utensils },
     ...(canViewReports ? [{ id: 'reports', label: 'Reports', icon: PieChart }] : []),
     ...(canViewUsers ? [{ id: 'users', label: 'Staff', icon: Users }] : []),

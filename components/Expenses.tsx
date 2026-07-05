@@ -35,6 +35,8 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/components/auth-provider';
+import { hasPermission } from '@/lib/permissions';
+import type { SystemSettings } from '@/lib/types';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 export const Expenses: React.FC = () => {
@@ -135,8 +137,7 @@ export const Expenses: React.FC = () => {
 
   const isAdmin = currentUser.role === 'admin' || currentUser.role === 'manager';
 
-  const canDeleteExpense = currentUser.role === 'admin' || 
-    (currentUser.role === 'manager' && settings?.allowManagerDeleteExpenses === true);
+  const canDeleteExpense = hasPermission(currentUser.role, 'allowManagerDeleteExpenses', settings);
 
   // Fetch all expenses
   const fetchExpenses = async () => {

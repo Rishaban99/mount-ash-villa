@@ -6,10 +6,17 @@
 import { getFoods, saveFood, deleteFood } from '@/lib/db';
 import { buildUpdateDetails, recordAudit } from '@/lib/auditLog';
 import { ensureDb, errorResponse, jsonResponse } from '@/lib/api-utils';
+import {
+  checkSessionPermission,
+  requireSession,
+  foodMutationPermission,
+} from '@/lib/api-auth';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureDb();
+    const auth = await requireSession(request);
+    if (!auth.ok) return auth.response;
     const foods = await getFoods();
     return jsonResponse(foods);
   } catch {
@@ -20,9 +27,17 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await ensureDb();
+    const auth = await requireSession(request);
+    if (!auth.ok) return auth.response;
+
     const { id, foodName, category, price } = await request.json();
     if (!foodName || !category || !price) {
       return errorResponse('All food fields are required', 400);
+    }
+
+    const permissionKey = foodMutationPermission(auth.session.role, Boolean(id));
+    if (!(await checkSessionPermission(auth.session, permissionKey))) {
+      return errorResponse('Forbidden: This action is restricted by administrator policy.', 403);
     }
 
     const foods = await getFoods();

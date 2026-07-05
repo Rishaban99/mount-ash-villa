@@ -6,6 +6,7 @@
 import { deleteFood, getFoods } from '@/lib/db';
 import { recordAudit } from '@/lib/auditLog';
 import { ensureDb, errorResponse, jsonResponse } from '@/lib/api-utils';
+import { checkSessionPermission, requireSession, foodDeletePermission } from '@/lib/api-auth';
 
 export async function DELETE(
   request: Request,
@@ -13,6 +14,14 @@ export async function DELETE(
 ) {
   try {
     await ensureDb();
+    const auth = await requireSession(request);
+    if (!auth.ok) return auth.response;
+
+    const permissionKey = foodDeletePermission(auth.session.role);
+    if (!(await checkSessionPermission(auth.session, permissionKey))) {
+      return errorResponse('Forbidden: This action is restricted by administrator policy.', 403);
+    }
+
     const { id } = await params;
     const foods = await getFoods();
     const existing = foods.find((f) => f.id === id);

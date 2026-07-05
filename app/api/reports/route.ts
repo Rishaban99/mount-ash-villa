@@ -5,10 +5,13 @@
 
 import { getBills } from '@/lib/db';
 import { ensureDb, errorResponse, jsonResponse } from '@/lib/api-utils';
+import { requirePermission } from '@/lib/api-auth';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureDb();
+    const auth = await requirePermission(request, 'allowManagerViewReports');
+    if (!auth.ok) return auth.response;
     const bills = await getBills();
 
     const dailyMap = new Map<string, { revenue: number; foodRevenue: number; serviceCharge: number; roomRevenue: number; billsCount: number }>();
