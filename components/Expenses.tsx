@@ -519,6 +519,7 @@ export const Expenses: React.FC = () => {
   const marketingTotal = filteredExpensesForStats.filter(exp => exp.category === 'Marketing').reduce((acc, exp) => acc + exp.amount, 0);
   const otherTotal = filteredExpensesForStats.filter(exp => exp.category === 'Other').reduce((acc, exp) => acc + exp.amount, 0);
   const RoomCommison = filteredExpensesForStats.filter(exp => exp.category === 'Room Commission').reduce((acc, exp) => acc + exp.amount, 0);
+  const Tranport = filteredExpensesForStats.filter(exp => exp.category === 'Transport').reduce((acc, exp) => acc + exp.amount, 0);
 
   // Category breakdown for progress bar insight widget
   const categoriesBreakdown = [
@@ -529,6 +530,7 @@ export const Expenses: React.FC = () => {
     { name: 'Marketing', amount: marketingTotal, color: 'bg-indigo-500', pct: grandTotalExpenses > 0 ? (marketingTotal / grandTotalExpenses) * 100 : 0 },
     { name: 'Other', amount: otherTotal, color: 'bg-slate-500', pct: grandTotalExpenses > 0 ? (otherTotal / grandTotalExpenses) * 100 : 0 },
     { name: 'Room Commission', amount: RoomCommison, color: 'bg-cyan-500', pct: grandTotalExpenses > 0 ? (RoomCommison / grandTotalExpenses) * 100 : 0 },
+    { name: 'Transport', amount: Tranport, color: 'bg-blue-500', pct: grandTotalExpenses > 0 ? (Tranport / grandTotalExpenses) * 100 : 0 },
   ].sort((a, b) => b.amount - a.amount);
 
   // Helper to format date string to YYYY-MM-DD format based on local/system timezone safely
@@ -750,6 +752,17 @@ export const Expenses: React.FC = () => {
                     >
                       📞 Phone Bill
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const currentMonthName = getSelectedMonthName();
+                        setTitle(`ASK Cable Bill - ${currentMonthName}`);
+                        setDescription(`Monthly ASK cable TV subscription charge for ${currentMonthName}.`);
+                      }}
+                      className="px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-800 text-[10px] font-bold rounded-lg border border-purple-200 cursor-pointer transition-all flex items-center gap-1 leading-none uppercase"
+                    >
+                      📺 ASK Cable
+                    </button>
                   </div>
                 </div>
               )}
@@ -781,6 +794,7 @@ export const Expenses: React.FC = () => {
                     <option value="Maintenance">Maintenance</option>
                     <option value="Marketing">Marketing</option>
                     <option value="Room Commission">Room Commission</option>
+                    <option value="Transport">Transport</option>
                     <option value="Other">Other</option>
                   </select>
                 </div>
@@ -1525,6 +1539,7 @@ export const Expenses: React.FC = () => {
                     <option value="Maintenance">Maintenance</option>
                     <option value="Marketing">Marketing</option>
                     <option value="Room Commission">Room Commission</option>
+                    <option value="Transport">Transport</option>
                     <option value="Other">Other</option>
                   </>
                 )}
@@ -1970,6 +1985,17 @@ export const Expenses: React.FC = () => {
                     >
                       📞 Phone Bill
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const currentMonthName = getSelectedMonthName();
+                        setTitle(`ASK Cable Bill - ${currentMonthName}`);
+                        setDescription(`Monthly ASK cable TV subscription charge for ${currentMonthName}.`);
+                      }}
+                      className="px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-800 text-[10px] font-bold rounded-lg border border-purple-200 cursor-pointer transition-all flex items-center gap-1 leading-none uppercase"
+                    >
+                      📺 ASK Cable
+                    </button>
                   </div>
                 </div>
               )}
@@ -2002,6 +2028,7 @@ export const Expenses: React.FC = () => {
                     <option value="Maintenance">Maintenance</option>
                     <option value="Marketing">Marketing</option>
                     <option value="Room Commission">Room Commission</option>
+                    <option value="Transport">Transport</option>
                     <option value="Other">Other</option>
                   </select>
                 </div>
