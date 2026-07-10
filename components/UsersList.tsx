@@ -191,7 +191,7 @@ export const UsersList: React.FC = () => {
           name,
           role,
           password,
-          salary: Number(newUserSalary) || 35000,
+          salary: Number(newUserSalary) ,
           lastPaid: '',
           joinDate,
         }),
@@ -401,7 +401,7 @@ export const UsersList: React.FC = () => {
     ? Math.round(activeStaffForMonth.reduce((acc, u) => {
         const baseSal = u.monthlyBaseSalaries?.[selectedMonth] !== undefined
           ? u.monthlyBaseSalaries[selectedMonth]
-          : (u.salary || 35000);
+          : (u.salary );
         return acc + baseSal;
       }, 0) / activeStaffForMonth.length)
     : 0;

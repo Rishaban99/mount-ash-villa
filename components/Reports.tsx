@@ -45,6 +45,14 @@ interface ReportDetails {
   billsCount: number;
 }
 
+const getBarPath = (x: number, y: number, w: number, h: number, r: number) => {
+  const radius = Math.min(r, w / 2, h);
+  if (radius <= 0) {
+    return `M ${x} ${y + h} L ${x} ${y} L ${x + w} ${y} L ${x + w} ${y + h} Z`;
+  }
+  return `M ${x} ${y + h} L ${x} ${y + radius} A ${radius} ${radius} 0 0 1 ${x + radius} ${y} L ${x + w - radius} ${y} A ${radius} ${radius} 0 0 1 ${x + w} ${y + radius} L ${x + w} ${y + h} Z`;
+};
+
 export const Reports: React.FC = () => {
   const [dailyData, setDailyData] = useState<ReportDetails[]>([]);
   const [monthlyData, setMonthlyData] = useState<ReportDetails[]>([]);
@@ -446,8 +454,23 @@ export const Reports: React.FC = () => {
   let linePath = "";
   let areaPath = "";
   if (points.length > 0) {
-    linePath = `M ${points[0].x} ${points[0].y} ` + points.slice(1).map(p => `L ${p.x} ${p.y}`).join(" ");
-    areaPath = `${linePath} L ${points[points.length - 1].x} ${paddingTop + chartHeight} L ${points[0].x} ${paddingTop + chartHeight} Z`;
+    if (points.length === 1) {
+      linePath = `M ${points[0].x} ${points[0].y}`;
+      areaPath = `M ${points[0].x} ${points[0].y} L ${points[0].x} ${paddingTop + chartHeight} Z`;
+    } else {
+      linePath = `M ${points[0].x} ${points[0].y}`;
+      for (let i = 0; i < points.length - 1; i++) {
+        const p0 = points[i];
+        const p1 = points[i + 1];
+        // Calculate smooth control points (zero-tangent Hermite Spline approximation)
+        const cpX1 = p0.x + (p1.x - p0.x) / 3;
+        const cpY1 = p0.y;
+        const cpX2 = p0.x + 2 * (p1.x - p0.x) / 3;
+        const cpY2 = p1.y;
+        linePath += ` C ${cpX1} ${cpY1}, ${cpX2} ${cpY2}, ${p1.x} ${p1.y}`;
+      }
+      areaPath = `${linePath} L ${points[points.length - 1].x} ${paddingTop + chartHeight} L ${points[0].x} ${paddingTop + chartHeight} Z`;
+    }
   }
 
   const seriesColor = 
@@ -476,7 +499,7 @@ export const Reports: React.FC = () => {
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={handlePrintPDFSummary}
-            className="flex items-center gap-2 py-2 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-705 rounded-xl text-xs font-bold transition-all"
+            className="flex items-center gap-2 py-2 px-3.5 bg-slate-105 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
           >
             <FileDown className="h-4 w-4" />
             Print PDF Summary
@@ -541,28 +564,28 @@ export const Reports: React.FC = () => {
                 
                 <div className="bg-white p-5 rounded-2xl border border-indigo-200 bg-indigo-50/5 shadow-xs relative overflow-hidden">
                   <div className="absolute top-0 left-0 h-1 w-full bg-indigo-500"></div>
-                  <p className="text-[11px] font-bold text-indigo-650 uppercase tracking-widest font-sans font-semibold">This Month's Revenue</p>
+                  <p className="text-[11px] font-bold text-indigo-600 uppercase tracking-widest font-sans font-semibold">This Month's Revenue</p>
                   <p className="text-2xl font-display font-bold text-slate-900 mt-2">Rs. {thisMonthRevenue.toLocaleString()}</p>
                   <div className="text-[10px] text-indigo-500 mt-1 font-medium">{curMonthLabel}</div>
                 </div>
 
                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs relative overflow-hidden">
                   <div className="absolute top-0 left-0 h-1 w-full bg-emerald-500"></div>
-                  <p className="text-[11px] font-bold text-emerald-650 uppercase tracking-widest font-sans font-semibold">Room Revenue</p>
+                  <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest font-sans font-semibold">Room Revenue</p>
                   <p className="text-2xl font-display font-bold text-slate-800 mt-2">Rs. {thisMonthRoomRevenue.toLocaleString()}</p>
                   <div className="text-[10px] text-slate-400 mt-1">This month's stay revenue</div>
                 </div>
 
                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs font-semibold relative overflow-hidden">
                   <div className="absolute top-0 left-0 h-1 w-full bg-amber-500"></div>
-                  <p className="text-[11px] font-bold text-amber-650 uppercase tracking-widest font-sans font-semibold">Food Sales</p>
+                  <p className="text-[11px] font-bold text-amber-600 uppercase tracking-widest font-sans font-semibold">Food Sales</p>
                   <p className="text-2xl font-display font-bold text-slate-800 mt-2">Rs. {thisMonthFoodSales.toLocaleString()}</p>
                   <div className="text-[10px] text-slate-400 mt-1">This month's dining/orders</div>
                 </div>
 
                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs font-semibold font-sans relative overflow-hidden">
                   <div className="absolute top-0 left-0 h-1 w-full bg-purple-500"></div>
-                  <p className="text-[11px] font-bold text-purple-650 uppercase tracking-widest font-serif font-semibold">Service Charge</p>
+                  <p className="text-[11px] font-bold text-purple-600 uppercase tracking-widest font-serif font-semibold">Service Charge</p>
                   <p className="text-2xl font-display font-bold text-slate-800 mt-2">Rs. {thisMonthServiceCharge.toLocaleString()}</p>
                   <div className="text-[10px] text-slate-400 mt-1">This month's 10% fee charges</div>
                 </div>
@@ -645,7 +668,7 @@ export const Reports: React.FC = () => {
                   onClick={() => setActiveSeries('serviceCharge')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
                     activeSeries === 'serviceCharge'
-                      ? 'bg-purple-650 text-white border-purple-600 shadow-sm'
+                      ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
                       : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                   }`}
                 >
@@ -710,33 +733,43 @@ export const Reports: React.FC = () => {
             {chartData.length > 0 ? (
               <div className="relative p-5 bg-white rounded-2xl border border-slate-100 no-print">
                 
-                {/* Floating details card on hover */}
-                {hoveredPt ? (
-                  <div className="absolute top-4 right-4 bg-slate-900 text-white p-3 rounded-xl shadow-lg border border-slate-800 flex items-center gap-4 animate-fade-in z-10">
-                    <div className="space-y-0.5">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date</p>
-                      <p className="font-mono text-xs font-extrabold">{hoveredPt.raw.date}</p>
-                    </div>
-                    <div className="h-6 w-px bg-slate-850" />
-                    <div className="space-y-0.5">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Revenue</p>
-                      <p className="font-sans text-xs font-black text-indigo-400">Rs. {hoveredPt.raw.revenue.toLocaleString()}</p>
-                    </div>
-                    <div className="h-6 w-px bg-slate-850" />
-                    <div className="space-y-0.5">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Room / Food / SC</p>
-                      <p className="font-mono text-[10px] text-slate-300">
-                        {hoveredPt.raw.roomRevenue.toLocaleString()} / {hoveredPt.raw.foodRevenue.toLocaleString()} / {(hoveredPt.raw.serviceCharge || 0).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="absolute top-4 right-4 text-[10px] text-slate-400 font-medium italic">
-                    Hover data points for detailed telemetry
-                  </div>
-                )}
+                {/* Static help text */}
+                <div className="absolute top-4 right-4 text-[10px] text-slate-400 font-medium italic">
+                  Hover data points for detailed telemetry
+                </div>
 
-                <div className="w-full overflow-hidden">
+                <div className="w-full relative mt-6">
+                  {/* Floating details card on hover (follows coordinates of the point relative to SVG) */}
+                  {hoveredPt && (
+                    <div 
+                      className="absolute pointer-events-none bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-xl shadow-lg border border-slate-800 flex flex-col gap-1 z-20 transition-all duration-150 ease-out"
+                      style={{
+                        left: `${(hoveredPt.x / svgWidth) * 100}%`,
+                        top: `${(hoveredPt.y / svgHeight) * 100}%`,
+                        transform: 'translate(-50%, -120%)',
+                        minWidth: '150px',
+                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4)'
+                      }}
+                    >
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Date</span>
+                        <span className="font-mono text-[9px] font-bold text-slate-300">{hoveredPt.raw.date}</span>
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                          {activeSeries === 'revenue' ? 'Total Revenue' :
+                           activeSeries === 'roomRevenue' ? 'Room Revenue' :
+                           activeSeries === 'foodRevenue' ? 'Food Sales' : 'Service Charge'}
+                        </span>
+                        <span className="font-sans text-xs font-black" style={{ color: seriesColor }}>
+                          Rs. {hoveredPt.value.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="text-[8px] text-slate-400 font-mono pt-1 border-t border-slate-800/60 leading-normal">
+                        Rm: {hoveredPt.raw.roomRevenue.toLocaleString()} | Fd: {hoveredPt.raw.foodRevenue.toLocaleString()} | SC: {(hoveredPt.raw.serviceCharge || 0).toLocaleString()}
+                      </div>
+                    </div>
+                  )}
                   <svg 
                     viewBox={`0 0 ${svgWidth} ${svgHeight}`} 
                     className="w-full h-auto select-none overflow-visible"
@@ -759,6 +792,36 @@ export const Reports: React.FC = () => {
                         <stop offset="0%" stopColor="#a855f7" stopOpacity="0.16" />
                         <stop offset="100%" stopColor="#a855f7" stopOpacity="0.00" />
                       </linearGradient>
+                      {/* Bar Gradients */}
+                      <linearGradient id="barRevenueGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#6366f1" />
+                        <stop offset="100%" stopColor="#4f46e5" />
+                      </linearGradient>
+                      <linearGradient id="barRoomGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#34d399" />
+                        <stop offset="100%" stopColor="#059669" />
+                      </linearGradient>
+                      <linearGradient id="barFoodGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#fbbf24" />
+                        <stop offset="100%" stopColor="#d97706" />
+                      </linearGradient>
+                      <linearGradient id="barServiceGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#c084fc" />
+                        <stop offset="100%" stopColor="#7c3aed" />
+                      </linearGradient>
+                      {/* Glow Filters */}
+                      <filter id="glow-revenue" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="0" dy="4" stdDeviation="3" floodColor="#4f46e5" floodOpacity="0.25" />
+                      </filter>
+                      <filter id="glow-room" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="0" dy="4" stdDeviation="3" floodColor="#059669" floodOpacity="0.25" />
+                      </filter>
+                      <filter id="glow-food" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="0" dy="4" stdDeviation="3" floodColor="#d97706" floodOpacity="0.25" />
+                      </filter>
+                      <filter id="glow-service" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="0" dy="4" stdDeviation="3" floodColor="#7c3aed" floodOpacity="0.25" />
+                      </filter>
                     </defs>
 
                     {/* Y-Axis Gridlines and Labels */}
@@ -772,8 +835,8 @@ export const Reports: React.FC = () => {
                             y1={yVal} 
                             x2={svgWidth - paddingRight} 
                             y2={yVal} 
-                            stroke="#F8FAFC" 
-                            strokeWidth="1.5" 
+                            stroke={idx === 0 ? "#cbd5e1" : "#f1f5f9"} 
+                            strokeWidth={idx === 0 ? "1.5" : "1"} 
                             strokeDasharray={idx === 0 ? "0" : "4,4"} 
                           />
                           <text 
@@ -809,6 +872,12 @@ export const Reports: React.FC = () => {
                           strokeWidth="3.5" 
                           strokeLinecap="round" 
                           strokeLinejoin="round"
+                          filter={
+                            activeSeries === 'revenue' ? 'url(#glow-revenue)' : 
+                            activeSeries === 'roomRevenue' ? 'url(#glow-room)' : 
+                            activeSeries === 'foodRevenue' ? 'url(#glow-food)' : 
+                            'url(#glow-service)'
+                          }
                           className="transition-all duration-355"
                         />
                         
@@ -847,15 +916,26 @@ export const Reports: React.FC = () => {
                           const rectY = p.y;
                           const rectHeight = Math.max(4, paddingTop + chartHeight - p.y);
                           const isHovered = hoveredIdx === idx;
+                          
+                          const barFill = 
+                            activeSeries === 'revenue' ? 'url(#barRevenueGrad)' : 
+                            activeSeries === 'roomRevenue' ? 'url(#barRoomGrad)' : 
+                            activeSeries === 'foodRevenue' ? 'url(#barFoodGrad)' : 
+                            'url(#barServiceGrad)';
+                            
+                          const barFilter = isHovered ? (
+                            activeSeries === 'revenue' ? 'url(#glow-revenue)' : 
+                            activeSeries === 'roomRevenue' ? 'url(#glow-room)' : 
+                            activeSeries === 'foodRevenue' ? 'url(#glow-food)' : 
+                            'url(#glow-service)'
+                          ) : undefined;
+                          
                           return (
-                            <rect
+                            <path
                               key={idx}
-                              x={rectX}
-                              y={rectY}
-                              width={barWidth}
-                              height={rectHeight}
-                              rx="4"
-                              fill={seriesColor}
+                              d={getBarPath(rectX, rectY, barWidth, rectHeight, 6)}
+                              fill={barFill}
+                              filter={barFilter}
                               opacity={isHovered ? 1 : 0.85}
                               className="transition-all duration-200 cursor-pointer"
                             />
@@ -879,19 +959,25 @@ export const Reports: React.FC = () => {
                     )}
 
                     {/* Horizontal Date labels on the X axis */}
-                    {points.map((p, idx) => (
-                      <text
-                        key={idx}
-                        x={p.x}
-                        y={paddingTop + chartHeight + 16}
-                        textAnchor="middle"
-                        className={`fill-slate-400 font-mono font-bold text-[9px] transition-all ${
-                          hoveredIdx === idx ? 'fill-indigo-600 font-extrabold text-[10px]' : ''
-                        }`}
-                      >
-                        {p.raw.date ? `${p.raw.date.substring(5, 7)}/${p.raw.date.substring(8, 10)}` : ''}
-                      </text>
-                    ))}
+                    {points.map((p, idx) => {
+                      const totalPoints = points.length;
+                      const skip = totalPoints > 15 ? (idx % 4 !== 0 && idx !== totalPoints - 1) :
+                                   totalPoints > 7 ? (idx % 2 !== 0 && idx !== totalPoints - 1) : false;
+                      if (skip && hoveredIdx !== idx) return null;
+                      return (
+                        <text
+                          key={idx}
+                          x={p.x}
+                          y={paddingTop + chartHeight + 16}
+                          textAnchor="middle"
+                          className={`fill-slate-400 font-mono font-bold text-[9px] transition-all ${
+                            hoveredIdx === idx ? 'fill-indigo-600 font-extrabold text-[10px]' : ''
+                          }`}
+                        >
+                          {p.raw.date ? `${p.raw.date.substring(5, 7)}/${p.raw.date.substring(8, 10)}` : ''}
+                        </text>
+                      );
+                    })}
 
                     {/* Invisible responsive hover trigger panels across date segments */}
                     {points.map((p, idx) => {
@@ -1014,7 +1100,7 @@ export const Reports: React.FC = () => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-705">
+              <table className="w-full text-left text-xs text-slate-700">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
                     <th className="py-3 px-4">Invoice ID</th>
@@ -1060,7 +1146,7 @@ export const Reports: React.FC = () => {
                                 type="button"
                                 onClick={() => handleDeleteBill(bill.id)}
                                 disabled={deletingBillId === bill.id}
-                                className="px-2.5 py-1 bg-red-650 hover:bg-red-700 text-white font-bold text-[9px] uppercase tracking-wide rounded-md border-0 cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1"
+                                className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white font-bold text-[9px] uppercase tracking-wide rounded-md border-0 cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1"
                               >
                                 {deletingBillId === bill.id ? (
                                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -1071,7 +1157,7 @@ export const Reports: React.FC = () => {
                                 type="button"
                                 onClick={() => setDeleteConfirmId(null)}
                                 disabled={deletingBillId === bill.id}
-                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-605 font-bold text-[9px] uppercase tracking-wide rounded-md border-0 cursor-pointer disabled:opacity-50"
+                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-[9px] uppercase tracking-wide rounded-md border-0 cursor-pointer disabled:opacity-50"
                               >
                                 Cancel
                               </button>
@@ -1117,7 +1203,7 @@ export const Reports: React.FC = () => {
                     <BookOpen className="h-5 w-5 text-indigo-600" />
                     Operational Cashflow Ledger
                   </h3>
-                  <p className="text-xs text-slate-450 mt-1">
+                  <p className="text-xs text-slate-500 mt-1">
                     Comparison of capital generated via completed room and restaurant invoicing against operating expenditures.
                   </p>
                 </div>
@@ -1399,7 +1485,7 @@ export const Reports: React.FC = () => {
 
                       {/* Side by side transaction sub-journals */}
                       <div className="space-y-4 pt-2">
-                        <h5 className="text-[10px] font-extrabold text-slate-450 uppercase tracking-wide">Closing Checklist Journal</h5>
+                        <h5 className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wide">Closing Checklist Journal</h5>
                         
                         <div className="divide-y divide-slate-50 max-h-72 overflow-y-auto border border-slate-100 rounded-xl px-3 bg-slate-50/10">
                           {monthMetrics.filteredBills.length === 0 && monthMetrics.filteredExpenses.length === 0 ? (
@@ -1455,7 +1541,7 @@ export const Reports: React.FC = () => {
                           <div className="p-3 bg-white rounded-xl border border-slate-100 divide-y divide-slate-100 text-xs">
                             <div className="py-2 flex justify-between">
                               <span className="text-slate-400">Locked Profit Net:</span>
-                              <span className="font-bold text-slate-850 font-mono">Rs. {currentCloserObj.netProfit.toLocaleString()}</span>
+                              <span className="font-bold text-slate-800 font-mono">Rs. {currentCloserObj.netProfit.toLocaleString()}</span>
                             </div>
                             <div className="py-2 flex justify-between">
                               <span className="text-emerald-600 font-medium">Owner Profit Takeaway:</span>
@@ -1480,7 +1566,7 @@ export const Reports: React.FC = () => {
                             onClick={() => handleDeleteClosedMonth(currentCloserObj.id)}
                             loading={deletingMonthId === currentCloserObj.id}
                             loadingLabel="Reopening..."
-                            className="w-full py-2.5 px-4 bg-slate-850 hover:bg-slate-900 hover:text-red-400 text-white font-bold text-[10px] rounded-lg tracking-widest uppercase cursor-pointer transition-all border-0 shadow-xs flex items-center justify-center gap-1.5"
+                            className="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-900 hover:text-red-400 text-white font-bold text-[10px] rounded-lg tracking-widest uppercase cursor-pointer transition-all border-0 shadow-xs flex items-center justify-center gap-1.5"
                           >
                             <Unlock className="h-4 w-4" />
                             Reopen Accounts & Unseal Month
@@ -1532,7 +1618,7 @@ export const Reports: React.FC = () => {
                           {/* Retained dynamic earnings display */}
                           <div className="p-3 bg-indigo-50/10 rounded-xl border border-indigo-100 text-xs flex justify-between items-center">
                             <div>
-                              <p className="font-bold text-indigo-650">Retained Business Capital</p>
+                              <p className="font-bold text-indigo-600">Retained Business Capital</p>
                               <p className="text-[9px] text-slate-400">Kept for utility bills & startup drawer reserves.</p>
                             </div>
                             <span className="font-mono font-extrabold text-sm text-indigo-600">
@@ -1583,7 +1669,7 @@ export const Reports: React.FC = () => {
                       </div>
 
                       <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs text-slate-705">
+                        <table className="w-full text-left text-xs text-slate-700">
                           <thead>
                             <tr className="bg-slate-50 border-b border-slate-100 text-[9px] font-semibold text-slate-400 uppercase tracking-wider">
                               <th className="py-3 px-4">Calendar Month</th>
@@ -1591,7 +1677,7 @@ export const Reports: React.FC = () => {
                               <th className="py-3 px-4 font-bold text-slate-800">Total Revenue</th>
                               <th className="py-3 px-4 font-bold text-slate-800">Company Expenses</th>
                               <th className="py-3 px-4 font-bold text-slate-600">Operating Net Profit</th>
-                              <th className="py-3 px-4 font-extrabold text-indigo-650">Owner Takeaway</th>
+                              <th className="py-3 px-4 font-extrabold text-indigo-600">Owner Takeaway</th>
                               <th className="py-3 px-4 font-bold text-slate-500">Retained Ledger</th>
                               <th className="py-3 px-4 text-center">Unseal Account</th>
                             </tr>
@@ -1601,9 +1687,9 @@ export const Reports: React.FC = () => {
                               <tr key={m.id} className="hover:bg-slate-50/20 transition-colors">
                                 <td className="py-3.5 px-4 font-mono font-extrabold text-indigo-600">{m.month}</td>
                                 <td className="py-3.5 px-4 text-slate-500">{new Date(m.closedAt).toLocaleDateString()}</td>
-                                <td className="py-3.5 px-4 font-mono text-slate-650">Rs. {m.totalRevenue.toLocaleString()}</td>
-                                <td className="py-3.5 px-4 font-mono text-slate-650">Rs. {m.totalExpenses.toLocaleString()}</td>
-                                <td className="py-3.5 px-4 font-mono font-bold text-slate-850">Rs. {m.netProfit.toLocaleString()}</td>
+                                <td className="py-3.5 px-4 font-mono text-slate-600">Rs. {m.totalRevenue.toLocaleString()}</td>
+                                <td className="py-3.5 px-4 font-mono text-slate-600">Rs. {m.totalExpenses.toLocaleString()}</td>
+                                <td className="py-3.5 px-4 font-mono font-bold text-slate-800">Rs. {m.netProfit.toLocaleString()}</td>
                                 <td className="py-3.5 px-4 font-mono font-bold text-emerald-600 bg-emerald-50/10">Rs. {m.ownerTakeaway.toLocaleString()}</td>
                                 <td className="py-3.5 px-4 font-mono text-slate-500">Rs. {m.retainedEarnings.toLocaleString()}</td>
                                 <td className="py-3.5 px-4 text-center">
@@ -1611,7 +1697,7 @@ export const Reports: React.FC = () => {
                                     type="button"
                                     onClick={() => handleDeleteClosedMonth(m.id)}
                                     disabled={deletingMonthId === m.id}
-                                    className="p-1 px-2.5 bg-slate-105 rounded hover:bg-red-50 hover:text-red-500 text-slate-400 font-bold border-0 text-[10px] uppercase transition-colors tracking-wide cursor-pointer disabled:opacity-50 inline-flex items-center gap-1"
+                                    className="p-1 px-2.5 bg-slate-100 rounded hover:bg-red-50 hover:text-red-500 text-slate-400 font-bold border-0 text-[10px] uppercase transition-colors tracking-wide cursor-pointer disabled:opacity-50 inline-flex items-center gap-1"
                                   >
                                     {deletingMonthId === m.id ? (
                                       <Loader2 className="h-3 w-3 animate-spin" />
