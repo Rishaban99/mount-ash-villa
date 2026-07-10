@@ -16,6 +16,7 @@ export interface User {
   joinDate?: string; // Salary start date — first eligible payroll month
   leftDate?: string; // Last employment day
   monthlyBaseSalaries?: Record<string, number>; // Month YYYY-MM -> specific base salary
+  monthlyPaidSalaries?: Record<string, any>; // Month YYYY-MM -> list of payments
 }
 
 export type RoomType = 'Single' | 'Double' | 'Triple';

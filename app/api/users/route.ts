@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     if (!auth.ok) return auth.response;
 
     const body = await request.json();
-    const { id, username, name, role, password, salary, lastPaid, joinDate, leftDate, monthlyBaseSalaries } = body;
+    const { id, username, name, role, password, salary, lastPaid, joinDate, leftDate, monthlyBaseSalaries, monthlyPaidSalaries } = body;
 
     if (id) {
       const users = await getUsers();
@@ -64,6 +64,7 @@ export async function POST(request: Request) {
         joinDate: joinDate !== undefined ? joinDate : existingUser.joinDate,
         leftDate: leftDate !== undefined ? leftDate : existingUser.leftDate,
         monthlyBaseSalaries: monthlyBaseSalaries !== undefined ? monthlyBaseSalaries : existingUser.monthlyBaseSalaries,
+        monthlyPaidSalaries: monthlyPaidSalaries !== undefined ? monthlyPaidSalaries : (existingUser.monthlyPaidSalaries || undefined),
       });
 
       const { password: _, ...safeUser } = updatedUser;
@@ -109,6 +110,7 @@ export async function POST(request: Request) {
       lastPaid: lastPaid || '',
       joinDate: joinDate || new Date().toISOString().split('T')[0],
       monthlyBaseSalaries: monthlyBaseSalaries || {},
+      monthlyPaidSalaries: monthlyPaidSalaries || {},
     });
 
     const { password: _, ...safeUser } = newUser;

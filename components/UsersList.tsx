@@ -290,13 +290,25 @@ export const UsersList: React.FC = () => {
         throw new Error(errorData.error || 'Failed to record expense log.');
       }
 
-      // 2. Stamps current date as last payment date on the user/staff profile
+      // 2. Stamps current date as last payment date on the user/staff profile and monthlyPaidSalaries
+      const legacyPayments = getPaidListThisMonth(selectedUser);
+      const updatedMonthPaidList = [
+        ...legacyPayments,
+        { amount: disbursementAmount, date: payDate }
+      ];
+      const existingPaidSalaries = selectedUser.monthlyPaidSalaries || {};
+      const updatedPaidSalaries = {
+        ...existingPaidSalaries,
+        [selectedMonth]: updatedMonthPaidList
+      };
+
       const userResponse = await apiFetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: selectedUser.id,
           lastPaid: payDate,
+          monthlyPaidSalaries: updatedPaidSalaries,
         }),
       });
 
@@ -410,11 +422,49 @@ export const UsersList: React.FC = () => {
     .filter((exp) => exp.date.startsWith(selectedMonth))
     .reduce((sum, exp) => sum + exp.amount, 0);
 
-  const getPaidThisMonth = (u: User) => {
+  const getPaidListThisMonth = (u: User) => {
+    if (u.monthlyPaidSalaries?.[selectedMonth] && Array.isArray(u.monthlyPaidSalaries[selectedMonth])) {
+      return u.monthlyPaidSalaries[selectedMonth];
+    }
     const currentYearMonth = selectedMonth;
     return expenses
       .filter((exp) => {
-        const matchesUser = exp.title.includes(u.name) || exp.description?.includes(u.name);
+        const titleLower = exp.title.toLowerCase();
+        const descLower = (exp.description || '').toLowerCase();
+        const nameLower = u.name.toLowerCase();
+        const usernameLower = u.username.toLowerCase();
+        const matchesUser = 
+          titleLower.includes(nameLower) || 
+          descLower.includes(nameLower) ||
+          titleLower.includes(usernameLower) ||
+          descLower.includes(usernameLower) ||
+          (usernameLower === 'manoj' && (titleLower.includes('monaj') || descLower.includes('monaj')));
+        const matchesMonth = exp.date.startsWith(currentYearMonth);
+        return matchesUser && matchesMonth;
+      })
+      .map(exp => ({
+        amount: exp.amount,
+        date: exp.date
+      }));
+  };
+
+  const getPaidThisMonth = (u: User) => {
+    if (u.monthlyPaidSalaries?.[selectedMonth] && Array.isArray(u.monthlyPaidSalaries[selectedMonth])) {
+      return u.monthlyPaidSalaries[selectedMonth].reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+    }
+    const currentYearMonth = selectedMonth;
+    return expenses
+      .filter((exp) => {
+        const titleLower = exp.title.toLowerCase();
+        const descLower = (exp.description || '').toLowerCase();
+        const nameLower = u.name.toLowerCase();
+        const usernameLower = u.username.toLowerCase();
+        const matchesUser = 
+          titleLower.includes(nameLower) || 
+          descLower.includes(nameLower) ||
+          titleLower.includes(usernameLower) ||
+          descLower.includes(usernameLower) ||
+          (usernameLower === 'manoj' && (titleLower.includes('monaj') || descLower.includes('monaj')));
         const matchesMonth = exp.date.startsWith(currentYearMonth);
         return matchesUser && matchesMonth;
       })
@@ -847,6 +897,22 @@ export const UsersList: React.FC = () => {
                               Rs. {paidThisMonth.toLocaleString()}
                             </span>
                           </div>
+
+                          {/* Individual payments breakdown */}
+                          {(() => {
+                            const paymentsList = getPaidListThisMonth(u);
+                            if (!paymentsList || paymentsList.length === 0) return null;
+                            return (
+                              <div className="pl-3 space-y-1 border-l-2 border-indigo-200/50 text-[10px] text-slate-500 font-mono mt-1">
+                                {paymentsList.map((p: any, idx: number) => (
+                                  <div key={idx} className="flex justify-between">
+                                    <span>• {p.date}:</span>
+                                    <span className="font-semibold">Rs. {p.amount.toLocaleString()}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
 
                           {/* Balance due */}
                           <div className="flex items-center justify-between text-xs border-t border-slate-100 pt-2">

@@ -13,6 +13,7 @@ function mapUser(user: PrismaUser): User {
   return {
     ...user,
     monthlyBaseSalaries: user.monthlyBaseSalaries as Record<string, number> | undefined,
+    monthlyPaidSalaries: user.monthlyPaidSalaries as Record<string, any> | undefined,
   };
 }
 
@@ -116,6 +117,7 @@ export async function saveUser(user: User): Promise<User> {
         joinDate: newUser.joinDate,
         leftDate: newUser.leftDate,
         monthlyBaseSalaries: newUser.monthlyBaseSalaries ?? undefined,
+        monthlyPaidSalaries: newUser.monthlyPaidSalaries ?? undefined,
       },
       update: {
         username: newUser.username,
@@ -127,6 +129,7 @@ export async function saveUser(user: User): Promise<User> {
         joinDate: newUser.joinDate,
         leftDate: newUser.leftDate,
         monthlyBaseSalaries: newUser.monthlyBaseSalaries ?? undefined,
+        monthlyPaidSalaries: newUser.monthlyPaidSalaries ?? undefined,
       },
     })
   );
