@@ -708,12 +708,12 @@ export const Billing: React.FC<BillingProps> = ({
                       <table className="w-full text-left text-sm whitespace-nowrap">
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                            <th className="py-4 px-6">ID / Created Date</th>
-                            <th className="py-4 px-6">Guest Profile</th>
-                            <th className="py-4 px-6">Room Details</th>
-                            <th className="py-4 px-6">Ledger Balance</th>
-                            <th className="py-4 px-6">State Status</th>
-                            <th className="py-4 px-6 ">Actions</th>
+                            <th className="py-4 px-4">ID / Created Date</th>
+                            <th className="py-4 px-4">Guest Profile</th>
+                            <th className="py-4 px-4">Room Details</th>
+                            <th className="py-4 px-4">Ledger Balance</th>
+                            <th className="py-4 px-4">Status</th>
+                            <th className="py-4 px-4">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 text-slate-700">
@@ -726,7 +726,7 @@ export const Billing: React.FC<BillingProps> = ({
                                   !isCompleted ? "bg-emerald-50/5" : ""
                                 }`}
                               >
-                                <td className="py-4 px-6">
+                                <td className="py-4 px-4">
                                   <span className="font-mono text-xs text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md">
                                     #{bill.id.substring(0, 12).toUpperCase()}
                                   </span>
@@ -736,7 +736,7 @@ export const Billing: React.FC<BillingProps> = ({
                                   </div>
                                 </td>
 
-                                <td className="py-4 px-6">
+                                <td className="py-4 px-4">
                                   <div className="flex items-center gap-3">
                                     <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs ${
                                       isCompleted ? "bg-slate-100 text-slate-600" : "bg-emerald-100 text-emerald-800"
@@ -754,7 +754,7 @@ export const Billing: React.FC<BillingProps> = ({
                                   </div>
                                 </td>
 
-                                <td className="py-4 px-6 text-xs text-slate-500">
+                                <td className="py-4 px-4 text-xs text-slate-500">
                                   <div className="flex flex-wrap gap-1 max-w-xs">
                                     {bill.roomItems.length === 0 ? (
                                       <span className="text-slate-400 italic">
@@ -774,11 +774,11 @@ export const Billing: React.FC<BillingProps> = ({
                                   </div>
                                 </td>
 
-                                <td className="py-4 px-6 font-extrabold text-slate-900 text-sm">
+                                <td className="py-4 px-4 font-extrabold text-slate-900 text-sm">
                                   Rs. {bill.totalAmount.toLocaleString()}
                                 </td>
 
-                                <td className="py-4 px-6">
+                                <td className="py-4 px-4">
                                   {!isCompleted ? (
                                     <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
                                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -792,7 +792,7 @@ export const Billing: React.FC<BillingProps> = ({
                                   )}
                                 </td>
 
-                                <td className="py-4 px-6 text-right">
+                                <td className="py-4 px-4 text-right">
                                   {!isCompleted ? (
                                     <button
                                       onClick={() => handleResumeBill(bill)}

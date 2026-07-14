@@ -209,8 +209,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </h1>
               <div className="flex gap-2 shrink-0">
                 <span className="hidden sm:inline-flex px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded uppercase tracking-wider border border-emerald-100">
-                  System Online
+                  role :- {currentUser.role}
                 </span>
+
               </div>
             </div>
             <div className="text-right shrink-0">
