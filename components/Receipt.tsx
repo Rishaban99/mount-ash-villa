@@ -39,6 +39,29 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
   const [localPaperWidth, setLocalPaperWidth] = useState<'58mm' | '80mm' | 'A4'>('80mm');
   const [localShowLogo, setLocalShowLogo] = useState<boolean>(true);
   const [localShowTax, setLocalShowTax] = useState<boolean>(true);
+  const [printLogs, setPrintLogs] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (bill?.id) {
+      const historyKey = `print_history_${bill.id}`;
+      const saved = localStorage.getItem(historyKey);
+      if (saved) {
+        try {
+          setPrintLogs(JSON.parse(saved));
+        } catch (e) {
+          setPrintLogs([]);
+        }
+      }
+    }
+  }, [bill?.id]);
+
+  const recordPrintAction = () => {
+    if (!bill?.id) return;
+    const historyKey = `print_history_${bill.id}`;
+    const newLogs = [...printLogs, new Date().toISOString()];
+    localStorage.setItem(historyKey, JSON.stringify(newLogs));
+    setPrintLogs(newLogs);
+  };
 
   useEffect(() => {
     const cached = localStorage.getItem('system_settings_cache');
@@ -104,6 +127,7 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
     : 'w-[340px] text-xs p-5';
 
   const handlePrint = () => {
+    recordPrintAction();
     const printContent = document.getElementById('thermal-receipt-printable');
     if (printContent) {
       const printWindow = window.open('', '_blank');
@@ -365,10 +389,17 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between text-[9px] text-slate-600">
                   <span>Last Printed:</span>
-                  
+                  <span className="font-bold text-slate-800">
+                    {printLogs.length > 0 
+                      ? new Date(printLogs[printLogs.length - 1]).toLocaleString() 
+                      : 'Never'}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-[9px] text-slate-600">
                   <span>Prints This Week:</span>
+                  <span className="font-bold text-slate-800">
+                    {printLogs.filter(t => new Date(t).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000).length}
+                  </span>
                  </div> 
 
                  </div>

@@ -99,6 +99,15 @@ export const Billing: React.FC<BillingProps> = ({
   const [selectedFoodCategory, setSelectedFoodCategory] = useState<string>("All");
   const [savingBill, setSavingBill] = useState(false);
   const [foodSearchQuery, setFoodSearchQuery] = useState("");
+  const [applyServiceCharge, setApplyServiceCharge] = useState(true);
+
+  // Sorting State
+  const [sortField, setSortField] = useState<'default' | 'date' | 'name' | 'amount' | 'status'>('default');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   
 
   const { user: currentUser } = useAuth();
@@ -214,6 +223,7 @@ export const Billing: React.FC<BillingProps> = ({
     setNewGuestCheckIn(bill.guestDetails.checkInDate.split("T")[0]);
     setNewGuestCheckOut(bill.guestDetails.checkOutDate.split("T")[0]);
     setCustomerInputMode("existing");
+    setApplyServiceCharge(bill.foodSubtotal > 0 ? bill.serviceCharge > 0 : true);
     setIsTerminalActive(true);
   };
 
@@ -366,7 +376,7 @@ export const Billing: React.FC<BillingProps> = ({
     0,
   );
   const scPercent = settings?.serviceChargePercent ?? 10;
-  const serviceCharge = Math.round(foodSubtotal * (scPercent / 100));
+  const serviceCharge = applyServiceCharge ? Math.round(foodSubtotal * (scPercent / 100)) : 0;
   const grandTotal = roomSubtotal + foodSubtotal + serviceCharge;
 
   // Primary Transaction save gatekeeper
@@ -432,6 +442,7 @@ export const Billing: React.FC<BillingProps> = ({
         guestDetails: activeGuest,
         roomItems: selectedRooms,
         foodItems: selectedFoods,
+        applyServiceCharge,
         status,
       };
 
@@ -468,24 +479,60 @@ export const Billing: React.FC<BillingProps> = ({
     }
   };
 
-  const filteredBills = bills
-    .filter((b) => {
-      const termMatches =
-        b.guestDetails.name.toLowerCase().includes(term.toLowerCase()) ||
-        b.id.toLowerCase().includes(term.toLowerCase());
-      const statusMatches = listStatus === "All" || b.status === listStatus;
-      return termMatches && statusMatches;
-    })
-    .sort((a, b) => {
-      // Group Active bills at the top, Completed bills below them
-      if (a.status !== b.status) {
-        return a.status === "Active" ? -1 : 1;
-      }
-      // Within the same status, sort descending by updatedAt timestamp (newest first)
-      const timeA = new Date(a.updatedAt || a.createdAt).getTime();
-      const timeB = new Date(b.updatedAt || b.createdAt).getTime();
-      return timeB - timeA;
-    });
+  const sortedBills = useMemo(() => {
+    return bills
+      .filter((b) => {
+        const termMatches =
+          b.guestDetails.name.toLowerCase().includes(term.toLowerCase()) ||
+          b.id.toLowerCase().includes(term.toLowerCase());
+        const statusMatches = listStatus === "All" || b.status === listStatus;
+        return termMatches && statusMatches;
+      })
+      .sort((a, b) => {
+        if (sortField === 'default') {
+          if (a.status !== b.status) {
+            return a.status === "Active" ? -1 : 1;
+          }
+          const timeA = new Date(a.updatedAt || a.createdAt).getTime();
+          const timeB = new Date(b.updatedAt || b.createdAt).getTime();
+          return timeB - timeA;
+        }
+
+        let comparison = 0;
+        if (sortField === 'date') {
+          const timeA = new Date(a.createdAt).getTime();
+          const timeB = new Date(b.createdAt).getTime();
+          comparison = timeA - timeB;
+        } else if (sortField === 'name') {
+          comparison = a.guestDetails.name.localeCompare(b.guestDetails.name);
+        } else if (sortField === 'amount') {
+          comparison = (a.totalAmount || 0) - (b.totalAmount || 0);
+        } else if (sortField === 'status') {
+          comparison = a.status.localeCompare(b.status);
+        }
+        return sortOrder === 'asc' ? comparison : -comparison;
+      });
+  }, [bills, term, listStatus, sortField, sortOrder]);
+
+  const paginatedBills = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return sortedBills.slice(startIndex, startIndex + itemsPerPage);
+  }, [sortedBills, currentPage]);
+
+  const totalPages = Math.ceil(sortedBills.length / itemsPerPage);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [term, listStatus, sortField, sortOrder]);
+
+  const handleSort = (field: 'date' | 'name' | 'amount' | 'status') => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('desc');
+    }
+  };
 
   // Calculate live statistics for top indicators
   const totalActiveBills = bills.filter((b) => b.status === "Active").length;
@@ -697,7 +744,7 @@ export const Billing: React.FC<BillingProps> = ({
               </div>
 
               {/* Bills Grid / List */}
-              {filteredBills.length === 0 ? (
+              {sortedBills.length === 0 ? (
                 <div className="bg-white p-12 text-center rounded-2xl border border-slate-100">
                   <p className="text-slate-400 text-sm">
                     No billing records match the selected filters.
@@ -710,17 +757,49 @@ export const Billing: React.FC<BillingProps> = ({
                     <div className="overflow-x-auto font-sans">
                       <table className="w-full text-left text-sm whitespace-nowrap">
                         <thead>
-                          <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                            <th className="py-4 px-4">ID / Created Date</th>
-                            <th className="py-4 px-4">Guest Profile</th>
+                          <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider select-none">
+                            <th 
+                              className="py-4 px-4 cursor-pointer hover:text-slate-600 transition-colors"
+                              onClick={() => handleSort('date')}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span>ID / Created Date</span>
+                                {sortField === 'date' && (sortOrder === 'asc' ? '▲' : '▼')}
+                              </div>
+                            </th>
+                            <th 
+                              className="py-4 px-4 cursor-pointer hover:text-slate-600 transition-colors"
+                              onClick={() => handleSort('name')}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span>Guest Profile</span>
+                                {sortField === 'name' && (sortOrder === 'asc' ? '▲' : '▼')}
+                              </div>
+                            </th>
                             <th className="py-4 px-4">Room Details</th>
-                            <th className="py-4 px-4">Ledger Balance</th>
-                            <th className="py-4 px-4">Status</th>
+                            <th 
+                              className="py-4 px-4 cursor-pointer hover:text-slate-600 transition-colors"
+                              onClick={() => handleSort('amount')}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span>Ledger Balance</span>
+                                {sortField === 'amount' && (sortOrder === 'asc' ? '▲' : '▼')}
+                              </div>
+                            </th>
+                            <th 
+                              className="py-4 px-4 cursor-pointer hover:text-slate-600 transition-colors"
+                              onClick={() => handleSort('status')}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span>Status</span>
+                                {sortField === 'status' && (sortOrder === 'asc' ? '▲' : '▼')}
+                              </div>
+                            </th>
                             <th className="py-4 px-4">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 text-slate-700">
-                          {filteredBills.map((bill) => {
+                          {paginatedBills.map((bill) => {
                             const isCompleted = bill.status === "Completed";
                             return (
                               <tr
@@ -819,11 +898,78 @@ export const Billing: React.FC<BillingProps> = ({
                         </tbody>
                       </table>
                     </div>
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && (
+                      <div className="bg-slate-50 px-4 py-3 border-t border-slate-100 flex items-center justify-between sm:px-6">
+                        <div className="flex-1 flex justify-between sm:hidden">
+                          <button
+                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                            disabled={currentPage === 1}
+                            className="relative inline-flex items-center px-4 py-2 border border-slate-300 text-xs font-bold rounded-lg text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            Previous
+                          </button>
+                          <button
+                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                            disabled={currentPage === totalPages}
+                            className="ml-3 relative inline-flex items-center px-4 py-2 border border-slate-300 text-xs font-bold rounded-lg text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            Next
+                          </button>
+                        </div>
+                        <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                          <div>
+                            <p className="text-xs text-slate-500">
+                              Showing <span className="font-semibold text-slate-800">{((currentPage - 1) * itemsPerPage) + 1}</span> to{' '}
+                              <span className="font-semibold text-slate-800">
+                                {Math.min(currentPage * itemsPerPage, sortedBills.length)}
+                              </span>{' '}
+                              of <span className="font-semibold text-slate-800">{sortedBills.length}</span> entries
+                            </p>
+                          </div>
+                          <div>
+                            <nav className="relative z-0 inline-flex rounded-md shadow-2xs -space-x-px" aria-label="Pagination">
+                              <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="relative inline-flex items-center px-2 py-1.5 rounded-l-md border border-slate-200 bg-white text-xs font-medium text-slate-500 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                              >
+                                &laquo; Prev
+                              </button>
+                              {Array.from({ length: totalPages }).map((_, idx) => {
+                                const pageNum = idx + 1;
+                                const isCurrent = currentPage === pageNum;
+                                return (
+                                  <button
+                                    key={pageNum}
+                                    onClick={() => setCurrentPage(pageNum)}
+                                    className={`relative inline-flex items-center px-3 py-1.5 border text-xs font-bold cursor-pointer transition-colors ${
+                                      isCurrent
+                                        ? 'z-10 bg-indigo-600 border-indigo-600 text-white'
+                                        : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    {pageNum}
+                                  </button>
+                                );
+                              })}
+                              <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="relative inline-flex items-center px-2 py-1.5 rounded-r-md border border-slate-200 bg-white text-xs font-medium text-slate-500 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                              >
+                                Next &raquo;
+                              </button>
+                            </nav>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Mobile Stacked Card View (Visible on Mobile screens < md) */}
                   <div className="block md:hidden space-y-3">
-                    {filteredBills.map((bill) => {
+                    {paginatedBills.map((bill) => {
                       const isCompleted = bill.status === "Completed";
                       return (
                         <div
@@ -1338,11 +1484,13 @@ export const Billing: React.FC<BillingProps> = ({
 
               {/*services charge checkbock*/}
                   <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-                    <label className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                    <label className="flex items-center gap-2 text-[10px] font-bold text-slate-400 cursor-pointer w-fit">
                       <input
                         type="checkbox"
-                        defaultChecked
-                        className="form-checkbox h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded"
+                        checked={applyServiceCharge}
+                        onChange={(e) => setApplyServiceCharge(e.target.checked)}
+                        disabled={savingBill}
+                        className="form-checkbox h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded cursor-pointer"
                       />
                       <span>Services Charge</span>
                     </label>
@@ -1467,6 +1615,14 @@ export const Billing: React.FC<BillingProps> = ({
                       <div className="grid grid-cols-2 gap-2">
                         {foods
                           .filter((f) => selectedFoodCategory === "All" || f.category === selectedFoodCategory)
+                          .filter((f) => {
+                            if (!foodSearchQuery.trim()) return true;
+                            const query = foodSearchQuery.toLowerCase();
+                            return (
+                              f.foodName.toLowerCase().includes(query) ||
+                              (f.category && f.category.toLowerCase().includes(query))
+                            );
+                          })
                           .map((f) => {
                             const countSelected =
                               selectedFoods.find((sf) => sf.foodId === f.id)

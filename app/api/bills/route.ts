@@ -72,7 +72,10 @@ export async function POST(request: Request) {
     }
 
     const foodSubtotal = foodItems.reduce((acc: number, item: { price: number; quantity: number }) => acc + item.price * item.quantity, 0);
-    const serviceCharge = Math.round(foodSubtotal * 0.1);
+    const settings = await getSettings();
+    const serviceChargePercent = settings?.serviceChargePercent ?? 10;
+    const applyServiceCharge = billData.applyServiceCharge !== false;
+    const serviceCharge = applyServiceCharge ? Math.round(foodSubtotal * (serviceChargePercent / 100)) : 0;
     const roomSubtotal = roomItems.reduce((acc: number, item: { pricePerNight: number; nights: number }) => acc + item.pricePerNight * item.nights, 0);
     const totalAmount = foodSubtotal + serviceCharge + roomSubtotal;
 
