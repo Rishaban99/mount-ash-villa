@@ -6,8 +6,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Room, RoomType, RoomStatus, User } from '@/lib/types';
-import { Plus, Search, Edit2, Trash2, Hotel, Tag, DollarSign, Command, Sparkles, Filter, Loader2 } from 'lucide-react';
+import { Room, RoomType, RoomStatus, User, Bill } from '@/lib/types';
+import { Plus, Search, Edit2, Trash2, Hotel, Tag, DollarSign, Command, Sparkles, Filter, Loader2, User as UserIcon, ReceiptText } from 'lucide-react';
 import { LoadingButton } from '@/components/loading-button';
 import { apiFetch } from '@/lib/api';
 import { toastCreated, toastUpdated, toastDeleted, toastError } from '@/lib/crud-toast';
@@ -20,6 +20,7 @@ export const Rooms: React.FC = () => {
   const { user: currentUser } = useAuth();
   if (!currentUser) return null;
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [bills, setBills] = useState<Bill[]>([]);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
   const [filterStatus, setFilterStatus] = useState<string>('All');
@@ -47,6 +48,18 @@ export const Rooms: React.FC = () => {
     }
   };
 
+  const fetchBills = async () => {
+    try {
+      const res = await fetch('/api/bills');
+      const data = await res.json();
+      if (res.ok) {
+        setBills(data.filter((b: Bill) => b.status === 'Active'));
+      }
+    } catch (e) {
+      console.error('Failed to load bills:', e);
+    }
+  };
+
   const [settings, setSettings] = useState<SystemSettings | null>(null);
 
   useEffect(() => {
@@ -71,6 +84,7 @@ export const Rooms: React.FC = () => {
 
   useEffect(() => {
     fetchRooms();
+    fetchBills();
   }, []);
 
   const canAddRoom = hasPermission(currentUser.role, 'allowReceptionistAddRooms', settings) ||
@@ -282,7 +296,11 @@ export const Rooms: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredRooms.map((room) => (
+          {filteredRooms.map((room) => {
+            const activeBill = room.status === 'Occupied' 
+              ? bills.find(b => b.roomItems.some(ri => ri.roomId === room.id || ri.roomNumber === room.roomNumber)) 
+              : null;
+            return (
             <div
               key={room.id}
               className="group bg-white rounded-2xl border border-slate-100 shadow-xs hover:shadow-md hover:border-slate-200/80 transition-all p-5 flex flex-col justify-between"
@@ -319,6 +337,29 @@ export const Rooms: React.FC = () => {
                   <span className="text-lg font-display font-semibold">{room.price.toLocaleString()}</span>
                   <span className="text-xs text-slate-400 ml-1 font-sans">/ Night</span>
                 </div>
+
+                {activeBill && (
+                  <div className="mt-4 p-3 rounded-xl bg-slate-50/80 border border-slate-100 flex flex-col gap-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <UserIcon className="w-3.5 h-3.5" />
+                        <span className="text-[10px] uppercase font-bold tracking-wider">Occupant</span>
+                      </div>
+                      <span className="text-xs font-bold text-slate-800 truncate max-w-[120px]" title={activeBill.guestDetails.name}>
+                        {activeBill.guestDetails.name}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <ReceiptText className="w-3.5 h-3.5" />
+                        <span className="text-[10px] uppercase font-bold tracking-wider">Bill Total</span>
+                      </div>
+                      <span className="text-xs font-bold text-indigo-600">
+                        Rs. {activeBill.totalAmount.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Action Buttons for Authorized Operators */}
@@ -350,7 +391,8 @@ export const Rooms: React.FC = () => {
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
