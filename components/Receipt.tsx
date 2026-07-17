@@ -358,6 +358,22 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
               </div>
             </div>
 
+
+            {/*print history*/}
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Print History</label>
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between text-[9px] text-slate-600">
+                  <span>Last Printed:</span>
+                  
+                </div>
+                <div className="flex items-center justify-between text-[9px] text-slate-600">
+                  <span>Prints This Week:</span>
+                 </div> 
+
+                 </div>
+
+            </div>
             
           </div>
 

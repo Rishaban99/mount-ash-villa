@@ -98,6 +98,8 @@ export const Billing: React.FC<BillingProps> = ({
   const [quickTapsTab, setQuickTapsTab] = useState<"rooms" | "food">("rooms");
   const [selectedFoodCategory, setSelectedFoodCategory] = useState<string>("All");
   const [savingBill, setSavingBill] = useState(false);
+  const [foodSearchQuery, setFoodSearchQuery] = useState("");
+  
 
   const { user: currentUser } = useAuth();
   const [settings, setSettings] = useState<SystemSettings | null>(null);
@@ -559,6 +561,7 @@ export const Billing: React.FC<BillingProps> = ({
       return dateB - dateA;
     })
     .slice(0, 10);
+
 
   return (
     <div className="space-y-6">
@@ -1333,6 +1336,18 @@ export const Billing: React.FC<BillingProps> = ({
                 )}
               </div>
 
+              {/*services charge checkbock*/}
+                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
+                    <label className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                      <input
+                        type="checkbox"
+                        defaultChecked
+                        className="form-checkbox h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded"
+                      />
+                      <span>Services Charge</span>
+                    </label>
+                  </div>
+
               {/* MAIN TERMINAL DESK: EXPRESS TAP SELECTOR + INTEGRATED ACTIVE LEDGER SELECTIONS */}
               <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-lg overflow-hidden ">
                 
@@ -1416,6 +1431,20 @@ export const Billing: React.FC<BillingProps> = ({
                         Tap Cuisine item to Append Meal
                       </p>
 
+                      {/* Search Cuisine by Name or Category */}
+                      <div className="mb-3">
+                        <input
+                          type="text"
+                          value={foodSearchQuery}
+                          onChange={(e) => setFoodSearchQuery(e.target.value)}
+                          placeholder="Search by food name or category..."
+                          disabled={savingBill}
+                          className="w-full px-3 py-2 text-xs bg-slate-50/50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500 font-mono"
+                        />
+
+
+                      </div>  
+
                       {/* Dynamic Cuisine Category Filter */}
                       <div className="flex flex-wrap gap-1.5 pb-2 border-b border-slate-850/60 mb-3">
                         {["All", ...Array.from(new Set(foods.map((f) => f.category).filter(Boolean)))].map((cat) => (
@@ -1478,6 +1507,7 @@ export const Billing: React.FC<BillingProps> = ({
                     </div>
                   )}
                   <div className="mt-auto px-4 py-2.5 bg-slate-950 border-t border-slate-850 text-[10px] text-slate-500 text-center italic">
+                    
                     Quick touch action appends items in half a second!
                   </div>
                 </div>
