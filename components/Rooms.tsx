@@ -24,6 +24,7 @@ export const Rooms: React.FC = () => {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
   const [filterStatus, setFilterStatus] = useState<string>('All');
+  const [origin, setOrigin] = useState('');
   
   // Form State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -85,6 +86,9 @@ export const Rooms: React.FC = () => {
   useEffect(() => {
     fetchRooms();
     fetchBills();
+    if (typeof window !== 'undefined') {
+      setOrigin(window.location.origin);
+    }
   }, []);
 
   const canAddRoom = hasPermission(currentUser.role, 'allowReceptionistAddRooms', settings) ||
@@ -362,6 +366,8 @@ export const Rooms: React.FC = () => {
                 )}
               </div>
 
+              <hr className="border-slate-200"/>
+
               {/* Action Buttons for Authorized Operators */}
               {(canEditRoom || canDeleteRoom) && (
                 <div className="mt-5 pt-3 border-t border-slate-50 flex items-center justify-end gap-2 shrink-0">
@@ -477,6 +483,25 @@ export const Rooms: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {/* QR Code Section */}
+              {editingId && origin && (
+                <div className="pt-2">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                    Guest QR Code (Scan to View Bill)
+                  </label>
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col items-center justify-center gap-2">
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${origin}/guest/room/${editingId}`)}`} 
+                      alt="Room QR Code" 
+                      className="h-32 w-32 bg-white p-2 rounded-lg shadow-sm border border-slate-200"
+                    />
+                    <a href={`/guest/room/${editingId}`} target="_blank" rel="noreferrer" className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider hover:underline flex items-center gap-1">
+                      Open Guest Portal &rarr;
+                    </a>
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center gap-3 pt-4 border-t border-slate-50">
                 <button

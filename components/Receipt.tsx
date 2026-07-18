@@ -404,6 +404,27 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
 
                  </div>
 
+                {/*print history table */}
+
+              <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto scrollbar-thin">
+                {printLogs.length > 0 ? (
+                  printLogs.slice(-5).reverse().map((log, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-[9px] text-slate-700 bg-slate-50 px-2 py-1 rounded-lg">
+                      <span>Print #{printLogs.length - idx}</span>
+                      <span>{new Date(log).toLocaleString()}</span>
+                    </div>
+                  ))
+                ) : ( 
+
+                  <div className="text-[9px] text-slate-400 italic text-center py-2">
+                    No print history available.
+                  </div>
+                )}
+
+
+
+              </div>
+
             </div>
             
           </div>
