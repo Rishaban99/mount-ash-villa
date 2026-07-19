@@ -5,7 +5,7 @@
 
 import { prisma } from './prisma';
 import { DEFAULT_SETTINGS } from '../prisma/defaults';
-import { User, Room, Guest, Food, Bill, Expense, SystemSettings, FrontdeskMemo, ClosedMonth, AuditLog, AuditAction, RoomItem, RoomStatus } from '@/lib/types';
+import { User, Room, Guest, Food, Bill, Expense, SystemSettings, FrontdeskMemo, ClosedMonth, AuditLog, AuditAction, RoomItem, RoomStatus, PrintLog } from '@/lib/types';
 import type { User as PrismaUser, Prisma } from '@prisma/client';
 import { dedupeRoomsByNumber } from '@/lib/rooms';
 
@@ -645,4 +645,26 @@ export async function queryAuditLogs(filters: {
     ...log,
     details: log.details as Record<string, unknown> | undefined,
   }));
+}
+
+// ==========================================
+// PRINT LOGS
+// ==========================================
+
+export async function getPrintLogs(billId?: string): Promise<PrintLog[]> {
+  const where = billId ? { billId } : {};
+  return prisma.printLog.findMany({
+    where,
+    orderBy: { printedAt: 'desc' },
+  });
+}
+
+export async function savePrintLog(log: Omit<PrintLog, 'id'>): Promise<PrintLog> {
+  const id = 'print_' + Math.random().toString(36).substr(2, 9);
+  return prisma.printLog.create({
+    data: {
+      id,
+      ...log,
+    },
+  });
 }

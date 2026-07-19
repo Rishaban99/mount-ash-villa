@@ -39,28 +39,48 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
   const [localPaperWidth, setLocalPaperWidth] = useState<'58mm' | '80mm' | 'A4'>('80mm');
   const [localShowLogo, setLocalShowLogo] = useState<boolean>(true);
   const [localShowTax, setLocalShowTax] = useState<boolean>(true);
-  const [printLogs, setPrintLogs] = useState<string[]>([]);
+  const [printLogs, setPrintLogs] = useState<any[]>([]);
 
   useEffect(() => {
     if (bill?.id) {
-      const historyKey = `print_history_${bill.id}`;
-      const saved = localStorage.getItem(historyKey);
-      if (saved) {
+      const fetchPrintLogs = async () => {
         try {
-          setPrintLogs(JSON.parse(saved));
+          const res = await apiFetch(`/api/print-logs?billId=${bill.id}`);
+          if (res.ok) {
+            const data = await res.json();
+            setPrintLogs(data);
+          }
         } catch (e) {
-          setPrintLogs([]);
+          console.error('Failed to fetch print logs', e);
         }
-      }
+      };
+      fetchPrintLogs();
     }
   }, [bill?.id]);
 
-  const recordPrintAction = () => {
+  const recordPrintAction = async () => {
     if (!bill?.id) return;
-    const historyKey = `print_history_${bill.id}`;
-    const newLogs = [...printLogs, new Date().toISOString()];
-    localStorage.setItem(historyKey, JSON.stringify(newLogs));
-    setPrintLogs(newLogs);
+    try {
+      const res = await apiFetch('/api/print-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          billId: bill.id,
+          billLabel: bill.id,
+          guestName: bill.guestDetails?.name || '',
+          totalAmount: bill.totalAmount || 0,
+          paymentMethod,
+          paperWidth: localPaperWidth,
+          currency: overrideCurrency || settings?.currency || 'Rs.',
+        }),
+      });
+      if (res.ok) {
+        const newLog = await res.json();
+        setPrintLogs((prev) => [newLog, ...prev]);
+      }
+    } catch (e) {
+      console.error('Failed to save print log', e);
+    }
   };
 
   useEffect(() => {
@@ -391,14 +411,14 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
                   <span>Last Printed:</span>
                   <span className="font-bold text-slate-800">
                     {printLogs.length > 0 
-                      ? new Date(printLogs[printLogs.length - 1]).toLocaleString() 
+                      ? new Date(printLogs[0].printedAt).toLocaleString() 
                       : 'Never'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-[9px] text-slate-600">
                   <span>Prints This Week:</span>
                   <span className="font-bold text-slate-800">
-                    {printLogs.filter(t => new Date(t).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000).length}
+                    {printLogs.filter(l => new Date(l.printedAt).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000).length}
                   </span>
                  </div> 
 
@@ -408,10 +428,10 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
 
               <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto scrollbar-thin">
                 {printLogs.length > 0 ? (
-                  printLogs.slice(-5).reverse().map((log, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-[9px] text-slate-700 bg-slate-50 px-2 py-1 rounded-lg">
+                  printLogs.slice(0, 5).map((log, idx) => (
+                    <div key={log.id || idx} className="flex items-center justify-between text-[9px] text-slate-700 bg-slate-50 px-2 py-1 rounded-lg">
                       <span>Print #{printLogs.length - idx}</span>
-                      <span>{new Date(log).toLocaleString()}</span>
+                      <span>{new Date(log.printedAt).toLocaleString()}</span>
                     </div>
                   ))
                 ) : ( 

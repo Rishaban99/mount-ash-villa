@@ -197,5 +197,18 @@ export interface AuditLog {
   details?: Record<string, unknown>;
 }
 
+export interface PrintLog {
+  id: string;
+  billId: string;
+  billLabel: string;
+  guestName: string;
+  totalAmount: number;
+  paymentMethod: string;
+  paperWidth: string;
+  currency: string;
+  printedBy: string;
+  printedByRole: string;
+  printedAt: string;
+}
 
 

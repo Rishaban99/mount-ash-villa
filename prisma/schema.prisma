@@ -237,3 +237,19 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+
+model PrintLog {
+  id            String @id @map("_id")
+  billId        String
+  billLabel     String
+  guestName     String
+  totalAmount   Float
+  paymentMethod String
+  paperWidth    String
+  currency      String
+  printedBy     String
+  printedByRole String
+  printedAt     String
+
+  @@map("print_logs")
+}
