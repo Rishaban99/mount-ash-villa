@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   try {
     await ensureDb();
     const auth = await requirePermission(request, 'allowManagerUserEdit');
-    // if (!auth.ok) return auth.response;
+    if (!auth.ok) return auth.response;
 
     const body = await request.json();
     const { id, username, name, role, password, salary, lastPaid, joinDate, leftDate, monthlyBaseSalaries, monthlyPaidSalaries } = body;
@@ -48,9 +48,9 @@ export async function POST(request: Request) {
         JSON.stringify(monthlyBaseSalaries) !== JSON.stringify(existingUser.monthlyBaseSalaries);
 
       if (salaryChanging || monthlySalariesChanging) {
-        // if (!(await checkSessionPermission(auth.session, 'allowManagerSalaryChange'))) {
-        //   return errorResponse('Forbidden: Salary changes are restricted by administrator policy.', 403);
-        // }
+        if (!(await checkSessionPermission(auth.session, 'allowManagerSalaryChange'))) {
+          return errorResponse('Forbidden: Salary changes are restricted by administrator policy.', 403);
+        }
       }
 
       const payloadToSave = {
@@ -66,7 +66,6 @@ export async function POST(request: Request) {
         monthlyBaseSalaries: monthlyBaseSalaries !== undefined ? monthlyBaseSalaries : existingUser.monthlyBaseSalaries,
         monthlyPaidSalaries: monthlyPaidSalaries !== undefined ? monthlyPaidSalaries : (existingUser.monthlyPaidSalaries || undefined),
       };
-      console.log("PAYLOAD TO SAVEUSER", JSON.stringify(payloadToSave, null, 2));
       const updatedUser = await saveUser(payloadToSave);
 
       const { password: _, ...safeUser } = updatedUser;
