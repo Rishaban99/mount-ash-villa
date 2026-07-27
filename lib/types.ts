@@ -211,4 +211,16 @@ export interface PrintLog {
   printedAt: string;
 }
 
+export interface GuestFeedback {
+  id: string;
+  roomNumber: string;
+  guestName?: string;
+  rating: number;
+  category?: string;
+  message?: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+
 

@@ -5,7 +5,7 @@
 
 import { prisma } from './prisma';
 import { DEFAULT_SETTINGS } from '../prisma/defaults';
-import { User, Room, Guest, Food, Bill, Expense, SystemSettings, FrontdeskMemo, ClosedMonth, AuditLog, AuditAction, RoomItem, RoomStatus, PrintLog } from '@/lib/types';
+import { User, Room, Guest, Food, Bill, Expense, SystemSettings, FrontdeskMemo, ClosedMonth, AuditLog, AuditAction, RoomItem, RoomStatus, PrintLog, GuestFeedback } from '@/lib/types';
 import type { User as PrismaUser, Prisma } from '@prisma/client';
 import { dedupeRoomsByNumber } from '@/lib/rooms';
 
@@ -668,3 +668,84 @@ export async function savePrintLog(log: Omit<PrintLog, 'id'>): Promise<PrintLog>
     },
   });
 }
+
+// ==========================================
+// GUEST FEEDBACK
+// ==========================================
+
+export async function getGuestFeedbacks(): Promise<GuestFeedback[]> {
+  // @ts-ignore - dynamic model added
+  if (!prisma.guestFeedback) {
+    const result = await prisma.$runCommandRaw({
+      find: 'guest_feedbacks',
+      filter: {},
+      sort: { createdAt: -1 }
+    });
+    const docs = (result as any)?.cursor?.firstBatch || [];
+    return docs.map((doc: any) => ({
+      id: String(doc._id),
+      roomNumber: doc.roomNumber,
+      guestName: doc.guestName,
+      rating: doc.rating,
+      category: doc.category,
+      message: doc.message,
+      isRead: Boolean(doc.isRead),
+      createdAt: doc.createdAt
+    }));
+  }
+  // @ts-ignore
+  return prisma.guestFeedback.findMany({
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+export async function saveGuestFeedback(feedback: Omit<GuestFeedback, 'id' | 'isRead' | 'createdAt'>): Promise<GuestFeedback> {
+  const id = 'fb_' + Math.random().toString(36).substr(2, 9);
+  const now = new Date().toISOString();
+  const newFeedback = {
+    id,
+    roomNumber: feedback.roomNumber,
+    guestName: feedback.guestName || 'Guest',
+    rating: feedback.rating,
+    category: feedback.category || '',
+    message: feedback.message || '',
+    isRead: false,
+    createdAt: now,
+  };
+
+  // @ts-ignore
+  if (!prisma.guestFeedback) {
+    await prisma.$runCommandRaw({
+      insert: 'guest_feedbacks',
+      documents: [{
+        _id: id,
+        ...newFeedback
+      }]
+    });
+    return newFeedback;
+  }
+  // @ts-ignore
+  return prisma.guestFeedback.create({
+    data: newFeedback,
+  });
+}
+
+export async function markGuestFeedbackAsRead(id: string): Promise<void> {
+  // @ts-ignore
+  if (!prisma.guestFeedback) {
+    await prisma.$runCommandRaw({
+      update: 'guest_feedbacks',
+      updates: [{
+        q: { _id: id },
+        u: { $set: { isRead: true } }
+      }]
+    });
+    return;
+  }
+  // @ts-ignore
+  await prisma.guestFeedback.update({
+    where: { id },
+    data: { isRead: true }
+  });
+}
+

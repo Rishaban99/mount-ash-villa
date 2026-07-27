@@ -21,12 +21,15 @@ import {
   Wallet,
   Sliders,
   ScrollText,
+  Bell,
+  MessageSquare,
+  Check,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { useAuth } from '@/components/auth-provider';
 import { ReceiptProvider } from '@/components/receipt-provider';
 import { hasPermission } from '@/lib/permissions';
-import type { SystemSettings } from '@/lib/types';
+import type { SystemSettings, GuestFeedback } from '@/lib/types';
 
 const viewTitles: Record<string, string> = {
   dashboard: 'Reception Dashboard',
@@ -207,20 +210,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <h1 className="font-display font-bold text-base md:text-lg text-slate-850 truncate">
                 {viewTitles[activeTab] || 'Hotel Terminal Console'}
               </h1>
-              <div className="flex gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
                 <span className="hidden sm:inline-flex px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded uppercase tracking-wider border border-emerald-100">
                   role :- {currentUser.role}
                 </span>
-
               </div>
             </div>
-            <div className="text-right shrink-0">
-              <p className="text-xs font-bold text-slate-700 uppercase tracking-tight">
-                {formatDateString(currentTime)}
-              </p>
-              <p className="text-[10px] text-slate-400 font-mono mt-0.5 font-semibold">
-                {formatTimeString(currentTime)}
-              </p>
+            <div className="flex items-center gap-3 shrink-0">
+              <FeedbackNotification />
+              <div className="text-right">
+                <p className="text-xs font-bold text-slate-700 uppercase tracking-tight">
+                  {formatDateString(currentTime)}
+                </p>
+                <p className="text-[10px] text-slate-400 font-mono mt-0.5 font-semibold">
+                  {formatTimeString(currentTime)}
+                </p>
+              </div>
             </div>
           </header>
 
@@ -250,3 +255,146 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </ReceiptProvider>
   );
 }
+
+function FeedbackNotification() {
+  const [feedbacks, setFeedbacks] = useState<GuestFeedback[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+
+  const fetchFeedbacks = async () => {
+    try {
+      const res = await fetch('/api/admin/feedback');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setFeedbacks(data);
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching feedbacks', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchFeedbacks();
+    const interval = setInterval(fetchFeedbacks, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const unreadFeedbacks = feedbacks.filter((f) => !f.isRead);
+  const unreadCount = unreadFeedbacks.length;
+
+  const markAsRead = async (id: string) => {
+    try {
+      await fetch('/api/admin/feedback', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      setFeedbacks((prev) =>
+        prev.map((f) => (f.id === id ? { ...f, isRead: true } : f))
+      );
+    } catch (e) {
+      console.error('Error marking feedback as read', e);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="relative p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors focus:outline-none flex items-center justify-center border border-slate-200 shadow-sm bg-white"
+        title="Guest Feedbacks"
+      >
+        <Bell className="h-4 w-4" />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white shadow-sm animate-pulse">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {isOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 text-left">
+            <div className="p-3 bg-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-indigo-400" />
+                <span className="font-bold text-xs">Guest Feedbacks</span>
+              </div>
+              {unreadCount > 0 ? (
+                <span className="bg-rose-500/30 text-rose-200 text-[10px] px-2 py-0.5 rounded-full font-semibold border border-rose-400/30">
+                  {unreadCount} unread
+                </span>
+              ) : (
+                <span className="text-slate-400 text-[10px]">All caught up</span>
+              )}
+            </div>
+
+            <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+              {feedbacks.length === 0 ? (
+                <div className="p-6 text-center text-slate-400 text-xs">
+                  No guest feedback received yet.
+                </div>
+              ) : (
+                feedbacks.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`p-3 text-xs transition-colors ${
+                      item.isRead ? 'bg-white opacity-70' : 'bg-amber-50/40'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-slate-900">Room {item.roomNumber}</span>
+                        {item.guestName && (
+                          <span className="text-slate-500 font-medium">({item.guestName})</span>
+                        )}
+                      </div>
+                      <div className="flex items-center text-amber-500 font-bold text-[11px]">
+                        {'★'.repeat(item.rating)}
+                        <span className="text-slate-400 text-[10px] ml-1">({item.rating}/5)</span>
+                      </div>
+                    </div>
+
+                    {item.category && (
+                      <span className="inline-block bg-slate-100 text-slate-600 text-[9px] font-semibold px-1.5 py-0.5 rounded mb-1 border border-slate-200">
+                        {item.category}
+                      </span>
+                    )}
+
+                    {item.message && (
+                      <p className="text-slate-700 italic bg-white p-2 rounded border border-slate-100 text-[11px] my-1 leading-snug">
+                        "{item.message}"
+                      </p>
+                    )}
+
+                    <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100 text-[10px] text-slate-400">
+                      <span>
+                        {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      {!item.isRead ? (
+                        <button
+                          onClick={() => markAsRead(item.id)}
+                          className="text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                        >
+                          <Check className="h-3 w-3" /> Mark as read
+                        </button>
+                      ) : (
+                        <span className="text-emerald-600 font-semibold">✓ Read</span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+

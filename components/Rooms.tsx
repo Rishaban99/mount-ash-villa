@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Room, RoomType, RoomStatus, User, Bill } from '@/lib/types';
-import { Plus, Search, Edit2, Trash2, Hotel, Tag, DollarSign, Command, Sparkles, Filter, Loader2, User as UserIcon, ReceiptText } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Hotel, Tag, DollarSign, Command, Sparkles, Filter, Loader2, User as UserIcon, ReceiptText, Download, ExternalLink } from 'lucide-react';
 import { LoadingButton } from '@/components/loading-button';
 import { apiFetch } from '@/lib/api';
 import { toastCreated, toastUpdated, toastDeleted, toastError } from '@/lib/crud-toast';
@@ -367,6 +367,58 @@ export const Rooms: React.FC = () => {
               </div>
 
               <hr className="border-slate-200"/>
+              {/* QR Code Section */}
+              { origin && (
+                <div className="pt-2">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                    Guest QR Code (Scan to View Bill)
+                  </label>
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col items-center justify-center gap-3">
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${origin}/roomQRCode/${room.roomNumber}`)}`}
+                      alt="Room QR Code" 
+                      className="h-32 w-32 bg-white p-2 rounded-lg shadow-sm border border-slate-200"
+                    />
+
+                    <div className="flex items-center gap-2 mt-1">
+                      <a
+                        href={`${origin}/roomQRCode/${room.roomNumber}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-lg border border-slate-200 shadow-sm transition-all cursor-pointer"
+                        title="View / Preview Guest Page"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5 text-indigo-600" />
+                        <span>View</span>
+                      </a>
+                      <button
+                        onClick={() => {
+                          const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(`${origin}/roomQRCode/${room.roomNumber}`)}`;
+                          fetch(qrSrc)
+                            .then((res) => res.blob())
+                            .then((blob) => {
+                              const url = window.URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = `Room_${room.roomNumber}_QR.png`;
+                              document.body.appendChild(a);
+                              a.click();
+                              a.remove();
+                              window.URL.revokeObjectURL(url);
+                            })
+                            .catch(() => window.open(qrSrc, '_blank'));
+                        }}
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg border border-indigo-200/60 shadow-sm transition-all cursor-pointer"
+                        title="Download High-Res QR Code PNG"
+                      >
+                        <Download className="h-3.5 w-3.5 text-indigo-600" />
+                        <span>Download</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
 
               {/* Action Buttons for Authorized Operators */}
               {(canEditRoom || canDeleteRoom) && (
@@ -402,6 +454,7 @@ export const Rooms: React.FC = () => {
         </div>
       )}
 
+      
       {/* Add / Edit Room Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
@@ -484,24 +537,7 @@ export const Rooms: React.FC = () => {
                 </div>
               </div>
 
-              {/* QR Code Section */}
-              {editingId && origin && (
-                <div className="pt-2">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                    Guest QR Code (Scan to View Bill)
-                  </label>
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col items-center justify-center gap-2">
-                    <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${origin}/guest/room/${editingId}`)}`} 
-                      alt="Room QR Code" 
-                      className="h-32 w-32 bg-white p-2 rounded-lg shadow-sm border border-slate-200"
-                    />
-                    <a href={`/guest/room/${editingId}`} target="_blank" rel="noreferrer" className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider hover:underline flex items-center gap-1">
-                      Open Guest Portal &rarr;
-                    </a>
-                  </div>
-                </div>
-              )}
+              
 
               <div className="flex items-center gap-3 pt-4 border-t border-slate-50">
                 <button

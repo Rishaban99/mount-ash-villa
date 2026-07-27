@@ -253,3 +253,17 @@ model PrintLog {
 
   @@map("print_logs")
 }
+
+model GuestFeedback {
+  id          String   @id @map("_id")
+  roomNumber  String
+  guestName   String?
+  rating      Int
+  category    String?
+  message     String?
+  isRead      Boolean  @default(false)
+  createdAt   String
+
+  @@map("guest_feedbacks")
+}
+
