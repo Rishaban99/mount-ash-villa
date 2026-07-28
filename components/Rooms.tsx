@@ -375,14 +375,14 @@ export const Rooms: React.FC = () => {
                   </label>
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col items-center justify-center gap-3">
                     <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${origin}/roomQRCode/${room.roomNumber}`)}`}
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${origin}/roomQRCode/${room.id}`)}`}
                       alt="Room QR Code" 
                       className="h-32 w-32 bg-white p-2 rounded-lg shadow-sm border border-slate-200"
                     />
 
                     <div className="flex items-center gap-2 mt-1">
                       <a
-                        href={`${origin}/roomQRCode/${room.roomNumber}`}
+                        href={`${origin}/roomQRCode/${room.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-lg border border-slate-200 shadow-sm transition-all cursor-pointer"
@@ -393,7 +393,7 @@ export const Rooms: React.FC = () => {
                       </a>
                       <button
                         onClick={() => {
-                          const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(`${origin}/roomQRCode/${room.roomNumber}`)}`;
+                          const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(`${origin}/roomQRCode/${room.id}`)}`;
                           fetch(qrSrc)
                             .then((res) => res.blob())
                             .then((blob) => {
