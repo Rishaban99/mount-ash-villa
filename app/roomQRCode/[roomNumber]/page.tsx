@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { Logo } from '@/components/Logo';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -133,14 +134,9 @@ function WelcomeScreen({
       <div className="blob blob-3" />
 
       <div className="welcome-content">
-        {/* Hotel logo placeholder */}
-        <div className="hotel-logo">
-          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="48" height="48" rx="14" fill="rgba(255,255,255,0.15)" />
-            <path d="M10 38V20l14-10 14 10v18H10z" stroke="white" strokeWidth="2.2" strokeLinejoin="round" fill="none"/>
-            <rect x="19" y="27" width="10" height="11" rx="1" stroke="white" strokeWidth="2" fill="none"/>
-            <path d="M14 24h4M30 24h4M14 29h4M30 29h4" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
+        {/* 3D Animated Brand Logo */}
+        <div className="welcome-logo-container mb-3">
+          <Logo size={180} showText={true} useBrandColors={true} animated3D={true} />
         </div>
 
         <p className="welcome-hotel-name">{hotelName}</p>
