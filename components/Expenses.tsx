@@ -32,7 +32,8 @@ import {
   Droplet,
   Phone,
   Check,
-  Loader2
+  Loader2,
+  Tv
 } from 'lucide-react';
 import { LoadingButton } from '@/components/loading-button';
 import { apiFetch } from '@/lib/api';
@@ -333,8 +334,9 @@ export const Expenses: React.FC = () => {
         return 'bg-amber-50 text-amber-700 border-amber-100';
       case 'Maintenance':
         return 'bg-rose-50 text-rose-700 border-rose-100';
-      case 'Marketing':
+      case 'Service Charge':
         return 'bg-indigo-50 text-indigo-700 border-indigo-100';
+
       default:
         return 'bg-slate-100 text-slate-700 border-slate-200';
     }
@@ -455,6 +457,40 @@ export const Expenses: React.FC = () => {
       .reduce((sum, exp) => sum + exp.amount, 0);
   };
 
+  const getASKSpentThisMonth = () => {
+    const currentYearMonth = selectedMonth !== 'All' ? selectedMonth : new Date().toISOString().substring(0, 7); // "2026-06"
+    return expenses
+      .filter((exp) => {
+        const isUtility = exp.category === 'Utilities';
+        const titleLower = exp.title.toLowerCase();
+        const descLower = (exp.description || '').toLowerCase();
+        const matchesQuery = 
+          titleLower.includes('ask') || 
+          descLower.includes('television');
+        const matchesMonth = exp.date.startsWith(currentYearMonth);
+        return isUtility && matchesQuery && matchesMonth;
+      })
+      .reduce((sum, exp) => sum + exp.amount, 0);
+  };
+
+
+  const getBookingSpentThisMonth = () => {
+    const currentYearMonth = selectedMonth !== 'All' ? selectedMonth : new Date().toISOString().substring(0, 7); // "2026-06"
+    return expenses
+      .filter((exp) => {
+        const isUtility = exp.category === 'Utilities';
+        const titleLower = exp.title.toLowerCase();
+        const descLower = (exp.description || '').toLowerCase();
+        const matchesQuery = 
+          titleLower.includes('booking') || 
+          descLower.includes('booking');
+        const matchesMonth = exp.date.startsWith(currentYearMonth);
+        return isUtility && matchesQuery && matchesMonth;
+      })
+      .reduce((sum, exp) => sum + exp.amount, 0);
+  };
+
+
   // Filter Logic
   const filteredExpenses = expenses.filter(exp => {
     const matchesSearch = 
@@ -516,10 +552,10 @@ export const Expenses: React.FC = () => {
   const salariesTotal = filteredExpensesForStats.filter(exp => exp.category === 'Salaries').reduce((acc, exp) => acc + exp.amount, 0);
   const maintenanceTotal = filteredExpensesForStats.filter(exp => exp.category === 'Maintenance').reduce((acc, exp) => acc + exp.amount, 0);
   const foodSuppliesTotal = filteredExpensesForStats.filter(exp => exp.category === 'Food & Supplies').reduce((acc, exp) => acc + exp.amount, 0);
-  const marketingTotal = filteredExpensesForStats.filter(exp => exp.category === 'Marketing').reduce((acc, exp) => acc + exp.amount, 0);
+  const ServiceChargeTotal = filteredExpensesForStats.filter(exp => exp.category === 'Service Charge').reduce((acc, exp) => acc + exp.amount, 0);
   const otherTotal = filteredExpensesForStats.filter(exp => exp.category === 'Other').reduce((acc, exp) => acc + exp.amount, 0);
-  const RoomCommison = filteredExpensesForStats.filter(exp => exp.category === 'Room Commission').reduce((acc, exp) => acc + exp.amount, 0);
-  const Tranport = filteredExpensesForStats.filter(exp => exp.category === 'Transport').reduce((acc, exp) => acc + exp.amount, 0);
+  const RoomCommission = filteredExpensesForStats.filter(exp => exp.category === 'Room Commission').reduce((acc, exp) => acc + exp.amount, 0);
+  const Transport = filteredExpensesForStats.filter(exp => exp.category === 'Transport').reduce((acc, exp) => acc + exp.amount, 0);
 
   // Category breakdown for progress bar insight widget
   const categoriesBreakdown = [
@@ -527,10 +563,10 @@ export const Expenses: React.FC = () => {
     { name: 'Salaries', amount: salariesTotal, color: 'bg-emerald-500', pct: grandTotalExpenses > 0 ? (salariesTotal / grandTotalExpenses) * 100 : 0 },
     { name: 'Food & Supplies', amount: foodSuppliesTotal, color: 'bg-amber-500', pct: grandTotalExpenses > 0 ? (foodSuppliesTotal / grandTotalExpenses) * 100 : 0 },
     { name: 'Maintenance', amount: maintenanceTotal, color: 'bg-rose-500', pct: grandTotalExpenses > 0 ? (maintenanceTotal / grandTotalExpenses) * 100 : 0 },
-    { name: 'Marketing', amount: marketingTotal, color: 'bg-indigo-500', pct: grandTotalExpenses > 0 ? (marketingTotal / grandTotalExpenses) * 100 : 0 },
+    { name: 'Service Charge', amount: ServiceChargeTotal, color: 'bg-indigo-500', pct: grandTotalExpenses > 0 ? (ServiceChargeTotal / grandTotalExpenses) * 100 : 0 },
     { name: 'Other', amount: otherTotal, color: 'bg-slate-500', pct: grandTotalExpenses > 0 ? (otherTotal / grandTotalExpenses) * 100 : 0 },
-    { name: 'Room Commission', amount: RoomCommison, color: 'bg-cyan-500', pct: grandTotalExpenses > 0 ? (RoomCommison / grandTotalExpenses) * 100 : 0 },
-    { name: 'Transport', amount: Tranport, color: 'bg-blue-500', pct: grandTotalExpenses > 0 ? (Tranport / grandTotalExpenses) * 100 : 0 },
+    { name: 'Room Commission', amount: RoomCommission, color: 'bg-cyan-500', pct: grandTotalExpenses > 0 ? (RoomCommission / grandTotalExpenses) * 100 : 0 },
+    { name: 'Transport', amount: Transport, color: 'bg-blue-500', pct: grandTotalExpenses > 0 ? (Transport / grandTotalExpenses) * 100 : 0 },
   ].sort((a, b) => b.amount - a.amount);
 
   // Helper to format date string to YYYY-MM-DD format based on local/system timezone safely
@@ -763,6 +799,17 @@ export const Expenses: React.FC = () => {
                     >
                       📺 ASK Cable
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const currentMonthName = getSelectedMonthName();
+                        setTitle(`Booking.com Bill - ${currentMonthName}`);
+                        setDescription(`Monthly Booking.com travel booking fee for ${currentMonthName}.`);
+                      }}
+                      className="px-2.5 py-1.5 bg-pink-50 hover:bg-pink-100 text-pink-800 text-[10px] font-bold rounded-lg border border-pink-200 cursor-pointer transition-all flex items-center gap-1 leading-none uppercase"
+                    >
+                      🌐 Booking.com 
+                    </button>
                   </div>
                 </div>
               )}
@@ -792,7 +839,7 @@ export const Expenses: React.FC = () => {
                     <option value="Salaries">Salaries</option>
                     <option value="Food & Supplies">Food & Supplies</option>
                     <option value="Maintenance">Maintenance</option>
-                    <option value="Marketing">Marketing</option>
+                    <option value="Service Charge">Service Charge</option>
                     <option value="Room Commission">Room Commission</option>
                     <option value="Transport">Transport</option>
                     <option value="Other">Other</option>
@@ -1469,6 +1516,156 @@ export const Expenses: React.FC = () => {
               );
             })()}
 
+            {/* 4. ASK Bill */}
+            {(() => {
+              const askPaid = getASKSpentThisMonth();
+              const currentMonthName = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+              return (
+                <div className="bg-slate-50/70 border border-slate-150/60 p-5 rounded-2xl flex flex-col justify-between space-y-4 hover:bg-slate-50 hover:shadow-xs transition-all duration-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-sky-500 text-white shadow-sm shrink-0">
+                      <Tv className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-xs">ASK Bill</h4>
+                      <span className="text-[8px] px-1.5 py-0.5 bg-sky-100 text-sky-800 font-bold rounded-md uppercase tracking-wider mt-0.5 inline-block">
+                        ASK 
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 border-t border-slate-100 pt-2.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-400 font-semibold font-sans">Billing Period</span>
+                      <span className="text-slate-700 font-bold font-mono text-xs">{currentMonthName}</span>
+                    </div>
+                    <div className="flex justify-between text-xs border-t border-slate-100/40 pt-1.5">
+                      <span className="text-slate-500 font-medium font-sans font-semibold">Payment Status</span>
+                      {askPaid > 0 ? (
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold font-mono text-xs text-emerald-600">
+                            Paid
+                          </span>
+                          <span className="px-1.5 py-0.5 text-[7px] font-bold uppercase rounded bg-emerald-55 bg-emerald-50 text-emerald-700 leading-none">Settled</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold font-mono text-xs text-rose-500">
+                            Pending
+                          </span>
+                          <span className="px-1.5 py-0.5 text-[7px] font-bold uppercase rounded bg-rose-50 text-rose-500 leading-none">Unpaid</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    {askPaid > 0 ? (
+                      <div className="w-full py-2 bg-emerald-50/45 border border-emerald-100 text-emerald-700 text-[10px] font-bold uppercase rounded-lg text-center font-sans tracking-wide">
+                        ✓ Settled (Rs. {askPaid.toLocaleString()})
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingId(null);
+                          setTitle(`ask Bill - ${currentMonthName}`);
+                          setAmount('');
+                          setCategory('Utilities');
+                          setDate(new Date().toISOString().split('T')[0]);
+                          setDescription(`Monthly hotel internet and ask line rental for ${currentMonthName}.`);
+                          setPaymentMethod('Cash');
+                          setApprovedBy(currentUser.name);
+                          setError(null);
+                          setIsModalOpen(true);
+                        }}
+                        className="w-full py-2 bg-purple-600 hover:bg-slate-900 text-white text-[10px] font-bold uppercase rounded-lg shadow-xs transition-all border-0 cursor-pointer text-center flex items-center justify-center gap-1"
+                      >
+                        📺 ASK Cable  Payment
+                        
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+
+
+            {/* 5. BOOKING.COM Bill */}
+            {(() => {
+              const bookingPaid = getBookingSpentThisMonth();
+              const currentMonthName = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+              return (
+                <div className="bg-slate-50/70 border border-slate-150/60 p-5 rounded-2xl flex flex-col justify-between space-y-4 hover:bg-slate-50 hover:shadow-xs transition-all duration-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-sky-500 text-white shadow-sm shrink-0">
+                      <CreditCard className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-xs">Booking.com Bill</h4>
+                      <span className="text-[8px] px-1.5 py-0.5 bg-sky-100 text-sky-800 font-bold rounded-md uppercase tracking-wider mt-0.5 inline-block">
+                        Booking 
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 border-t border-slate-100 pt-2.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-400 font-semibold font-sans">Billing Period</span>
+                      <span className="text-slate-700 font-bold font-mono text-xs">{currentMonthName}</span>
+                    </div>
+                    <div className="flex justify-between text-xs border-t border-slate-100/40 pt-1.5">
+                      <span className="text-slate-500 font-medium font-sans font-semibold">Payment Status</span>
+                      {bookingPaid > 0 ? (
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold font-mono text-xs text-emerald-600">
+                            Paid
+                          </span>
+                          <span className="px-1.5 py-0.5 text-[7px] font-bold uppercase rounded bg-emerald-55 bg-emerald-50 text-emerald-700 leading-none">Settled</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold font-mono text-xs text-rose-500">
+                            Pending
+                          </span>
+                          <span className="px-1.5 py-0.5 text-[7px] font-bold uppercase rounded bg-rose-50 text-rose-500 leading-none">Unpaid</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    {bookingPaid > 0 ? (
+                      <div className="w-full py-2 bg-emerald-50/45 border border-emerald-100 text-emerald-700 text-[10px] font-bold uppercase rounded-lg text-center font-sans tracking-wide">
+                        ✓ Settled (Rs. {bookingPaid.toLocaleString()})
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingId(null);
+                          setTitle(`booking.com Bill - ${currentMonthName}`);
+                          setAmount('');
+                          setCategory('Utilities');
+                          setDate(new Date().toISOString().split('T')[0]);
+                          setDescription(`Monthly hotel internet and ask line rental for ${currentMonthName}.`);
+                          setPaymentMethod('Cash');
+                          setApprovedBy(currentUser.name);
+                          setError(null);
+                          setIsModalOpen(true);
+                        }}
+                        className="w-full py-2 bg-purple-600 hover:bg-slate-900 text-white text-[10px] font-bold uppercase rounded-lg shadow-xs transition-all border-0 cursor-pointer text-center flex items-center justify-center gap-1"
+                      >
+                        🌐 Booking.com 
+                        
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+            
           </div>
         </div>
       )}
@@ -1537,7 +1734,7 @@ export const Expenses: React.FC = () => {
                     <option value="Salaries">Salaries</option>
                     <option value="Food & Supplies">Food & Supplies</option>
                     <option value="Maintenance">Maintenance</option>
-                    <option value="Marketing">Marketing</option>
+                    <option value="Service Charge">Service Charge</option>
                     <option value="Room Commission">Room Commission</option>
                     <option value="Transport">Transport</option>
                     <option value="Other">Other</option>
@@ -1996,6 +2193,17 @@ export const Expenses: React.FC = () => {
                     >
                       📺 ASK Cable
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const currentMonthName = getSelectedMonthName();
+                        setTitle(`Booking.com Bill - ${currentMonthName}`);
+                        setDescription(`Monthly Booking.com travel booking fee for ${currentMonthName}.`);
+                      }}
+                      className="px-2.5 py-1.5 bg-pink-50 hover:bg-pink-100 text-pink-800 text-[10px] font-bold rounded-lg border border-pink-200 cursor-pointer transition-all flex items-center gap-1 leading-none uppercase"
+                    >
+                      🌐 Booking.com 
+                    </button>
                   </div>
                 </div>
               )}
@@ -2026,7 +2234,7 @@ export const Expenses: React.FC = () => {
                     <option value="Salaries">Salaries</option>
                     <option value="Food & Supplies">Food & Supplies</option>
                     <option value="Maintenance">Maintenance</option>
-                    <option value="Marketing">Marketing</option>
+                    <option value="Service Charge">Service Charge</option>
                     <option value="Room Commission">Room Commission</option>
                     <option value="Transport">Transport</option>
                     <option value="Other">Other</option>
