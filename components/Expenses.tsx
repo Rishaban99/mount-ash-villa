@@ -558,6 +558,7 @@ export const Expenses: React.FC = () => {
   const ServiceChargeTotal = filteredExpensesForStats.filter(exp => exp.category === 'Service Charge').reduce((acc, exp) => acc + exp.amount, 0);
   const otherTotal = filteredExpensesForStats.filter(exp => exp.category === 'Other').reduce((acc, exp) => acc + exp.amount, 0);
   const RoomCommission = filteredExpensesForStats.filter(exp => exp.category === 'Room Commission').reduce((acc, exp) => acc + exp.amount, 0);
+  const profitTotal = filteredExpensesForStats.filter(exp => exp.category === 'profit').reduce((acc, exp) => acc + exp.amount, 0);
   const Transport = filteredExpensesForStats.filter(exp => exp.category === 'Transport').reduce((acc, exp) => acc + exp.amount, 0);
 
   // Category breakdown for progress bar insight widget
@@ -570,6 +571,7 @@ export const Expenses: React.FC = () => {
     { name: 'Service Charge', amount: ServiceChargeTotal, color: 'bg-indigo-500', pct: grandTotalExpenses > 0 ? (ServiceChargeTotal / grandTotalExpenses) * 100 : 0 },
     { name: 'Other', amount: otherTotal, color: 'bg-slate-500', pct: grandTotalExpenses > 0 ? (otherTotal / grandTotalExpenses) * 100 : 0 },
     { name: 'Room Commission', amount: RoomCommission, color: 'bg-cyan-500', pct: grandTotalExpenses > 0 ? (RoomCommission / grandTotalExpenses) * 100 : 0 },
+    { name: 'Profit', amount: profitTotal, color: 'bg-green-500', pct: grandTotalExpenses > 0 ? (profitTotal / grandTotalExpenses) * 100 : 0 },
     { name: 'Transport', amount: Transport, color: 'bg-blue-500', pct: grandTotalExpenses > 0 ? (Transport / grandTotalExpenses) * 100 : 0 },
   ].sort((a, b) => b.amount - a.amount);
 
@@ -859,6 +861,7 @@ export const Expenses: React.FC = () => {
                     <option value="Maintenance">Maintenance</option>
                     <option value="Service Charge">Service Charge</option>
                     <option value="Room Commission">Room Commission</option>
+                    <option value="profit">Profit</option>
                     <option value="Transport">Transport</option>
                     <option value="Other">Other</option>
                   </select>
@@ -1759,6 +1762,7 @@ export const Expenses: React.FC = () => {
                     <option value="Service Charge">Service Charge</option>
                     <option value="Room Commission">Room Commission</option>
                     <option value="Transport">Transport</option>
+                    <option value="profit">Profit</option>
                     <option value="Other">Other</option>
                   </>
                 )}
@@ -2260,6 +2264,7 @@ export const Expenses: React.FC = () => {
                     <option value="Service Charge">Service Charge</option>
                     <option value="Room Commission">Room Commission</option>
                     <option value="Transport">Transport</option>
+                    <option value="profit">Profit</option>
                     <option value="Other">Other</option>
                   </select>
                 </div>
