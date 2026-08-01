@@ -330,7 +330,9 @@ export const Expenses: React.FC = () => {
         return 'bg-purple-50 text-purple-700 border-purple-100';
       case 'Salaries':
         return 'bg-emerald-50 text-emerald-700 border-emerald-100';
-      case 'Food & Supplies':
+      case 'Staff Food & Supplies':
+        return 'bg-amber-50 text-amber-700 border-amber-100';
+      case 'Guest Food & Supplies':
         return 'bg-amber-50 text-amber-700 border-amber-100';
       case 'Maintenance':
         return 'bg-rose-50 text-rose-700 border-rose-100';
@@ -551,7 +553,8 @@ export const Expenses: React.FC = () => {
   const utilitiesTotal = filteredExpensesForStats.filter(exp => exp.category === 'Utilities').reduce((acc, exp) => acc + exp.amount, 0);
   const salariesTotal = filteredExpensesForStats.filter(exp => exp.category === 'Salaries').reduce((acc, exp) => acc + exp.amount, 0);
   const maintenanceTotal = filteredExpensesForStats.filter(exp => exp.category === 'Maintenance').reduce((acc, exp) => acc + exp.amount, 0);
-  const foodSuppliesTotal = filteredExpensesForStats.filter(exp => exp.category === 'Food & Supplies').reduce((acc, exp) => acc + exp.amount, 0);
+  const StaffFoodSuppliesTotal = filteredExpensesForStats.filter(exp => exp.category === 'Staff Food & Supplies').reduce((acc, exp) => acc + exp.amount, 0);
+  const GuestFoodSuppliesTotal = filteredExpensesForStats.filter(exp => exp.category === 'Guest Food & Supplies').reduce((acc, exp) => acc + exp.amount, 0);
   const ServiceChargeTotal = filteredExpensesForStats.filter(exp => exp.category === 'Service Charge').reduce((acc, exp) => acc + exp.amount, 0);
   const otherTotal = filteredExpensesForStats.filter(exp => exp.category === 'Other').reduce((acc, exp) => acc + exp.amount, 0);
   const RoomCommission = filteredExpensesForStats.filter(exp => exp.category === 'Room Commission').reduce((acc, exp) => acc + exp.amount, 0);
@@ -561,7 +564,8 @@ export const Expenses: React.FC = () => {
   const categoriesBreakdown = [
     { name: 'Utilities', amount: utilitiesTotal, color: 'bg-purple-500', pct: grandTotalExpenses > 0 ? (utilitiesTotal / grandTotalExpenses) * 100 : 0 },
     { name: 'Salaries', amount: salariesTotal, color: 'bg-emerald-500', pct: grandTotalExpenses > 0 ? (salariesTotal / grandTotalExpenses) * 100 : 0 },
-    { name: 'Food & Supplies', amount: foodSuppliesTotal, color: 'bg-amber-500', pct: grandTotalExpenses > 0 ? (foodSuppliesTotal / grandTotalExpenses) * 100 : 0 },
+    { name: 'Staff Food & Supplies', amount: StaffFoodSuppliesTotal, color: 'bg-amber-500', pct: grandTotalExpenses > 0 ? (StaffFoodSuppliesTotal / grandTotalExpenses) * 100 : 0 },
+    { name: 'Guest Food & Supplies', amount: GuestFoodSuppliesTotal, color: 'bg-amber-500', pct: grandTotalExpenses > 0 ? (GuestFoodSuppliesTotal / grandTotalExpenses) * 100 : 0 },
     { name: 'Maintenance', amount: maintenanceTotal, color: 'bg-rose-500', pct: grandTotalExpenses > 0 ? (maintenanceTotal / grandTotalExpenses) * 100 : 0 },
     { name: 'Service Charge', amount: ServiceChargeTotal, color: 'bg-indigo-500', pct: grandTotalExpenses > 0 ? (ServiceChargeTotal / grandTotalExpenses) * 100 : 0 },
     { name: 'Other', amount: otherTotal, color: 'bg-slate-500', pct: grandTotalExpenses > 0 ? (otherTotal / grandTotalExpenses) * 100 : 0 },
@@ -850,7 +854,8 @@ export const Expenses: React.FC = () => {
                   >
                     <option value="Utilities">Utilities</option>
                     <option value="Salaries">Salaries</option>
-                    <option value="Food & Supplies">Food & Supplies</option>
+                    <option value="Staff Food & Supplies">Staff Food & Supplies</option>
+                    <option value="Guest Food & Supplies">Guest Food & Supplies</option>
                     <option value="Maintenance">Maintenance</option>
                     <option value="Service Charge">Service Charge</option>
                     <option value="Room Commission">Room Commission</option>
@@ -1103,7 +1108,10 @@ export const Expenses: React.FC = () => {
             <p className="text-[11px] font-bold text-amber-500 uppercase tracking-widest">Maintenance</p>
             <p className="text-2xl font-display font-bold text-slate-800 mt-2">Rs. {maintenanceTotal.toLocaleString()}</p>
             <div className="text-[10px] text-slate-400 mt-1">
-              F&B: Rs. {foodSuppliesTotal.toLocaleString()}
+              Staff : Rs. {StaffFoodSuppliesTotal.toLocaleString()}
+            </div>
+            <div className="text-[10px] text-slate-400 mt-1">
+              Guest : Rs. {GuestFoodSuppliesTotal.toLocaleString()}
             </div>
           </div>
           <div className="p-3 bg-amber-50 rounded-xl text-amber-600 shrink-0">
@@ -1745,7 +1753,8 @@ export const Expenses: React.FC = () => {
                     <option value="All">All Categories</option>
                     <option value="Utilities">Utilities</option>
                     <option value="Salaries">Salaries</option>
-                    <option value="Food & Supplies">Food & Supplies</option>
+                    <option value="Staff Food & Supplies">Staff Food & Supplies</option>
+                    <option value="Guest Food & Supplies">Guest Food & Supplies</option>
                     <option value="Maintenance">Maintenance</option>
                     <option value="Service Charge">Service Charge</option>
                     <option value="Room Commission">Room Commission</option>
@@ -2245,7 +2254,8 @@ export const Expenses: React.FC = () => {
                   >
                     <option value="Utilities">Utilities</option>
                     <option value="Salaries">Salaries</option>
-                    <option value="Food & Supplies">Food & Supplies</option>
+                    <option value="Staff Food & Supplies">Staff Food & Supplies</option>
+                    <option value="Guest Food & Supplies">Guest Food & Supplies</option>
                     <option value="Maintenance">Maintenance</option>
                     <option value="Service Charge">Service Charge</option>
                     <option value="Room Commission">Room Commission</option>

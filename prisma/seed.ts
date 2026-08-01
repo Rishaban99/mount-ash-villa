@@ -206,7 +206,7 @@ async function main() {
         id: 'exp_3',
         title: 'Vegetable & Food Supplies',
         amount: 8500,
-        category: 'Food & Supplies',
+        category: 'Staff Food & Supplies',
         date: '2026-06-02',
         description: 'Fresh ingredients purchased from local market',
         approvedBy: 'Sarah receptionist',
