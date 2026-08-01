@@ -1105,11 +1105,11 @@ export const Expenses: React.FC = () => {
           </div>
         </div>
 
-        {/* Maintenance & Supplies Breakdown */}
+        {/* Profit & Supplies Breakdown */}
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs flex items-start justify-between">
           <div className="space-y-1">
-            <p className="text-[11px] font-bold text-amber-500 uppercase tracking-widest">Maintenance</p>
-            <p className="text-2xl font-display font-bold text-slate-800 mt-2">Rs. {maintenanceTotal.toLocaleString()}</p>
+            <p className="text-[11px] font-bold text-green-500 uppercase tracking-widest">Profit</p>
+            <p className="text-2xl font-display font-bold text-slate-800 mt-2">Rs. {profitTotal.toLocaleString()}</p>
             <div className="text-[10px] text-slate-400 mt-1">
               Staff : Rs. {StaffFoodSuppliesTotal.toLocaleString()}
             </div>
