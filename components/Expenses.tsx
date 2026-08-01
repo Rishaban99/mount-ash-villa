@@ -625,7 +625,7 @@ export const Expenses: React.FC = () => {
   });
 
   // Filter daily cashbook
-  const filteredDailyLedger = computedDailyLedger.filter(item => {
+  const filteredDailyLedgerRaw = computedDailyLedger.filter(item => {
     // Search can match exact or partial date (e.g. YYYY-MM-DD)
     const matchesSearch = search === '' || item.date.includes(search);
 
@@ -666,7 +666,20 @@ export const Expenses: React.FC = () => {
     }
 
     return matchesSearch && matchesDate;
-  }).sort((a, b) => b.date.localeCompare(a.date)); // Sort descending for display (latest first)
+  });
+
+  const filteredDailyLedger = filteredDailyLedgerRaw
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .reduce((acc, item) => {
+      const previousBalance = acc.length ? acc[acc.length - 1].balance : 0;
+      acc.push({
+        ...item,
+        balance: previousBalance + item.net,
+      });
+      return acc;
+    }, [] as Array<typeof computedDailyLedger[0]>)
+    .sort((a, b) => b.date.localeCompare(a.date)); // Sort descending for display (latest first)
 
   if (!isAdmin) {
     return (
@@ -1295,7 +1308,7 @@ export const Expenses: React.FC = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             
             {/* 1. CEB Bill */}
             {(() => {
