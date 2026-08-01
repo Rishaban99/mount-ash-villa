@@ -546,6 +546,24 @@ export const Billing: React.FC<BillingProps> = ({
     .filter((b) => b.status === "Completed")
     .reduce((sum, b) => sum + (b.totalAmount || 0), 0);
 
+  // Monthly metrics (defaults to current month YYYY-MM)
+  const currentYearMonth = new Date().toISOString().substring(0, 7);
+
+  const monthlyCompletedBills = useMemo(() => {
+    return bills.filter((b) => {
+      if (b.status !== 'Completed') return false;
+      const d = (b.updatedAt || b.createdAt || '');
+      return d.startsWith(currentYearMonth);
+    }).length;
+  }, [bills, currentYearMonth]);
+
+  const monthlySettledTurnover = useMemo(() => {
+    return bills
+      .filter((b) => b.status === 'Completed')
+      .filter((b) => (b.updatedAt || b.createdAt || '').startsWith(currentYearMonth))
+      .reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+  }, [bills, currentYearMonth]);
+
   // Helper for name initials generator
   const getGuestInitials = (name: string) => {
     if (!name) return "G";
@@ -669,14 +687,14 @@ export const Billing: React.FC<BillingProps> = ({
             <div className="bg-slate-55 border border-slate-200 p-4 rounded-2xl flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  Archived / Settled Receipts
+                  Archived / Settled Receipts (This Month)
                 </p>
                 <p className="text-xl font-extrabold text-slate-800 mt-1">
-                  {totalCompletedBills} Closed
+                  {monthlyCompletedBills} Closed
                 </p>
               </div>
               <span className="text-[10px] font-semibold text-slate-400">
-                Rs. {totalSettledTurnover.toLocaleString()}
+                Rs. {monthlySettledTurnover.toLocaleString()}
               </span>
             </div>
           </div>          {/* Main Grid: Left side contains searchable list of bills, right side contains widgets */}
@@ -744,7 +762,7 @@ export const Billing: React.FC<BillingProps> = ({
               </div>
 
               {/* Bills Grid / List */}
-              {sortedBills.length === 0 ? (
+              {paginatedBills.length === 0 ? (
                 <div className="bg-white p-12 text-center rounded-2xl border border-slate-100">
                   <p className="text-slate-400 text-sm">
                     No billing records match the selected filters.
