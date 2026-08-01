@@ -1117,8 +1117,8 @@ export const Expenses: React.FC = () => {
               Guest : Rs. {GuestFoodSuppliesTotal.toLocaleString()}
             </div>
           </div>
-          <div className="p-3 bg-amber-50 rounded-xl text-amber-600 shrink-0">
-            <Wrench className="h-5 w-5" />
+          <div className="p-3 bg-green-50 rounded-xl text-green-600 shrink-0">
+            <TrendingUp className="h-5 w-5" />
           </div>
         </div>
 
