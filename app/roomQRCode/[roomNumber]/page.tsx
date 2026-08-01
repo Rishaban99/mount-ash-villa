@@ -352,10 +352,26 @@ function BillPage({ data }: { data: ApiResponse }) {
             This room currently has no open billing session.<br />
             Please contact our front desk for assistance.
           </p>
-          {settings.phone && (
-            <a href={`tel:${settings.phone}`} className="call-btn">
-              📞 Call Front Desk
-            </a>
+          <div className="cta-row" style={{ gap: '0.75rem', marginTop: '1.25rem' }}>
+            {settings.phone && (
+              <a href={`tel:${settings.phone}`} className="cta-btn cta-call-btn">
+                📞 Call Front Desk
+              </a>
+            )}
+            <button
+              type="button"
+              className="cta-btn cta-feedback-btn"
+              onClick={() => setShowFeedback(true)}
+            >
+              💬 Give Feedback
+            </button>
+          </div>
+          {showFeedback && (
+            <FeedbackModal
+              hotelName={settings.hotelName}
+              roomNumber={room.roomNumber}
+              onClose={() => setShowFeedback(false)}
+            />
           )}
         </div>
         <BillFooter settings={settings} />
