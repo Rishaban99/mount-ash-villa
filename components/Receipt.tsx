@@ -198,91 +198,49 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
   };
 
   const handleSaveAsPDF = () => {
-    const guest = bill.guestDetails;
-    const lines = [
-      '========================================',
-      `         ${s.hotelName.toUpperCase()}         `,
-      `      ${s.address}       `,
-      `        Tel: ${s.phone}            `,
-      s.email ? `      Email: ${s.email}      ` : '',
-      s.taxNumber ? `        Tax No: ${s.taxNumber}        ` : '',
-      '========================================',
-      `Receipt ID : ${bill.id}`,
-      `Date       : ${new Date(bill.updatedAt).toLocaleString()}`,
-      `Guest Name : ${guest.name}`,
-      `NIC/Pass   : ${guest.nic}`,
-      `Served By  : ${currentUser?.name || 'Administrator'} (${currentUser?.role || 'Admin'})`,
-      `Paid via   : ${paymentMethod}`,
-      '========================================',
-      'ROOM CHARGES:',
-    ];
+    const printContent = document.getElementById('thermal-receipt-printable');
+    if (!printContent) return;
 
-    bill.roomItems.forEach((item: any) => {
-      const originalPerNight = item.originalPricePerNight || (item.pricePerNight + (item.discount || 0));
-      const discountPerNight = Math.max(0, originalPerNight - item.pricePerNight);
-      const originalTotal = originalPerNight * item.nights;
-      const discountTotal = discountPerNight * item.nights;
-      const finalTotal = item.pricePerNight * item.nights;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
 
-      lines.push(`${item.roomNumber} (${item.roomType})`);
-      lines.push(`  Duration       : ${item.nights} Night(s)`);
-      lines.push(`  Standard Rate  : ${activeCurrency} ${originalPerNight.toLocaleString()} / night`);
-      lines.push(`  Standard Total : ${activeCurrency} ${originalTotal.toLocaleString()}`);
-      if (discountTotal > 0) {
-        lines.push(`  Discount Amt   : -${activeCurrency} ${discountTotal.toLocaleString()}`);
-      }
-      lines.push(`  Charged Total  : ${activeCurrency} ${finalTotal.toLocaleString()}`);
-    });
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Hotel Receipt - ${bill.id}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600;700;900&display=swap');
+            body {
+              font-family: 'JetBrains Mono', Courier, monospace;
+              color: black;
+              padding: 12px;
+              width: ${localPaperWidth === '58mm' ? '240px' : localPaperWidth === 'A4' ? '100%' : '320px'};
+              margin: 0 auto;
+              background: white;
+            }
+            .text-center { text-align: center; }
+            .text-right { text-align: right; }
+            .border-b { border-bottom: 1px dashed black; margin: 8px 0; }
+            .flex { display: flex; justify-content: space-between; }
+            .font-bold { font-weight: bold; }
+            .my-2 { margin: 8px 0; }
+            .my-4 { margin: 16px 0; }
+            .pb-2 { padding-bottom: 8px; }
+            svg { display: block; margin: 0 auto 10px; }
+          </style>
+        </head>
+        <body>
+          ${printContent.innerHTML}
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `);
 
-    if (bill.foodItems.length > 0) {
-      lines.push('----------------------------------------');
-      lines.push('FOOD ORDERS:');
-      bill.foodItems.forEach(item => {
-        lines.push(`${item.foodName}`);
-        lines.push(`  ${item.quantity} x ${activeCurrency} ${item.price} = ${activeCurrency} ${item.quantity * item.price}`);
-      });
-    }
-
-    const totalOriginalRoomCost = bill.roomItems.reduce((acc, item: any) => {
-      const originalPerNight = item.originalPricePerNight || (item.pricePerNight + (item.discount || 0));
-      return acc + originalPerNight * item.nights;
-    }, 0);
-    const totalRoomDiscounts = Math.max(0, totalOriginalRoomCost - bill.roomSubtotal);
-
-    lines.push('========================================');
-    lines.push(`Room Standard : ${activeCurrency} ${totalOriginalRoomCost.toLocaleString()}`);
-    if (totalRoomDiscounts > 0) {
-      lines.push(`Room Discount : -${activeCurrency} ${totalRoomDiscounts.toLocaleString()}`);
-    }
-    lines.push(`Room Subtotal : ${activeCurrency} ${bill.roomSubtotal}`);
-    if (bill.foodItems.length > 0) {
-      lines.push(`Food Subtotal : ${activeCurrency} ${bill.foodSubtotal}`);
-    }
-
-    if (localShowTax) {
-      if (bill.foodItems.length > 0) {
-        lines.push(`Service Chg(${settings?.serviceChargePercent || 10}%): ${activeCurrency} ${bill.serviceCharge}`);
-      }
-      if (s.vatPercent > 0) {
-        const vatVal = Math.round((bill.roomSubtotal + (bill.foodSubtotal || 0)) * (s.vatPercent / 100));
-        lines.push(`VAT Surcharge (${s.vatPercent}%): ${activeCurrency} ${vatVal}`);
-      }
-    }
-
-    lines.push('----------------------------------------');
-    lines.push(`GRAND TOTAL   : ${activeCurrency} ${bill.totalAmount}`);
-    lines.push('========================================');
-    lines.push(`      ${s.receiptFooterMessage}    `);
-    lines.push('========================================');
-
-    const txtContent = lines.filter(line => line !== '').join('\n');
-    const blob = new Blob([txtContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Receipt_${bill.id}.txt`;
-    link.click();
-    URL.revokeObjectURL(url);
+    printWindow.document.close();
   };
 
   return (
@@ -465,7 +423,7 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
               className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all border-0 cursor-pointer text-center text-[10px] uppercase tracking-wide"
             >
               <Download className="h-3.5 w-3.5" />
-              Download Slip
+              Download pdf
             </button>
           </div>
         </div>
@@ -509,7 +467,7 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
                     textAlign: 'center'
                   }}
                 >
-                  <Logo size={90} showText={true} className="text-slate-950 mx-auto" style={{ margin: '0 auto' }} />
+                  <Logo size={90} showText={true} useBrandColors={false} className="text-slate-950 mx-auto" style={{ margin: '0 auto' }} />
                 </div>
               
 
