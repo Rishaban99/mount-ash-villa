@@ -594,7 +594,7 @@ export const Expenses: React.FC = () => {
   // 1. Process all completed bills (income)
   bills.forEach(bill => {
     if (bill.status === 'Completed') {
-      const dateStr = formatDateString(bill.createdAt);
+      const dateStr = formatDateString(bill.updatedAt);
       if (dateStr) {
         if (!dailyMap[dateStr]) {
           dailyMap[dateStr] = { date: dateStr, income: 0, expenses: 0 };
