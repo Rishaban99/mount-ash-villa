@@ -31,6 +31,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { LoadingButton } from '@/components/loading-button';
+import { useAuth } from '@/components/auth-provider';
 import { ClosedMonth } from '@/lib/types';
 import { apiFetch } from '@/lib/api';
 import { toastCreated, toastDeleted, toastError } from '@/lib/crud-toast';
@@ -50,12 +51,13 @@ interface ReportDetails {
 
 
 export const Reports: React.FC = () => {
-  const { user: currentUser } = useAuth();
+  
   const [dailyData, setDailyData] = useState<ReportDetails[]>([]);
   const [monthlyData, setMonthlyData] = useState<ReportDetails[]>([]);
   const [completedBills, setCompletedBills] = useState<any[]>([]);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const { user: currentUser } = useAuth();
 
   // Daily Cashbook & Monthly Closer Core States
   const [activeTab, setActiveTab] = useState<'analytics' | 'cashbook' | 'closer'>('analytics');
@@ -1698,7 +1700,4 @@ export const Reports: React.FC = () => {
     </div>
   );
 };
-function useAuth(): { user: any; } {
-  throw new Error('Function not implemented.');
-}
 
