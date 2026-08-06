@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   allowManagerDeleteFoods: false,
   allowManagerViewReports: true,
   allowManagerDeleteExpenses: false,
+  allowManagerDeleteSettledBills: false,
   taxNumber: '0000000000',
   email: 'hotel@example.com',
   checkInTime: '14:00',

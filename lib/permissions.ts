@@ -25,7 +25,7 @@ export interface PermissionDef {
 }
 
 /** Manager permissions that default false and require explicit opt-in. */
-const MANAGER_OPT_IN: ReadonlySet<PermissionKey> = new Set(['allowManagerDeleteExpenses']);
+const MANAGER_OPT_IN: ReadonlySet<PermissionKey> = new Set(['allowManagerDeleteExpenses', 'allowManagerDeleteSettledBills']);
 
 export const PERMISSION_KEYS: PermissionKey[] = [
   'allowReceptionistModifyPrice',
@@ -50,6 +50,7 @@ export const PERMISSION_KEYS: PermissionKey[] = [
   'allowReceptionistDiscount',
   'allowReceptionistAddExpenses',
   'allowManagerDeleteExpenses',
+  'allowManagerDeleteSettledBills',
 ];
 
 export const permissionDefinitions: PermissionDef[] = [
@@ -212,6 +213,14 @@ export const permissionDefinitions: PermissionDef[] = [
     key: 'allowManagerDeleteExpenses',
     title: 'Liquidate Ledger Outflow Records',
     description: 'Authorize managers to delete historical or erroneous ledger items from system books.',
+    role: 'manager',
+    category: 'Expenses',
+    sensitive: true,
+  },
+  {
+    key: 'allowManagerDeleteSettledBills',
+    title: 'Delete Settled Bills',
+    description: 'Allow managers to remove bills that have already been marked completed or settled.',
     role: 'manager',
     category: 'Expenses',
     sensitive: true,

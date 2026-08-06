@@ -142,6 +142,7 @@ export interface SystemSettings {
   allowManagerDeleteFoods: boolean;
   allowManagerViewReports: boolean;
   allowManagerDeleteExpenses: boolean;
+  allowManagerDeleteSettledBills: boolean;
   taxNumber: string;
   email: string;
   checkInTime: string;

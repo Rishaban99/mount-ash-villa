@@ -34,6 +34,7 @@ import { LoadingButton } from '@/components/loading-button';
 import { ClosedMonth } from '@/lib/types';
 import { apiFetch } from '@/lib/api';
 import { toastCreated, toastDeleted, toastError } from '@/lib/crud-toast';
+import { hasPermission } from '@/lib/permissions';
 
 interface ReportDetails {
   date?: string;
@@ -45,7 +46,11 @@ interface ReportDetails {
   billsCount: number;
 }
 
+
+
+
 export const Reports: React.FC = () => {
+  const { user: currentUser } = useAuth();
   const [dailyData, setDailyData] = useState<ReportDetails[]>([]);
   const [monthlyData, setMonthlyData] = useState<ReportDetails[]>([]);
   const [completedBills, setCompletedBills] = useState<any[]>([]);
@@ -57,7 +62,8 @@ export const Reports: React.FC = () => {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [closedMonths, setClosedMonths] = useState<ClosedMonth[]>([]);
   const [cashbookMonth, setCashbookMonth] = useState<string>('all');
-
+  const [settings, setSettings] = useState<any>(null);
+  
   // Selection states for Month-End Closer Form
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const d = new Date();
@@ -253,6 +259,10 @@ export const Reports: React.FC = () => {
   useEffect(() => {
     fetchReports();
   }, []);
+
+
+  const canDeleteSettledBills = hasPermission(currentUser.role, 'allowManagerDeleteSettledBills', settings);
+
 
   // Compute total aggregates
   const totalRevenue = monthlyData.reduce((acc, item) => acc + item.revenue, 0);
@@ -1082,7 +1092,9 @@ export const Reports: React.FC = () => {
                     <th className="py-3 px-4">Food Rev</th>
                     <th className="py-3 px-4">S.C. Rev</th>
                     <th className="py-3 px-4 font-bold text-slate-800">Total Settled</th>
-                    <th className="py-3 px-4 text-center no-print">Actions</th>
+                    {canDeleteSettledBills && (
+                      <th className="py-3 px-4 text-center no-print">Actions</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 font-sans">
@@ -1110,6 +1122,7 @@ export const Reports: React.FC = () => {
                       <td className="py-3 px-4 font-bold text-slate-900 font-mono">
                         Rs. {bill.totalAmount?.toLocaleString()}
                       </td>
+                      {canDeleteSettledBills && (
                       <td className="py-3 px-4 shrink-0 no-print">
                         <div className="flex justify-center">
                           {deleteConfirmId === bill.id ? (
@@ -1147,6 +1160,7 @@ export const Reports: React.FC = () => {
                           )}
                         </div>
                       </td>
+                      )}
                     </tr>
                   ))}
                   {filteredCompletedBills.length === 0 && (
@@ -1684,3 +1698,7 @@ export const Reports: React.FC = () => {
     </div>
   );
 };
+function useAuth(): { user: any; } {
+  throw new Error('Function not implemented.');
+}
+
