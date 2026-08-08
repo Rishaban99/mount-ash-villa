@@ -5,7 +5,7 @@
 
 import { prisma } from './prisma';
 import { DEFAULT_SETTINGS } from '../prisma/defaults';
-import { User, Room, Guest, Food, Bill, Expense, SystemSettings, FrontdeskMemo, ClosedMonth, AuditLog, AuditAction, RoomItem, RoomStatus, PrintLog, GuestFeedback } from '@/lib/types';
+import { User, Room, Guest, Food, Bill, Expense, SystemSettings, FrontdeskMemo, ClosedMonth, AuditLog, AuditAction, RoomItem, RoomStatus, PrintLog, GuestFeedback, Attendance } from '@/lib/types';
 import type { User as PrismaUser, Prisma } from '@prisma/client';
 import { dedupeRoomsByNumber } from '@/lib/rooms';
 
@@ -747,5 +747,151 @@ export async function markGuestFeedbackAsRead(id: string): Promise<void> {
     where: { id },
     data: { isRead: true }
   });
+}
+
+// ==========================================
+// ATTENDANCE
+// ==========================================
+
+export async function getAttendanceRecords(filters?: {
+  date?: string;
+  month?: string; // YYYY-MM
+  userId?: string;
+}): Promise<Attendance[]> {
+  // @ts-ignore
+  if (!prisma.attendance) {
+    const queryFilter: Record<string, any> = {};
+    if (filters?.date) {
+      queryFilter.date = filters.date;
+    } else if (filters?.month) {
+      queryFilter.date = { $regex: `^${filters.month}` };
+    }
+    if (filters?.userId) {
+      queryFilter.userId = filters.userId;
+    }
+
+    const result = await prisma.$runCommandRaw({
+      find: 'attendances',
+      filter: queryFilter,
+      sort: { date: -1 }
+    });
+    const docs = (result as any)?.cursor?.firstBatch || [];
+    return docs.map((doc: any) => ({
+      id: String(doc._id),
+      userId: doc.userId,
+      userName: doc.userName,
+      userRole: doc.userRole,
+      date: doc.date,
+      checkIn: doc.checkIn,
+      checkOut: doc.checkOut,
+      status: doc.status,
+      shift: doc.shift,
+      workHours: doc.workHours,
+      overtimeHours: doc.overtimeHours,
+      notes: doc.notes,
+      recordedBy: doc.recordedBy,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
+    }));
+  }
+
+  const where: any = {};
+  if (filters?.date) {
+    where.date = filters.date;
+  } else if (filters?.month) {
+    where.date = { startsWith: filters.month };
+  }
+  if (filters?.userId) {
+    where.userId = filters.userId;
+  }
+
+  // @ts-ignore
+  const records = await prisma.attendance.findMany({
+    where,
+    orderBy: { date: 'desc' },
+  });
+
+  return records as Attendance[];
+}
+
+export async function saveAttendanceRecord(record: Partial<Attendance> & { userId: string; date: string }): Promise<Attendance> {
+  const existingRecords = await getAttendanceRecords({ date: record.date, userId: record.userId });
+  const existing = existingRecords[0];
+
+  const now = new Date().toISOString();
+  const id = record.id || existing?.id || 'att_' + Math.random().toString(36).substr(2, 9);
+
+  const payload: Attendance = {
+    id,
+    userId: record.userId,
+    userName: record.userName || existing?.userName || 'Staff Member',
+    userRole: record.userRole || existing?.userRole || 'staff',
+    date: record.date,
+    checkIn: record.checkIn !== undefined ? record.checkIn : existing?.checkIn,
+    checkOut: record.checkOut !== undefined ? record.checkOut : existing?.checkOut,
+    status: record.status || existing?.status || 'Present',
+    shift: record.shift || existing?.shift || 'Full Day',
+    workHours: record.workHours !== undefined ? record.workHours : existing?.workHours,
+    overtimeHours: record.overtimeHours !== undefined ? record.overtimeHours : existing?.overtimeHours,
+    notes: record.notes !== undefined ? record.notes : existing?.notes,
+    recordedBy: record.recordedBy || existing?.recordedBy || 'System',
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
+  };
+
+  // Calculate work hours if checkIn and checkOut exist and workHours wasn't explicitly supplied
+  if (payload.checkIn && payload.checkOut && payload.workHours === undefined) {
+    try {
+      const [inH, inM] = payload.checkIn.split(':').map(Number);
+      const [outH, outM] = payload.checkOut.split(':').map(Number);
+      if (!isNaN(inH) && !isNaN(inM) && !isNaN(outH) && !isNaN(outM)) {
+        let diffMinutes = (outH * 60 + outM) - (inH * 60 + inM);
+        if (diffMinutes < 0) diffMinutes += 24 * 60; // Overnight shift
+        const hours = Math.round((diffMinutes / 60) * 10) / 10;
+        payload.workHours = hours;
+        payload.overtimeHours = hours > 8 ? Math.round((hours - 8) * 10) / 10 : 0;
+      }
+    } catch {}
+  }
+
+  // @ts-ignore
+  if (!prisma.attendance) {
+    await prisma.$runCommandRaw({
+      update: 'attendances',
+      updates: [{
+        q: { _id: id },
+        u: { $set: payload as any },
+        upsert: true
+      }]
+    });
+    return payload;
+  }
+
+  const { id: _unused, ...updatePayload } = payload;
+
+  // @ts-ignore
+  return prisma.attendance.upsert({
+    where: { id },
+    create: payload,
+    update: updatePayload,
+  }) as Promise<Attendance>;
+}
+
+export async function deleteAttendanceRecord(id: string): Promise<boolean> {
+  try {
+    // @ts-ignore
+    if (!prisma.attendance) {
+      await prisma.$runCommandRaw({
+        delete: 'attendances',
+        deletes: [{ q: { _id: id }, limit: 1 }]
+      });
+      return true;
+    }
+    // @ts-ignore
+    await prisma.attendance.delete({ where: { id } });
+    return true;
+  } catch {
+    return false;
+  }
 }
 

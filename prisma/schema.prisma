@@ -267,3 +267,33 @@ model GuestFeedback {
   @@map("guest_feedbacks")
 }
 
+enum AttendanceStatus {
+  Present
+  Absent
+  Late
+  HalfDay
+  OnLeave
+  DayOff
+  DayIn
+}
+
+model Attendance {
+  id            String   @id @map("_id")
+  userId        String
+  userName      String
+  userRole      String
+  date          String
+  checkIn       String?
+  checkOut      String?
+  status        String
+  shift         String?
+  workHours     Float?
+  overtimeHours Float?
+  notes         String?
+  recordedBy    String
+  createdAt     String
+  updatedAt     String?
+
+  @@map("attendances")
+}
+

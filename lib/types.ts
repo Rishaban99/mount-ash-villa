@@ -223,5 +223,26 @@ export interface GuestFeedback {
   createdAt: string;
 }
 
+export type AttendanceStatus = 'Present' | 'Absent' | 'Late' | 'Half Day' | 'On Leave' | 'Day Off' | 'Day In';
+export type ShiftType = 'Morning' | 'Evening' | 'Night' | 'Full Day';
+
+export interface Attendance {
+  id: string;
+  userId: string;
+  userName: string;
+  userRole: string;
+  date: string; // YYYY-MM-DD
+  checkIn?: string; // HH:MM (24h or ISO)
+  checkOut?: string; // HH:MM (24h or ISO)
+  status: AttendanceStatus;
+  shift?: ShiftType;
+  workHours?: number;
+  overtimeHours?: number;
+  notes?: string;
+  recordedBy: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 
 

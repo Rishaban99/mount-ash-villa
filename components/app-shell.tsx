@@ -24,6 +24,7 @@ import {
   Bell,
   MessageSquare,
   Check,
+  Clock,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { useAuth } from '@/components/auth-provider';
@@ -39,6 +40,7 @@ const viewTitles: Record<string, string> = {
   guests: 'Guest Registration Database',
   reports: 'Admin Analytics & Auditing',
   users: 'Frontdesk Staff Registry',
+  attendance: 'Staff Attendance & Shift Register',
   expenses: 'Operating Outflows Ledger',
   settings: 'System Configurations & Privileges',
   logs: 'System Audit Logs',
@@ -116,6 +118,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { id: 'foods', label: 'Kitchen', icon: Utensils },
     ...(canViewReports ? [{ id: 'reports', label: 'Reports', icon: PieChart }] : []),
     ...(canViewUsers ? [{ id: 'users', label: 'Staff', icon: Users }] : []),
+    { id: 'attendance', label: 'Attendance', icon: Clock },
     ...(canViewExpenses ? [{ id: 'expenses', label: 'Expenses', icon: Wallet }] : []),
     ...(isAdminOnly
       ? [
