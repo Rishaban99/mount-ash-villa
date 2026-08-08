@@ -18,6 +18,7 @@ const protectedPrefixes = [
   '/expenses',
   '/settings',
   '/logs',
+  '/attendance',
 ];
 
 export async function proxy(request: NextRequest) {
@@ -53,5 +54,7 @@ export const config = {
     '/expenses/:path*',
     '/settings/:path*',
     '/logs/:path*',
+    '/attendance',
+    '/attendance/:path*',
   ],
 };

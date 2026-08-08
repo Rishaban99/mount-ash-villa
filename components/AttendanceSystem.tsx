@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { User, Attendance, AttendanceStatus, ShiftType } from '@/lib/types';
 import { useAuth } from '@/components/auth-provider';
 import { apiFetch } from '@/lib/api';
@@ -41,10 +42,14 @@ import {
 
 export const AttendanceSystem: React.FC = () => {
   const { user: currentUser } = useAuth();
+  const router = useRouter();
   if (!currentUser) return null;
 
-  // View Mode: 'daily' | 'monthly' | 'self'
-  const [viewMode, setViewMode] = useState<'daily' | 'monthly' | 'self'>('daily');
+  const isAdmin = currentUser.role === 'admin';
+  const canUsePunch = isAdmin || currentUser.role === 'manager';
+
+  // View Mode: 'daily' | 'monthly'
+  const [viewMode, setViewMode] = useState<'daily' | 'monthly'>(isAdmin ? 'daily' : 'monthly');
 
   // Dates
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -67,13 +72,11 @@ export const AttendanceSystem: React.FC = () => {
   const [noteModalOpen, setNoteModalOpen] = useState(false);
   const [tempNotes, setTempNotes] = useState('');
 
-  // Live Time for Punch portal
-  const [currentTime, setCurrentTime] = useState(new Date());
-
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+    if (!isAdmin && viewMode !== 'monthly') {
+      setViewMode('monthly');
+    }
+  }, [isAdmin, viewMode]);
 
   // Fetch Users
   const fetchUsers = async () => {
@@ -140,7 +143,6 @@ export const AttendanceSystem: React.FC = () => {
           status: 'Absent' as AttendanceStatus,
           shift: 'Full Day' as ShiftType,
           workHours: 0,
-          overtimeHours: 0,
           notes: '',
           recordedBy: '',
           createdAt: '',
@@ -149,6 +151,23 @@ export const AttendanceSystem: React.FC = () => {
       };
     });
   }, [users, attendanceList, selectedDate]);
+
+  // Fallback staff list from attendance records when /api/users is unavailable (non-admin)
+  const matrixUsers = useMemo(() => {
+    if (users.length > 0) return users;
+    const byId = new Map<string, User>();
+    attendanceList.forEach((a) => {
+      if (!byId.has(a.userId) && a.userRole !== 'admin') {
+        byId.set(a.userId, {
+          id: a.userId,
+          name: a.userName,
+          username: '',
+          role: a.userRole as User['role'],
+        });
+      }
+    });
+    return Array.from(byId.values());
+  }, [users, attendanceList]);
 
   // Filtered daily rows
   const filteredDailyRows = useMemo(() => {
@@ -240,7 +259,6 @@ export const AttendanceSystem: React.FC = () => {
     const nowTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     const existing = attendanceList.find((a) => a.userId === user.id && a.date === selectedDate);
     let workHours = existing?.workHours;
-    let overtimeHours = existing?.overtimeHours;
 
     if (existing?.checkIn) {
       try {
@@ -249,14 +267,12 @@ export const AttendanceSystem: React.FC = () => {
         let diffMinutes = outH * 60 + outM - (inH * 60 + inM);
         if (diffMinutes < 0) diffMinutes += 24 * 60;
         workHours = Math.round((diffMinutes / 60) * 10) / 10;
-        overtimeHours = workHours > 8 ? Math.round((workHours - 8) * 10) / 10 : 0;
       } catch {}
     }
 
     await handleSaveAttendance(user.id, user.name, user.role, {
       checkOut: nowTime,
       workHours,
-      overtimeHours,
     });
   };
 
@@ -322,30 +338,28 @@ export const AttendanceSystem: React.FC = () => {
   const handleExportCSV = () => {
     let csvContent = 'data:text/csv;charset=utf-8,';
     if (viewMode === 'monthly') {
-      const headers = ['Staff Name', 'Username', 'Role', ...monthlyDays.map((d) => `Day ${d}`), 'Total Present', 'Total Hours', 'Overtime Hours'];
+      const headers = ['Staff Name', 'Username', 'Role', ...monthlyDays.map((d) => `Day ${d}`), 'Total Present', 'Total Hours'];
       csvContent += headers.join(',') + '\n';
 
-      users.forEach((u) => {
+      matrixUsers.forEach((u) => {
         let presentCount = 0;
         let totalHrs = 0;
-        let otHrs = 0;
         const dayStatuses = monthlyDays.map((dayNum) => {
           const dateStr = `${selectedMonth}-${String(dayNum).padStart(2, '0')}`;
           const rec = attendanceList.find((a) => a.userId === u.id && a.date === dateStr);
           if (rec) {
             if (rec.status === 'Present' || rec.status === 'Late') presentCount++;
             if (rec.workHours) totalHrs += rec.workHours;
-            if (rec.overtimeHours) otHrs += rec.overtimeHours;
             return rec.status.substring(0, 1);
           }
           return '-';
         });
 
-        const row = [`"${u.name}"`, `"${u.username}"`, `"${u.role}"`, ...dayStatuses, presentCount, totalHrs.toFixed(1), otHrs.toFixed(1)];
+        const row = [`"${u.name}"`, `"${u.username}"`, `"${u.role}"`, ...dayStatuses, presentCount, totalHrs.toFixed(1)];
         csvContent += row.join(',') + '\n';
       });
     } else {
-      const headers = ['Staff Name', 'Username', 'Role', 'Date', 'Status', 'Shift', 'Check-In', 'Check-Out', 'Work Hours', 'Overtime Hours', 'Notes'];
+      const headers = ['Staff Name', 'Username', 'Role', 'Date', 'Status', 'Shift', 'Check-In', 'Check-Out', 'Work Hours', 'Notes'];
       csvContent += headers.join(',') + '\n';
 
       dailyRows.forEach(({ user, record, hasRecord }) => {
@@ -359,7 +373,6 @@ export const AttendanceSystem: React.FC = () => {
           `"${record.checkIn || '-'}"`,
           `"${record.checkOut || '-'}"`,
           record.workHours || 0,
-          record.overtimeHours || 0,
           `"${record.notes || ''}"`,
         ];
         csvContent += row.join(',') + '\n';
@@ -418,11 +431,6 @@ export const AttendanceSystem: React.FC = () => {
     }
   };
 
-  // Find logged in user's attendance today
-  const myAttendanceToday = useMemo(() => {
-    return attendanceList.find((a) => a.userId === currentUser.id && a.date === selectedDate);
-  }, [attendanceList, currentUser.id, selectedDate]);
-
   return (
     <div className="space-y-6 pb-12">
       {/* HEADER BAR */}
@@ -439,7 +447,7 @@ export const AttendanceSystem: React.FC = () => {
               </span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Track check-in, check-out times, shifts, overtime, and monthly attendance rosters.
+              Track check-in, check-out times, shifts, and monthly attendance rosters.
             </p>
           </div>
         </div>
@@ -447,16 +455,18 @@ export const AttendanceSystem: React.FC = () => {
         {/* View Mode Controls & Quick Actions */}
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
           <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200">
-            <button
-              onClick={() => setViewMode('daily')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                viewMode === 'daily'
-                  ? 'bg-white text-indigo-600 shadow-xs border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Calendar className="h-3.5 w-3.5" /> Daily Roster
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setViewMode('daily')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                  viewMode === 'daily'
+                    ? 'bg-white text-indigo-600 shadow-xs border border-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Calendar className="h-3.5 w-3.5" /> Daily Roster
+              </button>
+            )}
 
             <button
               onClick={() => setViewMode('monthly')}
@@ -469,95 +479,99 @@ export const AttendanceSystem: React.FC = () => {
               <TrendingUp className="h-3.5 w-3.5" /> Monthly Matrix
             </button>
 
-            <button
-              onClick={() => setViewMode('self')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                viewMode === 'self'
-                  ? 'bg-white text-indigo-600 shadow-xs border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Clock className="h-3.5 w-3.5 text-indigo-500 animate-pulse" /> Punch Terminal
-            </button>
+            {canUsePunch && (
+              <button
+                onClick={() => router.push('/attendance/punch')}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 text-slate-600 hover:text-slate-900"
+              >
+                <Clock className="h-3.5 w-3.5 text-indigo-500 animate-pulse" /> Punch Terminal
+              </button>
+            )}
           </div>
 
-          <button
-            onClick={handleExportCSV}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
-            title="Export CSV"
-          >
-            <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" /> Export CSV
-          </button>
+          {isAdmin && (
+            <>
+              <button
+                onClick={handleExportCSV}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+                title="Export CSV"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" /> Export CSV
+              </button>
 
-          <button
-            onClick={() => window.print()}
-            className="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs no-print"
-            title="Print Attendance"
-          >
-            <Printer className="h-3.5 w-3.5" /> Print
-          </button>
+              <button
+                onClick={() => window.print()}
+                className="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs no-print"
+                title="Print Attendance"
+              >
+                <Printer className="h-3.5 w-3.5" /> Print
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* KPI SUMMARY CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Total Staff</span>
-            <Users className="h-4 w-4 text-indigo-500" />
+      {/* KPI SUMMARY CARDS — admin only */}
+      {isAdmin && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+            <div className="flex items-center justify-between text-slate-500 mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Total Staff</span>
+              <Users className="h-4 w-4 text-indigo-500" />
+            </div>
+            <p className="text-2xl font-black text-slate-850">{dailyStats.totalStaff}</p>
+            <p className="text-[10px] text-slate-400 mt-1">Active registered staff</p>
           </div>
-          <p className="text-2xl font-black text-slate-850">{dailyStats.totalStaff}</p>
-          <p className="text-[10px] text-slate-400 mt-1">Active registered staff</p>
-        </div>
 
-        <div className="bg-emerald-50/60 p-4 rounded-xl border border-emerald-200 shadow-xs">
-          <div className="flex items-center justify-between text-emerald-700 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Present</span>
-            <UserCheck className="h-4 w-4 text-emerald-600" />
+          <div className="bg-emerald-50/60 p-4 rounded-xl border border-emerald-200 shadow-xs">
+            <div className="flex items-center justify-between text-emerald-700 mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Present</span>
+              <UserCheck className="h-4 w-4 text-emerald-600" />
+            </div>
+            <p className="text-2xl font-black text-emerald-800">{dailyStats.present}</p>
+            <p className="text-[10px] text-emerald-600 mt-1">Checked in today</p>
           </div>
-          <p className="text-2xl font-black text-emerald-800">{dailyStats.present}</p>
-          <p className="text-[10px] text-emerald-600 mt-1">Checked in today</p>
-        </div>
 
-        <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-200 shadow-xs">
-          <div className="flex items-center justify-between text-amber-700 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Late Arrivals</span>
-            <Clock className="h-4 w-4 text-amber-600" />
+          <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-200 shadow-xs">
+            <div className="flex items-center justify-between text-amber-700 mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Late Arrivals</span>
+              <Clock className="h-4 w-4 text-amber-600" />
+            </div>
+            <p className="text-2xl font-black text-amber-800">{dailyStats.late}</p>
+            <p className="text-[10px] text-amber-600 mt-1">Arrived past shift</p>
           </div>
-          <p className="text-2xl font-black text-amber-800">{dailyStats.late}</p>
-          <p className="text-[10px] text-amber-600 mt-1">Arrived past shift</p>
-        </div>
 
-        <div className="bg-rose-50/60 p-4 rounded-xl border border-rose-200 shadow-xs">
-          <div className="flex items-center justify-between text-rose-700 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Absent</span>
-            <UserX className="h-4 w-4 text-rose-600" />
+          <div className="bg-rose-50/60 p-4 rounded-xl border border-rose-200 shadow-xs">
+            <div className="flex items-center justify-between text-rose-700 mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Absent</span>
+              <UserX className="h-4 w-4 text-rose-600" />
+            </div>
+            <p className="text-2xl font-black text-rose-800">{dailyStats.absent}</p>
+            <p className="text-[10px] text-rose-600 mt-1">Not in attendance</p>
           </div>
-          <p className="text-2xl font-black text-rose-800">{dailyStats.absent}</p>
-          <p className="text-[10px] text-rose-600 mt-1">Not in attendance</p>
-        </div>
 
-        <div className="bg-sky-50/60 p-4 rounded-xl border border-sky-200 shadow-xs">
-          <div className="flex items-center justify-between text-sky-700 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">On Leave</span>
-            <Coffee className="h-4 w-4 text-sky-600" />
+          <div className="bg-sky-50/60 p-4 rounded-xl border border-sky-200 shadow-xs">
+            <div className="flex items-center justify-between text-sky-700 mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider">On Leave</span>
+              <Coffee className="h-4 w-4 text-sky-600" />
+            </div>
+            <p className="text-2xl font-black text-sky-800">{dailyStats.onLeave}</p>
+            <p className="text-[10px] text-sky-600 mt-1">Approved time off</p>
           </div>
-          <p className="text-2xl font-black text-sky-800">{dailyStats.onLeave}</p>
-          <p className="text-[10px] text-sky-600 mt-1">Approved time off</p>
-        </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Total Work Hrs</span>
-            <Briefcase className="h-4 w-4 text-indigo-500" />
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+            <div className="flex items-center justify-between text-slate-500 mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Total Work Hrs</span>
+              <Briefcase className="h-4 w-4 text-indigo-500" />
+            </div>
+            <p className="text-2xl font-black text-indigo-900">{dailyStats.totalHours.toFixed(1)} <span className="text-xs font-normal text-slate-500">hrs</span></p>
+            <p className="text-[10px] text-slate-400 mt-1">Accumulated today</p>
           </div>
-          <p className="text-2xl font-black text-indigo-900">{dailyStats.totalHours.toFixed(1)} <span className="text-xs font-normal text-slate-500">hrs</span></p>
-          <p className="text-[10px] text-slate-400 mt-1">Accumulated today</p>
         </div>
-      </div>
+      )}
 
-      {/* VIEW MODE 1: DAILY ROSTER */}
-      {viewMode === 'daily' && (
+      {/* VIEW MODE 1: DAILY ROSTER — admin only */}
+      {isAdmin && viewMode === 'daily' && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden space-y-0">
           {/* Controls toolbar */}
           <div className="p-4 bg-slate-50/70 border-b border-slate-200 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
@@ -662,7 +676,7 @@ export const AttendanceSystem: React.FC = () => {
                   <th className="py-3 px-3">Shift</th>
                   <th className="py-3 px-3 text-center">Check-In</th>
                   <th className="py-3 px-3 text-center">Check-Out</th>
-                  <th className="py-3 px-3 text-center">Hours / OT</th>
+                  <th className="py-3 px-3 text-center">Hours</th>
                   <th className="py-3 px-3">Notes</th>
                   <th className="py-3 px-4 text-right">Quick Action</th>
                 </tr>
@@ -769,16 +783,11 @@ export const AttendanceSystem: React.FC = () => {
                           />
                         </td>
 
-                        {/* Work Hours & Overtime */}
+                        {/* Work Hours */}
                         <td className="py-3 px-3 text-center">
                           <div className="font-mono text-slate-800 font-bold">
                             {record.workHours ? `${record.workHours}h` : '-'}
                           </div>
-                          {record.overtimeHours ? (
-                            <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                              +{record.overtimeHours}h OT
-                            </span>
-                          ) : null}
                         </td>
 
                         {/* Notes */}
@@ -883,14 +892,12 @@ export const AttendanceSystem: React.FC = () => {
                   ))}
                   <th className="py-2.5 px-3 text-center bg-slate-50">Present</th>
                   <th className="py-2.5 px-3 text-center bg-slate-50">Hours</th>
-                  <th className="py-2.5 px-3 text-center bg-slate-50">OT</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-xs">
-                {users.map((u) => {
+                {matrixUsers.map((u) => {
                   let presentCount = 0;
                   let totalHrs = 0;
-                  let otHrs = 0;
 
                   return (
                     <tr key={u.id} className="hover:bg-slate-50 transition-colors">
@@ -905,7 +912,6 @@ export const AttendanceSystem: React.FC = () => {
                         if (rec) {
                           if (rec.status === 'Present' || rec.status === 'Late' || rec.status === 'Half Day') presentCount++;
                           if (rec.workHours) totalHrs += rec.workHours;
-                          if (rec.overtimeHours) otHrs += rec.overtimeHours;
                         }
 
                         return (
@@ -923,103 +929,11 @@ export const AttendanceSystem: React.FC = () => {
                       <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-800 bg-slate-50/50">
                         {totalHrs.toFixed(1)}h
                       </td>
-                      <td className="py-2.5 px-3 text-center font-mono font-bold text-amber-700 bg-amber-50/30">
-                        {otHrs.toFixed(1)}h
-                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-          </div>
-        </div>
-      )}
-
-      {/* VIEW MODE 3: SELF PUNCH TERMINAL */}
-      {viewMode === 'self' && (
-        <div className="max-w-2xl mx-auto bg-white rounded-3xl shadow-lg border border-slate-200 overflow-hidden">
-          <div className="p-8 bg-slate-900 text-white text-center relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-10">
-              <Clock className="w-64 h-64 text-indigo-400" />
-            </div>
-
-            <div className="relative z-10 space-y-3">
-              <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 text-xs font-bold rounded-full border border-indigo-500/30 tracking-wide uppercase">
-                Mount Ash Villa Frontdesk Terminal
-              </span>
-
-              <h1 className="text-4xl sm:text-5xl font-black font-mono tracking-wider text-indigo-100">
-                {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </h1>
-
-              <p className="text-slate-400 text-xs font-medium">
-                {currentTime.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-              </p>
-            </div>
-          </div>
-
-          <div className="p-8 space-y-6">
-            {currentUser.role === 'admin' && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-800 font-medium flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-                <span>
-                  <strong>Administrator Note:</strong> Administrators are exempt from staff attendance rosters. You can manage or log attendance for staff members in the <strong>Daily Roster</strong> view above.
-                </span>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-200">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-lg">
-                  {currentUser.name.substring(0, 2).toUpperCase()}
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-900">{currentUser.name}</h3>
-                  <p className="text-xs text-slate-500 capitalize">{currentUser.role} Account</p>
-                </div>
-              </div>
-
-              <div className="text-right">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Today's Status</span>
-                <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold border mt-0.5 ${getStatusBadge(myAttendanceToday?.status || 'Unrecorded')}`}>
-                  {myAttendanceToday?.status || 'Not Checked In'}
-                </span>
-              </div>
-            </div>
-
-            {/* Time Stamp Summary */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-200/80">
-                <span className="text-[11px] font-bold text-emerald-800 uppercase block mb-1">Check-In Time</span>
-                <p className="text-xl font-bold font-mono text-emerald-950">
-                  {myAttendanceToday?.checkIn || '--:--'}
-                </p>
-              </div>
-
-              <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-200/80">
-                <span className="text-[11px] font-bold text-indigo-800 uppercase block mb-1">Check-Out Time</span>
-                <p className="text-xl font-bold font-mono text-indigo-950">
-                  {myAttendanceToday?.checkOut || '--:--'}
-                </p>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="grid grid-cols-2 gap-4 pt-2">
-              <button
-                onClick={() => handleQuickClockIn(currentUser)}
-                className="py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-md shadow-emerald-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <UserCheck className="h-5 w-5" /> Punch Clock-In
-              </button>
-
-              <button
-                onClick={() => handleQuickClockOut(currentUser)}
-                className="py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-md shadow-indigo-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Clock className="h-5 w-5" /> Punch Clock-Out
-              </button>
-            </div>
           </div>
         </div>
       )}

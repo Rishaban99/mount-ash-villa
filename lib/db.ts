@@ -847,9 +847,7 @@ export async function saveAttendanceRecord(record: Partial<Attendance> & { userI
       if (!isNaN(inH) && !isNaN(inM) && !isNaN(outH) && !isNaN(outM)) {
         let diffMinutes = (outH * 60 + outM) - (inH * 60 + inM);
         if (diffMinutes < 0) diffMinutes += 24 * 60; // Overnight shift
-        const hours = Math.round((diffMinutes / 60) * 10) / 10;
-        payload.workHours = hours;
-        payload.overtimeHours = hours > 8 ? Math.round((hours - 8) * 10) / 10 : 0;
+        payload.workHours = Math.round((diffMinutes / 60) * 10) / 10;
       }
     } catch {}
   }
