@@ -140,7 +140,7 @@ export const AttendanceSystem: React.FC = () => {
           date: selectedDate,
           checkIn: '',
           checkOut: '',
-          status: 'Absent' as AttendanceStatus,
+          status: 'Extra Leave' as AttendanceStatus,
           shift: 'Full Day' as ShiftType,
           workHours: 0,
           notes: '',
@@ -403,8 +403,6 @@ export const AttendanceSystem: React.FC = () => {
         return 'bg-sky-100 text-sky-800 border-sky-300';
       case 'Day Off':
         return 'bg-purple-100 text-purple-800 border-purple-300';
-      case 'Day In':
-        return 'bg-indigo-100 text-indigo-800 border-indigo-300';
       default:
         return 'bg-slate-100 text-slate-500 border-slate-200';
     }
@@ -417,15 +415,14 @@ export const AttendanceSystem: React.FC = () => {
       case 'Late':
         return <span className="w-5 h-5 rounded-full bg-amber-500 text-white font-bold text-[10px] flex items-center justify-center shadow-xs" title="Late">L</span>;
       case 'Absent':
-        return <span className="w-5 h-5 rounded-full bg-rose-500 text-white font-bold text-[10px] flex items-center justify-center shadow-xs" title="Absent">A</span>;
+        return <span className="w-5 h-5 rounded-full bg-rose-500 text-white font-bold text-[10px] flex items-center justify-center shadow-xs" title="Extra Leave">E</span>;
       case 'Half Day':
         return <span className="w-5 h-5 rounded-full bg-orange-500 text-white font-bold text-[10px] flex items-center justify-center shadow-xs" title="Half Day">H</span>;
       case 'On Leave':
         return <span className="w-5 h-5 rounded-full bg-sky-500 text-white font-bold text-[10px] flex items-center justify-center shadow-xs" title="On Leave">O</span>;
       case 'Day Off':
         return <span className="w-5 h-5 rounded-full bg-purple-600 text-white font-bold text-[8px] flex items-center justify-center shadow-xs" title="Day Off">OFF</span>;
-      case 'Day In':
-        return <span className="w-5 h-5 rounded-full bg-indigo-600 text-white font-bold text-[8px] flex items-center justify-center shadow-xs" title="Day In">IN</span>;
+      
       default:
         return <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-400 font-bold text-[10px] flex items-center justify-center" title="Unrecorded">-</span>;
     }
@@ -647,11 +644,11 @@ export const AttendanceSystem: React.FC = () => {
                 <option value="all">All Statuses</option>
                 <option value="Present">Present</option>
                 <option value="Late">Late</option>
-                <option value="Absent">Absent</option>
+                <option value="Absent">Extra Leave</option>
                 <option value="Half Day">Half Day</option>
                 <option value="On Leave">On Leave</option>
                 <option value="Day Off">Day Off</option>
-                <option value="Day In">Day In</option>
+                
               </select>
 
               <button
@@ -729,11 +726,11 @@ export const AttendanceSystem: React.FC = () => {
                           >
                             <option value="Present">Present</option>
                             <option value="Late">Late</option>
-                            <option value="Absent">Absent</option>
+                            <option value="Absent">Extra Leave</option>
                             <option value="Half Day">Half Day</option>
                             <option value="On Leave">On Leave</option>
                             <option value="Day Off">Day Off</option>
-                            <option value="Day In">Day In</option>
+                            
                           </select>
                         </td>
 
@@ -866,7 +863,7 @@ export const AttendanceSystem: React.FC = () => {
                 <span className="w-3 h-3 rounded-full bg-amber-500"></span> Late (L)
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full bg-rose-500"></span> Absent (A)
+                <span className="w-3 h-3 rounded-full bg-rose-500"></span> Extra Leave (E)
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded-full bg-sky-500"></span> Leave (O)
@@ -874,9 +871,7 @@ export const AttendanceSystem: React.FC = () => {
               <div className="flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded-full bg-purple-600"></span> Day Off (OFF)
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full bg-indigo-600"></span> Day In (IN)
-              </div>
+              
             </div>
           </div>
 
@@ -910,7 +905,8 @@ export const AttendanceSystem: React.FC = () => {
                         const dateStr = `${selectedMonth}-${String(dayNum).padStart(2, '0')}`;
                         const rec = attendanceList.find((a) => a.userId === u.id && a.date === dateStr);
                         if (rec) {
-                          if (rec.status === 'Present' || rec.status === 'Late' || rec.status === 'Half Day') presentCount++;
+                          if (rec.status === 'Present' || rec.status === 'Late') presentCount++;
+                          if (rec.status === 'Half Day') presentCount += 0.5;
                           if (rec.workHours) totalHrs += rec.workHours;
                         }
 

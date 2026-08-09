@@ -245,8 +245,8 @@ export const AttendancePunchPage: React.FC = () => {
     const now = nowTimeStr();
     return savePunch(
       {
-        status: 'Day In',
-        notes: appendNote(attendance?.notes, `Day In ${now}`),
+        status: 'Present',
+        notes: appendNote(attendance?.notes, `Punched Back In ${now}`),
       },
       `${selectedUser?.name} clocked back in`
     );
