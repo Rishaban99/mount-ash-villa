@@ -336,7 +336,7 @@ function BillPage({ data }: { data: ApiResponse }) {
   const { room, bill, settings } = data;
   const currency = settings.currency || 'LKR';
 
-  if (!bill) {
+  if (!bill || room.status !== 'Occupied') {
     return (
       <div className={`bill-page ${visible ? 'bill-in' : ''}`}>
         <div className="bill-header">
@@ -587,7 +587,7 @@ export default function RoomQRCodePage() {
           setAppState('error');
         } else {
           setData(json);
-          setAppState(json.bill ? 'welcome' : 'bill');
+          setAppState(json.bill && json.room.status === 'Occupied' ? 'welcome' : 'bill');
         }
       })
       .catch(() => {
