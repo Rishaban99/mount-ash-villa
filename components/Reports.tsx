@@ -19,6 +19,7 @@ import {
   BookOpen,
   Lock,
   Unlock,
+  FileSpreadsheet,
   ArrowUpRight,
   ArrowDownRight,
   CalendarDays,
@@ -419,6 +420,29 @@ export const Reports: React.FC = () => {
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", `Monthly_Revenue_Summary_${new Date().getFullYear()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportCashbookCSV = () => {
+    const headers = ['Date', 'Credits In (Rs.)', 'Debits Out (Rs.)', 'Net Balance (Rs.)', 'Invoices', 'Expenses'];
+    const rows = cashbookDaysFiltered.map(day => [
+      day.date,
+      day.inflow,
+      day.outflow,
+      day.balance,
+      day.bills.length,
+      day.expenses.length
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Chronological_Cash_Register_${cashbookMonth || 'all'}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1223,8 +1247,15 @@ export const Reports: React.FC = () => {
 
               {/* Day-by-Day Accordions */}
               <div>
-                <div className="mb-4">
+                <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Chronological Cash Register</h4>
+                  <button
+                    onClick={exportCashbookCSV}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs"
+                  >
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" />
+                    Export CSV
+                  </button>
                 </div>
 
                 {cashbookDaysFiltered.length === 0 ? (
