@@ -6,7 +6,9 @@
  */
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams } from 'next/navigation';
+import { GuestAmbientBackground } from '@/components/GuestAmbientBackground';
 import { Logo } from '@/components/Logo';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -106,6 +108,36 @@ function nightsBetween(checkIn: string, checkOut: string) {
   }
 }
 
+function IconBuilding({ size = 40 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 21h18" />
+      <path d="M5 21V7l7-4 7 4v14" />
+      <path d="M9 21v-6h6v6" />
+      <path d="M9 9h.01M15 9h.01M9 13h.01M15 13h.01" />
+    </svg>
+  );
+}
+
+function IconPhone({ size = 18 }: { size?: number }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M8 13.478v-.616s0-1.466 4-1.466s4 1.466 4 1.466v.388c0 .956.723 1.77 1.7 1.912l2 .294c1.21.177 2.3-.73 2.3-1.913v-2.125c0-.587-.184-1.164-.63-1.562C20.23 8.837 17.42 7 12 7c-5.749 0-8.56 2.583-9.56 3.789c-.315.381-.44.864-.44 1.352v1.923c0 1.298 1.296 2.228 2.58 1.852l2-.587c.843-.247 1.42-.998 1.42-1.85"
+      />
+    </svg>
+  );
+}
+
+function IconMessage({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+    </svg>
+  );
+}
+
 // ─── Welcome Screen ───────────────────────────────────────────────────────────
 
 function WelcomeScreen({
@@ -128,43 +160,32 @@ function WelcomeScreen({
 
   return (
     <div className={`welcome-screen ${visible ? 'welcome-in' : ''}`}>
-      {/* Animated blobs */}
-      <div className="blob blob-1" />
-      <div className="blob blob-2" />
-      <div className="blob blob-3" />
-
       <div className="welcome-content">
-        {/* 3D Animated Brand Logo */}
-        <div className="welcome-logo-container mb-3">
-          <Logo size={180} showText={true} useBrandColors={true} animated3D={true} />
+        <div className="welcome-logo-container">
+          <Logo size={168} showText={true} useBrandColors={true} animated3D={true} />
         </div>
 
-        <p className="welcome-hotel-name">{hotelName}</p>
-
+        <p className="welcome-eyebrow">{hotelName}</p>
         <div className="welcome-divider" />
 
-        <p className="welcome-greeting">{getGreeting()},</p>
-        <h1 className="welcome-name">{firstName(guestName)} 👋</h1>
+        <p className="welcome-greeting">{getGreeting()}</p>
+        <h1 className="welcome-name">{firstName(guestName)}</h1>
 
-        <div className="welcome-room-tag">
-          <span className="room-tag-dot" />
-          Room {roomNumber}
-        </div>
+        <div className="welcome-room-tag">Room {roomNumber}</div>
 
         <p className="welcome-message">
-          We&apos;re delighted to have you with us.<br />
-          Here&apos;s a live summary of your bill — <br />
-          updated in real time.
+          A live folio of your stay — quietly updated<br />
+          for you throughout your visit.
         </p>
 
         <button className="welcome-btn" onClick={onContinue}>
-          <span>View My Bill</span>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <span>View My Folio</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M5 12h14M12 5l7 7-7 7"/>
           </svg>
         </button>
 
-        <p className="welcome-note">No login required · Secure &amp; read-only</p>
+        <p className="welcome-note">Private · Secure · No login required</p>
       </div>
     </div>
   );
@@ -191,6 +212,16 @@ function FeedbackModal({
   const [message, setMessage] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
 
   async function handleSubmit() {
     if (rating === 0) return;
@@ -215,9 +246,11 @@ function FeedbackModal({
     }
   }
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <div className="fb-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="fb-modal">
+      <div className="fb-modal" role="dialog" aria-modal="true" aria-labelledby="fb-title">
         {/* Close */}
         <button className="fb-close" onClick={onClose} aria-label="Close">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -228,8 +261,12 @@ function FeedbackModal({
         {submitted ? (
           /* ── Thank you state ── */
           <div className="fb-thankyou">
-            <div className="fb-ty-icon">🎉</div>
-            <h3 className="fb-ty-title">Thank You!</h3>
+            <div className="fb-ty-icon" aria-hidden>
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+            </div>
+            <h3 className="fb-ty-title">Thank You</h3>
             <p className="fb-ty-sub">
               Your feedback means a lot to us.<br />
               We&apos;ll use it to improve your experience.
@@ -240,9 +277,9 @@ function FeedbackModal({
           /* ── Form ── */
           <>
             <div className="fb-header">
-              <div className="fb-header-icon">💬</div>
+              <div className="fb-header-icon"><IconMessage size={22} /></div>
               <div>
-                <h3 className="fb-title">Share Your Feedback</h3>
+                <h3 className="fb-title" id="fb-title">Guest Feedback</h3>
                 <p className="fb-subtitle">{hotelName} · Room {roomNumber}</p>
               </div>
             </div>
@@ -265,11 +302,11 @@ function FeedbackModal({
             </div>
             <div className="fb-rating-label">
               {rating === 0 && <span className="fb-rating-hint">Tap a star to rate</span>}
-              {rating === 1 && '😞 Poor'}
-              {rating === 2 && '😕 Fair'}
-              {rating === 3 && '🙂 Good'}
-              {rating === 4 && '😊 Very Good'}
-              {rating === 5 && '🤩 Excellent!'}
+              {rating === 1 && 'Poor'}
+              {rating === 2 && 'Fair'}
+              {rating === 3 && 'Good'}
+              {rating === 4 && 'Very Good'}
+              {rating === 5 && 'Excellent'}
             </div>
 
             {/* Category chips */}
@@ -318,7 +355,41 @@ function FeedbackModal({
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ─── Bill Header ──────────────────────────────────────────────────────────────
+
+function BillHeader({
+  hotelName,
+  roomNumber,
+  roomType,
+}: {
+  hotelName: string;
+  roomNumber: string;
+  roomType?: string;
+  address?: string;
+}) {
+  return (
+    <header className="bill-header">
+      <div className="bill-header-inner">
+        <div className="bill-brand-text">
+          <p className="bill-header-kicker">Guest Folio</p>
+          <p className="bill-hotel-label">{hotelName}</p>
+        </div>
+        <div className="bill-room-chip">
+          <span className="bill-room-num">{roomNumber}</span>
+          {roomType && (
+            <>
+              <span className="bill-room-sep" aria-hidden />
+              <span className="bill-room-type">{roomType}</span>
+            </>
+          )}
+        </div>
+      </div>
+    </header>
   );
 }
 
@@ -339,23 +410,24 @@ function BillPage({ data }: { data: ApiResponse }) {
   if (!bill || room.status !== 'Occupied') {
     return (
       <div className={`bill-page ${visible ? 'bill-in' : ''}`}>
-        <div className="bill-header">
-          <div className="bill-header-inner">
-            <p className="bill-hotel-label">{settings.hotelName}</p>
-            <div className="bill-room-chip">Room {room.roomNumber} · {room.roomType}</div>
-          </div>
-        </div>
+        <BillHeader
+          hotelName={settings.hotelName}
+          roomNumber={room.roomNumber}
+          roomType={room.roomType}
+        />
         <div className="no-bill-wrap">
-          <div className="no-bill-icon">🏨</div>
-          <h2 className="no-bill-title">No Active Bill</h2>
+          <div className="no-bill-icon"><IconBuilding size={36} /></div>
+          <p className="no-bill-eyebrow">Guest Folio</p>
+          <h2 className="no-bill-title">No Active Stay</h2>
           <p className="no-bill-sub">
-            This room currently has no open billing session.<br />
-            Please contact our front desk for assistance.
+            This room has no open billing session right now.
+            Our front desk will be glad to assist you.
           </p>
-          <div className="cta-row" style={{ gap: '0.75rem', marginTop: '1.25rem' }}>
+          <div className="cta-stack">
             {settings.phone && (
               <a href={`tel:${settings.phone}`} className="cta-btn cta-call-btn">
-                📞 Call Front Desk
+                <IconPhone />
+                <span>Call Front Desk</span>
               </a>
             )}
             <button
@@ -363,7 +435,8 @@ function BillPage({ data }: { data: ApiResponse }) {
               className="cta-btn cta-feedback-btn"
               onClick={() => setShowFeedback(true)}
             >
-              💬 Give Feedback
+              <IconMessage />
+              <span>Share Feedback</span>
             </button>
           </div>
           {showFeedback && (
@@ -384,24 +457,21 @@ function BillPage({ data }: { data: ApiResponse }) {
 
   return (
     <div className={`bill-page ${visible ? 'bill-in' : ''}`}>
-      {/* ── Sticky Header ── */}
-      <div className="bill-header">
-        <div className="bill-header-inner">
-          <div>
-            <p className="bill-hotel-label">{settings.hotelName}</p>
-            <p className="bill-header-sub">{settings.address}</p>
-          </div>
-          <div className="bill-room-chip">Room {room.roomNumber}</div>
-        </div>
-      </div>
+      <BillHeader
+        hotelName={settings.hotelName}
+        roomNumber={room.roomNumber}
+        roomType={room.roomType}
+        address={settings.address}
+      />
 
       <div className="bill-body">
 
         {/* ── Welcome Banner ── */}
         <div className="welcome-banner">
           <div className="wb-left">
-            <p className="wb-greeting">{getGreeting()}, <strong>{firstName(guestDetails.name)}</strong> 👋</p>
-            <p className="wb-sub">Here&apos;s your current bill summary</p>
+            <p className="wb-eyebrow">{getGreeting()}</p>
+            <p className="wb-greeting">{firstName(guestDetails.name)}</p>
+            <p className="wb-sub">Your stay folio at a glance</p>
           </div>
           <div className="wb-nights">
             <span className="wb-nights-num">{nights}</span>
@@ -412,7 +482,6 @@ function BillPage({ data }: { data: ApiResponse }) {
         {/* ── Guest Card ── */}
         <div className="section-card">
           <div className="section-head">
-            <span className="section-icon">👤</span>
             <span className="section-title">Guest Details</span>
           </div>
           <div className="detail-grid">
@@ -427,7 +496,6 @@ function BillPage({ data }: { data: ApiResponse }) {
         {roomItems.length > 0 && (
           <div className="section-card">
             <div className="section-head">
-              <span className="section-icon">🏠</span>
               <span className="section-title">Room Charges</span>
             </div>
             {roomItems.map((item, i) => (
@@ -448,7 +516,6 @@ function BillPage({ data }: { data: ApiResponse }) {
         {foodItems.length > 0 && (
           <div className="section-card">
             <div className="section-head">
-              <span className="section-icon">🍽️</span>
               <span className="section-title">Food &amp; Beverage</span>
             </div>
             {foodItems.map((item, i) => (
@@ -476,35 +543,30 @@ function BillPage({ data }: { data: ApiResponse }) {
         <div className="total-card">
           <div className="total-top">
             <div>
-              <p className="total-label">Total Amount Due</p>
-              <p className="total-bill-id">Bill #{bill.id}</p>
+              <p className="total-label">Amount Due</p>
+              <p className="total-bill-id">Folio #{bill.id.slice(0, 8)}</p>
             </div>
-            <div className="total-status-chip">Active</div>
+            <div className="total-status-chip">In Stay</div>
           </div>
           <div className="total-amount">
             <span className="total-currency">{currency}</span>
             <span className="total-number">{totalAmount.toLocaleString()}</span>
           </div>
           <p className="total-note">
-            ℹ️ This is a live preview. Final amount may vary at checkout.
+            Live preview — final amount confirmed at checkout.
           </p>
         </div>
 
-        {/* ── Action Buttons Row ── */}
-        <div className="cta-row">
+        <div className="cta-stack cta-stack-bill">
           {settings.phone && (
             <a href={`tel:${settings.phone}`} className="cta-btn cta-call-btn">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8 19.79 19.79 0 01.22 1.18 2 2 0 012.22 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.09a16 16 0 006 6l.56-.56a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/>
-              </svg>
+              <IconPhone />
               <span>Call Front Desk</span>
             </a>
           )}
           <button className="cta-btn cta-feedback-btn" onClick={() => setShowFeedback(true)}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-            </svg>
-            <span>Give Feedback</span>
+            <IconMessage />
+            <span>Share Feedback</span>
           </button>
         </div>
 
@@ -561,8 +623,13 @@ function BillFooter({ settings }: { settings: HotelSettings }) {
     <footer className="bill-footer">
       <p className="footer-hotel">{settings.hotelName}</p>
       {settings.address && <p className="footer-sub">{settings.address}</p>}
-      {settings.phone && <p className="footer-sub">📞 {settings.phone}</p>}
-      <p className="footer-tagline">Thank you for choosing us. We hope you enjoy your stay! 🌟</p>
+      {settings.phone && (
+        <p className="footer-sub footer-phone">
+          <IconPhone size={12} />
+          <span>{settings.phone}</span>
+        </p>
+      )}
+      <p className="footer-tagline">Thank you for staying with us.</p>
     </footer>
   );
 }
@@ -600,8 +667,11 @@ export default function RoomQRCodePage() {
   if (appState === 'loading') {
     return (
       <div className="full-center gradient-bg">
-        <div className="loader-ring" />
-        <p className="loader-text">Loading your bill…</p>
+        <GuestAmbientBackground />
+        <div className="guest-foreground">
+          <div className="loader-ring" />
+          <p className="loader-text">Preparing your folio…</p>
+        </div>
         <style>{BASE_CSS}</style>
       </div>
     );
@@ -611,10 +681,18 @@ export default function RoomQRCodePage() {
   if (appState === 'error' || !data) {
     return (
       <div className="full-center gradient-bg">
-        <div className="error-emoji">⚠️</div>
-        <p className="error-title">Oops!</p>
-        <p className="error-msg">{fetchError ?? 'Something went wrong.'}</p>
-        <p className="error-hint">Please contact our front desk for assistance.</p>
+        <GuestAmbientBackground />
+        <div className="guest-foreground">
+          <div className="error-icon" aria-hidden>
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 8v5M12 16h.01" />
+            </svg>
+          </div>
+          <p className="error-title">Unable to load</p>
+          <p className="error-msg">{fetchError ?? 'This room folio could not be opened.'}</p>
+          <p className="error-hint">Please visit the front desk for assistance.</p>
+        </div>
         <style>{BASE_CSS}</style>
       </div>
     );
@@ -623,15 +701,18 @@ export default function RoomQRCodePage() {
   // ── Welcome → Bill ───────────────────────────────────────────────────────
   return (
     <div className="app-root gradient-bg">
-      {appState === 'welcome' && data.bill && (
-        <WelcomeScreen
-          hotelName={data.settings.hotelName}
-          roomNumber={data.room.roomNumber}
-          guestName={data.bill.guestDetails.name}
-          onContinue={() => setAppState('bill')}
-        />
-      )}
-      {appState === 'bill' && <BillPage data={data} />}
+      <GuestAmbientBackground />
+      <div className="guest-foreground">
+        {appState === 'welcome' && data.bill && (
+          <WelcomeScreen
+            hotelName={data.settings.hotelName}
+            roomNumber={data.room.roomNumber}
+            guestName={data.bill.guestDetails.name}
+            onContinue={() => setAppState('bill')}
+          />
+        )}
+        {appState === 'bill' && <BillPage data={data} />}
+      </div>
       <style>{BASE_CSS}</style>
     </div>
   );
@@ -640,48 +721,127 @@ export default function RoomQRCodePage() {
 // ─── CSS ──────────────────────────────────────────────────────────────────────
 
 const BASE_CSS = `
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Outfit:wght@300;400;500;600&display=swap');
 
-  body { background: #0f0c29; }
-
-  .gradient-bg {
-    min-height: 100dvh;
-    background: linear-gradient(160deg, #1a1042 0%, #2d1b69 40%, #11998e 100%);
+  :root {
+    --ink: #0e1524;
+    --ink-soft: #182338;
+    --navy: #1E2460;
+    --forest: #0E8345;
+    --linen: #f3efe6;
+    --linen-soft: #e8e2d6;
+    --ivory: #faf7f1;
+    --champagne: #c4a35a;
+    --champagne-soft: rgba(196, 163, 90, 0.18);
+    --champagne-line: rgba(196, 163, 90, 0.45);
+    --text: #f3efe6;
+    --text-muted: rgba(243, 239, 230, 0.62);
+    --text-faint: rgba(243, 239, 230, 0.42);
+    --card: rgba(250, 247, 241, 0.055);
+    --card-border: rgba(243, 239, 230, 0.1);
+    --radius: 14px;
+    --font-display: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+    --font-body: 'Outfit', system-ui, sans-serif;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  /* ── Full-center (loading / error) ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body { background: #05070d; color: var(--text); }
+
+  .gradient-bg {
+    position: relative;
+    isolation: isolate;
+    min-height: 100dvh;
+    overflow: hidden;
+    background:
+      radial-gradient(90% 60% at 10% 0%, rgba(18, 22, 48, 0.45) 0%, transparent 55%),
+      radial-gradient(80% 50% at 100% 100%, rgba(8, 40, 24, 0.22) 0%, transparent 50%),
+      linear-gradient(165deg, #05070d 0%, #0a0e18 42%, #070c0a 100%);
+  }
+
+  .guest-foreground {
+    position: relative;
+    z-index: 1;
+    min-height: 100dvh;
+  }
+
   .full-center {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1rem;
+    gap: 14px;
     text-align: center;
-    padding: 2rem;
+    padding: 48px 24px;
+    font-family: var(--font-body);
+  }
+  .full-center .guest-foreground {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    width: 100%;
   }
 
-  /* ── Loader ── */
   .loader-ring {
-    width: 52px; height: 52px;
-    border: 4px solid rgba(255,255,255,0.2);
-    border-top-color: #fff;
+    width: 40px; height: 40px;
+    border: 2px solid rgba(196, 163, 90, 0.2);
+    border-top-color: var(--champagne);
     border-radius: 50%;
-    animation: spin 0.85s linear infinite;
+    animation: spin 0.9s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .loader-text { color: rgba(255,255,255,0.75); font-size: 0.9rem; font-family: system-ui, sans-serif; }
+  .loader-text {
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    font-family: var(--font-body);
+  }
 
-  /* ── Error ── */
-  .error-emoji { font-size: 3.5rem; }
-  .error-title { font-size: 1.4rem; font-weight: 700; color: #fff; font-family: system-ui, sans-serif; }
-  .error-msg { font-size: 0.9rem; color: #fca5a5; font-family: system-ui, sans-serif; max-width: 280px; }
-  .error-hint { font-size: 0.8rem; color: rgba(255,255,255,0.55); font-family: system-ui, sans-serif; max-width: 260px; line-height: 1.5; }
+  .error-icon {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    border: 1px solid var(--champagne-line);
+    color: var(--champagne);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 4px;
+  }
+  .error-title {
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--linen);
+  }
+  .error-msg {
+    font-size: 14px;
+    line-height: 1.55;
+    color: rgba(250, 180, 180, 0.9);
+    font-family: var(--font-body);
+    max-width: 280px;
+  }
+  .error-hint {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-faint);
+    font-family: var(--font-body);
+    max-width: 260px;
+  }
 
-  /* ── App root ── */
-  .app-root { position: relative; overflow: hidden; }
+  .app-root { position: relative; overflow: hidden; min-height: 100dvh; }
+
+  @keyframes fadeRise {
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 
   /* ══════════════════════════════════════
-     WELCOME SCREEN
+     WELCOME
   ══════════════════════════════════════ */
   .welcome-screen {
     position: relative;
@@ -689,31 +849,13 @@ const BASE_CSS = `
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 2rem 1.25rem;
+    padding: 40px 22px 48px;
     overflow: hidden;
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-body);
     opacity: 0;
-    transform: translateY(16px);
-    transition: opacity 0.6s ease, transform 0.6s ease;
+    transition: opacity 0.7s var(--ease);
   }
-  .welcome-screen.welcome-in { opacity: 1; transform: translateY(0); }
-
-  /* Animated blobs */
-  .blob {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(60px);
-    opacity: 0.35;
-    animation: blobFloat 7s ease-in-out infinite alternate;
-    pointer-events: none;
-  }
-  .blob-1 { width: 320px; height: 320px; background: #7c3aed; top: -80px; left: -100px; animation-delay: 0s; }
-  .blob-2 { width: 260px; height: 260px; background: #0891b2; bottom: -60px; right: -80px; animation-delay: 2s; }
-  .blob-3 { width: 200px; height: 200px; background: #10b981; bottom: 120px; left: 30%; animation-delay: 4s; }
-  @keyframes blobFloat {
-    from { transform: translate(0, 0) scale(1); }
-    to   { transform: translate(20px, -20px) scale(1.08); }
-  }
+  .welcome-screen.welcome-in { opacity: 1; }
 
   .welcome-content {
     position: relative;
@@ -722,479 +864,549 @@ const BASE_CSS = `
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0;
     width: 100%;
     max-width: 360px;
+    animation: fadeRise 0.8s var(--ease) both;
   }
 
-  .hotel-logo {
-    width: 72px; height: 72px;
-    margin-bottom: 1.1rem;
-    animation: logoIn 0.7s cubic-bezier(.34,1.56,.64,1) both;
-    animation-delay: 0.2s;
+  .welcome-logo-container {
+    margin-bottom: 8px;
+    filter: drop-shadow(0 12px 28px rgba(0,0,0,0.35));
   }
-  @keyframes logoIn {
-    from { transform: scale(0.5) rotate(-10deg); opacity: 0; }
-    to   { transform: scale(1) rotate(0deg); opacity: 1; }
-  }
-  .hotel-logo svg { width: 100%; height: 100%; }
 
-  .welcome-hotel-name {
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: rgba(255,255,255,0.85);
-    letter-spacing: 0.3px;
-    margin-bottom: 0.75rem;
+  .welcome-eyebrow {
+    margin-top: 8px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--champagne);
   }
 
   .welcome-divider {
-    width: 36px; height: 3px;
-    background: linear-gradient(90deg, #7c3aed, #10b981);
-    border-radius: 2px;
-    margin-bottom: 1.25rem;
+    width: 48px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--champagne), transparent);
+    margin: 16px 0 22px;
   }
 
   .welcome-greeting {
-    font-size: 1rem;
-    color: rgba(255,255,255,0.65);
-    margin-bottom: 0.2rem;
+    font-size: 14px;
+    font-weight: 300;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 6px;
   }
 
   .welcome-name {
-    font-size: 2.2rem;
-    font-weight: 800;
-    color: #fff;
-    letter-spacing: -1px;
-    line-height: 1.15;
-    margin-bottom: 1rem;
+    font-family: var(--font-display);
+    font-size: 48px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1.05;
+    color: var(--linen);
+    margin-bottom: 18px;
   }
 
   .welcome-room-tag {
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
-    background: rgba(255,255,255,0.12);
-    border: 1px solid rgba(255,255,255,0.2);
-    color: #fff;
-    font-size: 0.8rem;
-    font-weight: 600;
-    padding: 0.35rem 0.9rem;
+    gap: 8px;
+    border: 1px solid var(--champagne-line);
+    color: var(--champagne);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 8px 16px;
     border-radius: 999px;
-    margin-bottom: 1.4rem;
-    backdrop-filter: blur(8px);
-  }
-  .room-tag-dot {
-    width: 7px; height: 7px;
-    background: #10b981;
-    border-radius: 50%;
-    box-shadow: 0 0 6px #10b981;
-    animation: pulse-dot 1.8s ease-in-out infinite;
-  }
-  @keyframes pulse-dot {
-    0%,100% { opacity: 1; transform: scale(1); }
-    50%      { opacity: 0.5; transform: scale(1.4); }
+    margin-bottom: 22px;
+    background: rgba(196, 163, 90, 0.06);
   }
 
   .welcome-message {
-    font-size: 0.88rem;
-    color: rgba(255,255,255,0.65);
-    line-height: 1.7;
-    margin-bottom: 2rem;
+    font-size: 15px;
+    font-weight: 300;
+    color: var(--text-muted);
+    line-height: 1.65;
+    margin-bottom: 28px;
   }
 
   .welcome-btn {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    background: linear-gradient(135deg, #7c3aed, #4f46e5);
-    color: #fff;
-    font-size: 0.95rem;
-    font-weight: 700;
-    padding: 0.85rem 2rem;
-    border-radius: 999px;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 280px;
+    min-height: 52px;
+    background: var(--champagne);
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 14px 24px;
+    border-radius: 4px;
     border: none;
     cursor: pointer;
-    box-shadow: 0 8px 28px rgba(124,58,237,0.45);
-    transition: transform 0.18s ease, box-shadow 0.18s ease;
-    margin-bottom: 1rem;
-    letter-spacing: 0.2px;
+    transition: transform 0.25s var(--ease), background 0.25s var(--ease), box-shadow 0.25s var(--ease);
+    margin-bottom: 16px;
+    font-family: var(--font-body);
+    box-shadow: 0 10px 28px rgba(196, 163, 90, 0.22);
   }
-  .welcome-btn:active { transform: scale(0.96); box-shadow: 0 4px 16px rgba(124,58,237,0.35); }
+  .welcome-btn:hover { background: #d4b56a; transform: translateY(-1px); }
+  .welcome-btn:active { transform: translateY(0); }
 
   .welcome-note {
-    font-size: 0.72rem;
-    color: rgba(255,255,255,0.4);
-    letter-spacing: 0.3px;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
   }
 
   /* ══════════════════════════════════════
      BILL PAGE
   ══════════════════════════════════════ */
   .bill-page {
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-body);
     min-height: 100dvh;
     opacity: 0;
-    transform: translateY(12px);
-    transition: opacity 0.5s ease, transform 0.5s ease;
+    transition: opacity 0.55s var(--ease);
   }
-  .bill-page.bill-in { opacity: 1; transform: translateY(0); }
+  .bill-page.bill-in { opacity: 1; }
 
-  /* ── Sticky header ── */
   .bill-header {
     position: sticky;
     top: 0;
     z-index: 50;
-    background: rgba(17,8,60,0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    padding: 0.75rem 1rem;
+    background: rgba(11, 16, 28, 0.88);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(243, 239, 230, 0.08);
+    padding: 14px 18px;
+    padding-top: max(14px, env(safe-area-inset-top));
   }
   .bill-header-inner {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
-    max-width: 480px;
+    gap: 16px;
+    max-width: 440px;
     margin: 0 auto;
   }
-  .bill-hotel-label {
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #fff;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .bill-brand-text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
   }
-  .bill-header-sub {
-    font-size: 0.68rem;
-    color: rgba(255,255,255,0.45);
-    margin-top: 0.1rem;
+  .bill-header-kicker {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--champagne);
+    line-height: 1;
+  }
+  .bill-hotel-label {
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--linen);
+    letter-spacing: -0.01em;
+    line-height: 1.25;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 200px;
   }
   .bill-room-chip {
     flex-shrink: 0;
-    background: rgba(124,58,237,0.25);
-    border: 1px solid rgba(124,58,237,0.5);
-    color: #c4b5fd;
-    font-size: 0.72rem;
-    font-weight: 700;
-    padding: 0.3rem 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 34px;
+    padding: 0 12px;
     border-radius: 999px;
+    background: rgba(243, 239, 230, 0.06);
+    border: 1px solid rgba(243, 239, 230, 0.1);
     white-space: nowrap;
   }
-
-  /* ── Body ── */
-  .bill-body {
-    max-width: 480px;
-    margin: 0 auto;
-    padding: 1rem 0.85rem 2rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.85rem;
+  .bill-room-num {
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--linen);
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .bill-room-sep {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--champagne);
+    opacity: 0.7;
+  }
+  .bill-room-type {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-muted);
   }
 
-  /* ── Welcome banner ── */
+  .bill-body {
+    max-width: 440px;
+    margin: 0 auto;
+    padding: 18px 16px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
   .welcome-banner {
-    background: linear-gradient(135deg, rgba(124,58,237,0.3), rgba(16,185,129,0.2));
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 18px;
-    padding: 1.1rem 1.15rem;
+    background: linear-gradient(145deg, rgba(30, 36, 96, 0.45), rgba(14, 131, 69, 0.12));
+    border: 1px solid rgba(196, 163, 90, 0.22);
+    border-radius: var(--radius);
+    padding: 20px 18px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    backdrop-filter: blur(8px);
+    gap: 14px;
+    animation: fadeRise 0.55s var(--ease) both;
+  }
+  .wb-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--champagne);
+    margin-bottom: 4px;
   }
   .wb-greeting {
-    font-size: 1rem;
-    color: #fff;
-    font-weight: 500;
+    font-family: var(--font-display);
+    font-size: 30px;
+    font-weight: 600;
+    color: var(--linen);
+    line-height: 1.1;
+    letter-spacing: 0.01em;
   }
-  .wb-greeting strong { font-weight: 800; }
   .wb-sub {
-    font-size: 0.75rem;
-    color: rgba(255,255,255,0.55);
-    margin-top: 0.25rem;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 6px;
+    font-weight: 300;
   }
   .wb-nights {
     flex-shrink: 0;
     text-align: center;
-    background: rgba(255,255,255,0.08);
-    border-radius: 12px;
-    padding: 0.55rem 0.85rem;
+    min-width: 68px;
+    padding: 10px 12px;
+    border-left: 1px solid rgba(196, 163, 90, 0.28);
   }
   .wb-nights-num {
     display: block;
-    font-size: 1.6rem;
-    font-weight: 800;
-    color: #fff;
+    font-family: var(--font-display);
+    font-size: 34px;
+    font-weight: 600;
+    color: var(--linen);
     line-height: 1;
   }
   .wb-nights-label {
-    font-size: 0.65rem;
-    color: rgba(255,255,255,0.5);
+    font-size: 10px;
+    color: var(--text-faint);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.14em;
+    margin-top: 4px;
+    display: block;
   }
 
-  /* ── Section card ── */
   .section-card {
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.09);
-    border-radius: 18px;
-    padding: 1rem 1.1rem;
-    backdrop-filter: blur(8px);
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 18px 16px;
+    animation: fadeRise 0.55s var(--ease) both;
   }
   .section-head {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.85rem;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(196, 163, 90, 0.18);
   }
-  .section-icon { font-size: 1rem; }
   .section-title {
-    font-size: 0.68rem;
-    font-weight: 700;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
-    letter-spacing: 1.2px;
-    color: #a78bfa;
+    color: var(--champagne);
   }
 
-  /* ── Detail rows ── */
-  .detail-grid { display: flex; flex-direction: column; gap: 0; }
+  .detail-grid { display: flex; flex-direction: column; }
   .detail-row {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-    gap: 0.5rem;
+    padding: 11px 0;
+    border-bottom: 1px solid rgba(243, 239, 230, 0.06);
+    gap: 10px;
   }
-  .detail-row:last-child { border-bottom: none; }
+  .detail-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .detail-row:first-child { padding-top: 0; }
   .detail-label {
-    font-size: 0.78rem;
-    color: rgba(255,255,255,0.4);
-    font-weight: 500;
+    font-size: 13px;
+    color: var(--text-faint);
+    font-weight: 400;
     white-space: nowrap;
   }
   .detail-value {
-    font-size: 0.82rem;
-    color: rgba(255,255,255,0.9);
-    font-weight: 600;
+    font-size: 14px;
+    color: var(--linen);
+    font-weight: 500;
     text-align: right;
   }
-  .detail-highlight { color: #6ee7b7; }
+  .detail-highlight { color: var(--champagne); }
 
-  /* ── Line items ── */
   .line-item {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    padding: 0.55rem 0;
-    border-bottom: 1px dashed rgba(255,255,255,0.06);
-    gap: 0.5rem;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(243, 239, 230, 0.06);
+    gap: 10px;
   }
   .line-item:last-of-type { border-bottom: none; }
   .line-left { flex: 1; min-width: 0; }
   .line-name {
-    font-size: 0.83rem;
-    color: rgba(255,255,255,0.9);
-    font-weight: 600;
+    font-size: 14px;
+    color: var(--linen);
+    font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .line-meta {
-    font-size: 0.71rem;
-    color: rgba(255,255,255,0.35);
-    margin-top: 0.15rem;
+    font-size: 12px;
+    color: var(--text-faint);
+    margin-top: 3px;
+    line-height: 1.4;
   }
   .line-amount {
-    font-size: 0.83rem;
-    color: #fff;
-    font-weight: 700;
+    font-size: 14px;
+    color: var(--linen);
+    font-weight: 600;
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
 
-  /* ── Subtotal rows ── */
   .subtotal-row {
     display: flex;
     justify-content: space-between;
-    padding: 0.55rem 0 0;
-    margin-top: 0.3rem;
-    border-top: 1px solid rgba(255,255,255,0.08);
-    font-size: 0.8rem;
-    color: rgba(255,255,255,0.65);
-    font-weight: 600;
+    padding: 12px 0 0;
+    margin-top: 6px;
+    border-top: 1px solid rgba(196, 163, 90, 0.2);
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
   }
   .subtotal-accent {
-    color: #6ee7b7;
+    color: var(--champagne);
     border-top: none;
-    padding-top: 0.25rem;
+    padding-top: 6px;
+    margin-top: 0;
   }
 
-  /* ── Total card ── */
   .total-card {
-    background: linear-gradient(135deg, #7c3aed 0%, #4338ca 60%, #0e7490 100%);
-    border-radius: 20px;
-    padding: 1.4rem 1.25rem;
-    box-shadow: 0 12px 40px rgba(124,58,237,0.4);
+    background:
+      linear-gradient(155deg, rgba(30, 36, 96, 0.75) 0%, rgba(14, 21, 36, 0.95) 55%, rgba(14, 131, 69, 0.28) 140%);
+    border: 1px solid var(--champagne-line);
+    border-radius: 16px;
+    padding: 22px 18px;
+    animation: fadeRise 0.55s var(--ease) both;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
   }
   .total-top {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 0.85rem;
+    margin-bottom: 14px;
   }
   .total-label {
-    font-size: 0.72rem;
-    font-weight: 700;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    color: rgba(255,255,255,0.7);
+    color: var(--champagne);
   }
   .total-bill-id {
-    font-size: 0.68rem;
-    color: rgba(255,255,255,0.45);
-    margin-top: 0.2rem;
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-top: 4px;
+    letter-spacing: 0.04em;
   }
   .total-status-chip {
-    background: rgba(16,185,129,0.25);
-    border: 1px solid rgba(16,185,129,0.5);
-    color: #6ee7b7;
-    font-size: 0.68rem;
-    font-weight: 700;
-    padding: 0.25rem 0.7rem;
+    border: 1px solid rgba(14, 131, 69, 0.45);
+    background: rgba(14, 131, 69, 0.15);
+    color: #8fd6ad;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 6px 10px;
     border-radius: 999px;
-    letter-spacing: 0.5px;
   }
   .total-amount {
     display: flex;
     align-items: baseline;
-    gap: 0.4rem;
-    margin-bottom: 0.75rem;
+    gap: 8px;
+    margin-bottom: 14px;
   }
   .total-currency {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: rgba(255,255,255,0.7);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
   }
   .total-number {
-    font-size: 2.6rem;
-    font-weight: 900;
-    color: #fff;
-    letter-spacing: -1.5px;
+    font-family: var(--font-display);
+    font-size: 46px;
+    font-weight: 600;
+    color: var(--linen);
+    letter-spacing: 0.01em;
     line-height: 1;
+    font-variant-numeric: tabular-nums;
   }
   .total-note {
-    font-size: 0.71rem;
-    color: rgba(255,255,255,0.5);
+    font-size: 12px;
+    color: var(--text-faint);
     line-height: 1.5;
-    border-top: 1px solid rgba(255,255,255,0.15);
-    padding-top: 0.75rem;
+    border-top: 1px solid rgba(196, 163, 90, 0.2);
+    padding-top: 12px;
   }
 
-  /* ── CTA call button ── */
-  .cta-call {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.6rem;
-    background: rgba(255,255,255,0.07);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 14px;
-    padding: 0.85rem;
-    color: rgba(255,255,255,0.75);
-    font-size: 0.85rem;
-    font-weight: 600;
-    text-decoration: none;
-    transition: background 0.18s ease;
-  }
-  .cta-call:active { background: rgba(255,255,255,0.12); }
-
-  /* ── Call button (no bill) ── */
-  .call-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-top: 1.5rem;
-    background: rgba(255,255,255,0.12);
-    border: 1px solid rgba(255,255,255,0.2);
-    color: #fff;
-    font-size: 0.85rem;
-    font-weight: 600;
-    padding: 0.75rem 1.5rem;
-    border-radius: 999px;
-    text-decoration: none;
-  }
-
-  /* ── No bill ── */
   .no-bill-wrap {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 4rem 1.5rem;
+    padding: 56px 22px 40px;
     text-align: center;
+    animation: fadeRise 0.65s var(--ease) both;
+    min-height: calc(100dvh - 180px);
   }
-  .no-bill-icon { font-size: 4rem; margin-bottom: 1rem; }
-  .no-bill-title { font-size: 1.3rem; font-weight: 800; color: #fff; margin-bottom: 0.5rem; }
-  .no-bill-sub { font-size: 0.85rem; color: rgba(255,255,255,0.55); line-height: 1.6; max-width: 260px; }
+  .no-bill-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: 1px solid var(--champagne-line);
+    color: var(--champagne);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 22px;
+    background: rgba(196, 163, 90, 0.06);
+  }
+  .no-bill-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--champagne);
+    margin-bottom: 10px;
+  }
+  .no-bill-title {
+    font-family: var(--font-display);
+    font-size: 36px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--linen);
+    margin-bottom: 12px;
+  }
+  .no-bill-sub {
+    font-size: 15px;
+    font-weight: 300;
+    color: var(--text-muted);
+    line-height: 1.65;
+    max-width: 290px;
+  }
 
-  /* ── Footer ── */
   .bill-footer {
     text-align: center;
-    padding: 2rem 1.5rem 3rem;
+    padding: 28px 22px 44px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.35rem;
+    gap: 4px;
   }
-  .footer-hotel { font-size: 0.85rem; font-weight: 700; color: rgba(255,255,255,0.6); }
-  .footer-sub { font-size: 0.72rem; color: rgba(255,255,255,0.35); }
-  .footer-tagline { font-size: 0.78rem; color: rgba(255,255,255,0.45); margin-top: 0.5rem; line-height: 1.5; }
+  .footer-hotel {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--linen-soft);
+  }
+  .footer-sub {
+    font-size: 12px;
+    color: var(--text-faint);
+    line-height: 1.45;
+  }
+  .footer-phone {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+  }
+  .footer-phone svg { opacity: 0.65; }
+  .footer-tagline {
+    font-size: 12px;
+    color: var(--text-faint);
+    margin-top: 14px;
+    letter-spacing: 0.04em;
+  }
 
-  /* ── Action button row ── */
-  .cta-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.7rem;
+  .cta-row,
+  .cta-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
   }
-  .cta-row:has(.cta-call-btn:only-child),
-  .cta-row > :only-child {
-    grid-column: 1 / -1;
-  }
+  .cta-stack { max-width: 320px; margin-top: 28px; }
+  .cta-stack-bill { max-width: none; margin-top: 4px; }
+
   .cta-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
-    border-radius: 14px;
-    padding: 0.9rem 0.75rem;
-    font-size: 0.82rem;
-    font-weight: 700;
+    gap: 10px;
+    border-radius: 4px;
+    padding: 14px 18px;
+    min-height: 52px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     cursor: pointer;
     text-decoration: none;
     border: none;
-    transition: transform 0.15s ease, opacity 0.15s ease;
+    transition: transform 0.2s var(--ease), background 0.2s var(--ease), border-color 0.2s var(--ease);
     -webkit-tap-highlight-color: transparent;
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-body);
   }
-  .cta-btn:active { transform: scale(0.96); opacity: 0.85; }
+  .cta-btn:active { transform: scale(0.985); }
 
   .cta-call-btn {
-    background: linear-gradient(135deg, #0891b2, #0e7490);
-    color: #fff;
-    box-shadow: 0 6px 20px rgba(8,145,178,0.35);
+    background: var(--champagne);
+    color: var(--ink);
+    box-shadow: 0 10px 24px rgba(196, 163, 90, 0.18);
   }
+  .cta-call-btn:hover { background: #d4b56a; }
+
   .cta-feedback-btn {
-    background: linear-gradient(135deg, #7c3aed, #6d28d9);
-    color: #fff;
-    box-shadow: 0 6px 20px rgba(124,58,237,0.35);
+    background: transparent;
+    color: var(--linen);
+    border: 1px solid rgba(243, 239, 230, 0.22);
+  }
+  .cta-feedback-btn:hover {
+    border-color: var(--champagne-line);
+    color: var(--champagne);
   }
 
   /* ══════════════════════════════════════
@@ -1203,14 +1415,18 @@ const BASE_CSS = `
   .fb-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.65);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    z-index: 100;
+    width: 100vw;
+    height: 100dvh;
+    background: rgba(6, 10, 18, 0.78);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 9999;
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    animation: fbOverlayIn 0.25s ease;
+    padding: 0;
+    margin: 0;
+    animation: fbOverlayIn 0.25s var(--ease);
   }
   @keyframes fbOverlayIn {
     from { opacity: 0; }
@@ -1219,225 +1435,263 @@ const BASE_CSS = `
 
   .fb-modal {
     position: relative;
-    background: #1a1040;
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 26px 26px 0 0;
-    padding: 1.5rem 1.25rem 2.5rem;
+    background: linear-gradient(180deg, #182338 0%, #101827 100%);
+    border: 1px solid rgba(196, 163, 90, 0.22);
+    border-radius: 20px 20px 0 0;
+    padding: 22px 18px 36px;
     width: 100%;
-    max-width: 480px;
-    animation: fbSlideUp 0.32s cubic-bezier(.34,1.4,.64,1);
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    max-width: 440px;
+    box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.4);
+    animation: fbSlideUp 0.34s var(--ease);
+    font-family: var(--font-body);
+  }
+  .fb-modal::before {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 3px;
+    border-radius: 3px;
+    background: rgba(196, 163, 90, 0.35);
+    margin: 0 auto 18px;
   }
   @keyframes fbSlideUp {
-    from { transform: translateY(100%); opacity: 0; }
+    from { transform: translateY(100%); opacity: 0.85; }
     to   { transform: translateY(0); opacity: 1; }
   }
 
   .fb-close {
     position: absolute;
-    top: 1rem; right: 1rem;
-    background: rgba(255,255,255,0.08);
-    border: none;
+    top: 16px; right: 14px;
+    background: rgba(243, 239, 230, 0.06);
+    border: 1px solid rgba(243, 239, 230, 0.1);
     border-radius: 50%;
-    width: 34px; height: 34px;
+    width: 36px; height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: rgba(255,255,255,0.6);
+    color: var(--text-muted);
     cursor: pointer;
-    transition: background 0.15s;
+    transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
   }
-  .fb-close:hover { background: rgba(255,255,255,0.14); }
+  .fb-close:hover { color: var(--linen); border-color: var(--champagne-line); }
 
   .fb-header {
     display: flex;
     align-items: center;
-    gap: 0.85rem;
-    margin-bottom: 1.25rem;
+    gap: 12px;
+    margin-bottom: 22px;
+    padding-right: 36px;
   }
   .fb-header-icon {
-    font-size: 1.8rem;
-    line-height: 1;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: 1px solid var(--champagne-line);
+    color: var(--champagne);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: rgba(196, 163, 90, 0.08);
   }
   .fb-title {
-    font-size: 1.05rem;
-    font-weight: 800;
-    color: #fff;
-    margin-bottom: 0.15rem;
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--linen);
+    letter-spacing: 0.01em;
+    margin-bottom: 2px;
   }
   .fb-subtitle {
-    font-size: 0.72rem;
-    color: rgba(255,255,255,0.4);
+    font-size: 12px;
+    color: var(--text-faint);
+    letter-spacing: 0.04em;
   }
 
-  /* Stars */
-  .fb-stars-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: rgba(255,255,255,0.5);
+  .fb-stars-label,
+  .fb-chips-label,
+  .fb-msg-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 0.6rem;
+    color: var(--champagne);
+    margin-bottom: 10px;
   }
   .fb-stars {
     display: flex;
-    gap: 0.4rem;
-    margin-bottom: 0.4rem;
+    gap: 2px;
+    margin-bottom: 4px;
   }
   .fb-star {
-    font-size: 2rem;
+    font-size: 30px;
     background: none;
     border: none;
-    color: rgba(255,255,255,0.18);
+    color: rgba(243, 239, 230, 0.16);
     cursor: pointer;
-    transition: color 0.12s ease, transform 0.12s ease;
+    transition: color 0.12s var(--ease), transform 0.12s var(--ease);
     line-height: 1;
-    padding: 0.1rem;
+    padding: 4px;
+    min-width: 44px;
+    min-height: 44px;
     -webkit-tap-highlight-color: transparent;
   }
-  .fb-star.fb-star-on { color: #f59e0b; }
-  .fb-star:active { transform: scale(1.25); }
+  .fb-star.fb-star-on { color: var(--champagne); }
+  .fb-star:active { transform: scale(1.12); }
 
   .fb-rating-label {
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: #f59e0b;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--champagne);
     min-height: 1.2em;
-    margin-bottom: 1rem;
+    margin-bottom: 18px;
   }
-  .fb-rating-hint { color: rgba(255,255,255,0.3); }
+  .fb-rating-hint { color: var(--text-faint); font-weight: 400; }
 
-  /* Chips */
-  .fb-chips-label {
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: rgba(255,255,255,0.4);
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 0.5rem;
-  }
   .fb-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.45rem;
-    margin-bottom: 1rem;
+    gap: 8px;
+    margin-bottom: 18px;
   }
   .fb-chip {
-    background: rgba(255,255,255,0.07);
-    border: 1px solid rgba(255,255,255,0.12);
-    color: rgba(255,255,255,0.6);
-    font-size: 0.75rem;
-    font-weight: 600;
-    padding: 0.35rem 0.8rem;
+    background: rgba(243, 239, 230, 0.04);
+    border: 1px solid rgba(243, 239, 230, 0.12);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 8px 12px;
+    min-height: 36px;
     border-radius: 999px;
     cursor: pointer;
-    transition: all 0.15s ease;
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    transition: all 0.15s var(--ease);
+    font-family: var(--font-body);
   }
   .fb-chip.fb-chip-on {
-    background: rgba(124,58,237,0.35);
-    border-color: #7c3aed;
-    color: #c4b5fd;
+    background: rgba(196, 163, 90, 0.12);
+    border-color: var(--champagne-line);
+    color: var(--champagne);
   }
 
-  /* Textarea */
-  .fb-msg-label {
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: rgba(255,255,255,0.4);
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 0.5rem;
-  }
   .fb-textarea {
     width: 100%;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 12px;
-    color: #fff;
-    font-size: 0.85rem;
-    padding: 0.75rem 0.9rem;
+    background: rgba(243, 239, 230, 0.04);
+    border: 1px solid rgba(243, 239, 230, 0.12);
+    border-radius: 10px;
+    color: var(--linen);
+    font-size: 14px;
+    padding: 12px 14px;
     resize: none;
     outline: none;
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    transition: border-color 0.15s;
-    margin-bottom: 0.25rem;
+    font-family: var(--font-body);
+    transition: border-color 0.15s var(--ease);
+    margin-bottom: 4px;
   }
-  .fb-textarea:focus { border-color: rgba(124,58,237,0.6); }
-  .fb-textarea::placeholder { color: rgba(255,255,255,0.25); }
+  .fb-textarea:focus { border-color: var(--champagne-line); }
+  .fb-textarea::placeholder { color: rgba(243, 239, 230, 0.28); }
 
   .fb-char-count {
-    font-size: 0.68rem;
-    color: rgba(255,255,255,0.25);
+    font-size: 11px;
+    color: var(--text-faint);
     text-align: right;
-    margin-bottom: 1rem;
+    margin-bottom: 18px;
   }
 
-  /* Submit */
   .fb-submit {
     width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.55rem;
-    background: linear-gradient(135deg, #7c3aed, #4f46e5);
-    color: #fff;
-    font-size: 0.92rem;
-    font-weight: 700;
-    padding: 0.9rem;
-    border-radius: 14px;
+    gap: 10px;
+    background: var(--champagne);
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 14px;
+    min-height: 52px;
+    border-radius: 4px;
     border: none;
     cursor: pointer;
-    box-shadow: 0 6px 22px rgba(124,58,237,0.4);
-    transition: opacity 0.15s, transform 0.15s;
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    transition: opacity 0.15s var(--ease), background 0.15s var(--ease);
+    font-family: var(--font-body);
   }
-  .fb-submit:active { transform: scale(0.97); }
-  .fb-submit.fb-submit-disabled { opacity: 0.45; cursor: not-allowed; }
+  .fb-submit:hover { background: #d4b56a; }
+  .fb-submit:active { transform: scale(0.985); }
+  .fb-submit.fb-submit-disabled { opacity: 0.38; cursor: not-allowed; }
 
   .fb-spinner {
-    width: 20px; height: 20px;
-    border: 2.5px solid rgba(255,255,255,0.3);
-    border-top-color: #fff;
+    width: 18px; height: 18px;
+    border: 2px solid rgba(14, 21, 36, 0.25);
+    border-top-color: var(--ink);
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
   }
 
-  /* Thank you */
   .fb-thankyou {
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
-    padding: 1rem 0 0.5rem;
-    gap: 0.75rem;
-    animation: fbFadeIn 0.4s ease;
+    padding: 12px 0 4px;
+    gap: 12px;
+    animation: fbFadeIn 0.4s var(--ease);
   }
   @keyframes fbFadeIn {
-    from { opacity: 0; transform: scale(0.9); }
-    to   { opacity: 1; transform: scale(1); }
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
-  .fb-ty-icon { font-size: 3.5rem; }
-  .fb-ty-title { font-size: 1.4rem; font-weight: 800; color: #fff; }
-  .fb-ty-sub { font-size: 0.85rem; color: rgba(255,255,255,0.55); line-height: 1.6; }
+  .fb-ty-icon {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    border: 1px solid var(--champagne-line);
+    color: var(--champagne);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(196, 163, 90, 0.08);
+  }
+  .fb-ty-title {
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 600;
+    color: var(--linen);
+  }
+  .fb-ty-sub {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    font-weight: 300;
+  }
   .fb-done-btn {
-    margin-top: 0.5rem;
-    background: rgba(255,255,255,0.1);
-    border: 1px solid rgba(255,255,255,0.18);
-    color: #fff;
-    font-size: 0.88rem;
-    font-weight: 700;
-    padding: 0.65rem 2rem;
-    border-radius: 999px;
+    margin-top: 6px;
+    background: var(--champagne);
+    border: none;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 14px 28px;
+    min-height: 48px;
+    border-radius: 4px;
     cursor: pointer;
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-body);
   }
 
-  /* ── Responsive tweaks ── */
   @media (min-width: 480px) {
-    .welcome-name { font-size: 2.6rem; }
-    .total-number { font-size: 3rem; }
-    .bill-body { padding: 1.25rem 1.25rem 2.5rem; }
-    .fb-modal { border-radius: 26px; margin-bottom: 1rem; }
+    .welcome-name { font-size: 56px; }
+    .total-number { font-size: 52px; }
+    .bill-body { padding: 22px 22px 36px; gap: 16px; }
+    .fb-modal {
+      border-radius: 18px;
+      margin-bottom: 18px;
+    }
+    .fb-overlay {
+      align-items: center;
+      padding: 24px;
+    }
   }
 `;
