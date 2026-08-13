@@ -426,23 +426,43 @@ export const Reports: React.FC = () => {
   };
 
   const exportCashbookCSV = () => {
-    const headers = ['Date', 'Credits In (Rs.)', 'Debits Out (Rs.)', 'Net Balance (Rs.)', 'Invoices', 'Expenses'];
-    const rows = cashbookDaysFiltered.map(day => [
-      day.date,
-      day.inflow,
-      day.outflow,
-      day.balance,
-      day.bills.length,
-      day.expenses.length
-    ]);
+    const headers = ['Date', 'Type', 'Description', 'Amount (Rs.)', 'Net Balance (Rs.)'];
 
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Chronological_Cash_Register_${cashbookMonth || 'all'}.csv`);
+    const rows: Array<Array<string | number>> = [];
+
+    cashbookDaysFiltered.forEach((day) => {
+      const date = day.date || '';
+
+      // Summary row for the day
+      rows.push([
+        date,
+        'Summary',
+        `Invoices: ${day.bills?.length || 0} | Expenses: ${day.expenses?.length || 0}`,
+        (day.inflow || 0) - (day.outflow || 0),
+        day.balance ?? ''
+      ]);
+
+      // Individual invoices (credits)
+      (day.bills || []).forEach((b: any) => {
+        const desc = `Invoice #${b.id}${b.guestDetails?.name ? ` - ${b.guestDetails.name}` : ''}`;
+        rows.push([date, 'Invoice', desc, b.totalAmount || 0, '']);
+      });
+
+      // Individual expenses (debits)
+      (day.expenses || []).forEach((e: any) => {
+        const desc = e.description || e.note || e.title || `Expense ${e.id || ''}`;
+        rows.push([date, 'Expense', desc, -(e.amount || 0), '']);
+      });
+    });
+
+    // Escape and join CSV lines (wrap fields in quotes and escape inner quotes)
+    const escapeField = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csvLines = [headers.join(','), ...rows.map(r => r.map(escapeField).join(','))].join('\n');
+    const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvLines);
+
+    const link = document.createElement('a');
+    link.setAttribute('href', csvContent);
+    link.setAttribute('download', `Chronological_Cash_Register_${cashbookMonth || 'all'}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
