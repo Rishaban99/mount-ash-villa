@@ -1393,8 +1393,11 @@ export const Billing: React.FC<BillingProps> = ({
                           required
                           disabled={savingBill}
                           value={newGuestName}
-                          onChange={(e) => setNewGuestName(e.target.value)}
-                          placeholder="e.g. David Tennant"
+                          onChange={(e) => {
+                                const value = e.target.value.replace(/[^a-zA-Z\s]/g, "");
+                            setNewGuestName(value);
+                             }}
+                          placeholder="e.g. manoj"
                           className="w-full px-3 py-2 text-xs bg-slate-50/50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
                         />
                       </div>
@@ -1407,7 +1410,13 @@ export const Billing: React.FC<BillingProps> = ({
                           required
                           disabled={savingBill}
                           value={newGuestNic}
-                          onChange={(e) => setNewGuestNic(e.target.value)}
+                          onChange={(e) => {
+                          const value = e.target.value
+                             .replace(/[^0-9VvXx]/g, "")
+                              .toUpperCase();
+
+                               setNewGuestNic(value);
+                            }}
                           placeholder="e.g. 1993049102V"
                           className="w-full px-3 py-2 text-xs bg-slate-50/50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500 font-mono"
                         />
