@@ -34,12 +34,19 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
   const [settings, setSettings] = useState<any>(null);
 
   // Customized Interactive States (the "current" dynamic features)
-  const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'Bank Transfer'>('Cash');
+  const isDueLater = bill.status === 'DueLater';
+  const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'Bank Transfer' | 'Due Later'>(
+    bill.status === 'DueLater' ? 'Due Later' : 'Cash'
+  );
   const [overrideCurrency, setOverrideCurrency] = useState<string>('');
   const [localPaperWidth, setLocalPaperWidth] = useState<'58mm' | '80mm' | 'A4'>('80mm');
   const [localShowLogo, setLocalShowLogo] = useState<boolean>(true);
   const [localShowTax, setLocalShowTax] = useState<boolean>(true);
   const [printLogs, setPrintLogs] = useState<any[]>([]);
+
+  useEffect(() => {
+    setPaymentMethod(bill.status === 'DueLater' ? 'Due Later' : 'Cash');
+  }, [bill.id, bill.status]);
 
   useEffect(() => {
     if (bill?.id) {
@@ -155,7 +162,7 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
         printWindow.document.write(`
           <html>
             <head>
-              <title>Hotel Receipt - ${bill.id}</title>
+              <title>${isDueLater ? 'Balance Due' : 'Hotel Receipt'} - ${bill.id}</title>
               <style>
                 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600;700;900&display=swap');
                 @page {
@@ -207,7 +214,7 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
     printWindow.document.write(`
       <html>
         <head>
-          <title>Hotel Receipt - ${bill.id}</title>
+          <title>${isDueLater ? 'Balance Due' : 'Hotel Receipt'} - ${bill.id}</title>
           <style>
             @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600;700;900&display=swap');
             body {
@@ -284,25 +291,31 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
             {/* Payment Method Selector */}
             <div className="space-y-1.5">
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Payment Settlement Mode</label>
-              <div className="grid grid-cols-3 gap-1">
-                {(['Cash', 'Card', 'Bank Transfer'] as const).map((method) => {
-                  const isActive = paymentMethod === method;
-                  return (
-                    <button
-                      key={method}
-                      type="button"
-                      onClick={() => setPaymentMethod(method)}
-                      className={`py-2 px-1 text-[10px] font-bold rounded-xl border transition-all text-center border-0 cursor-pointer ${
-                        isActive 
-                          ? 'bg-indigo-600 text-white shadow-xs' 
-                          : 'bg-slate-50 hover:bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {method}
-                    </button>
-                  );
-                })}
-              </div>
+              {isDueLater ? (
+                <div className="py-2 px-3 text-[10px] font-bold rounded-xl bg-amber-50 text-amber-800 border border-amber-200 text-center uppercase tracking-wider">
+                  Due Later — Balance Outstanding
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-1">
+                  {(['Cash', 'Card', 'Bank Transfer'] as const).map((method) => {
+                    const isActive = paymentMethod === method;
+                    return (
+                      <button
+                        key={method}
+                        type="button"
+                        onClick={() => setPaymentMethod(method)}
+                        className={`py-2 px-1 text-[10px] font-bold rounded-xl border transition-all text-center border-0 cursor-pointer ${
+                          isActive 
+                            ? 'bg-indigo-600 text-white shadow-xs' 
+                            : 'bg-slate-50 hover:bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {method}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Currency Customizer Feature */}
@@ -483,6 +496,13 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
 
               <div className="border-b border-dashed border-slate-400 my-3" />
 
+              {isDueLater && (
+                <div className="text-center mb-2">
+                  <p className="text-sm font-black uppercase tracking-widest">Balance Due</p>
+                  <p className="text-[9px] text-slate-600">To be settled later — not a paid receipt</p>
+                </div>
+              )}
+
               {/* Billing Metadata */}
               <div className="space-y-0.5 text-[10px] leading-relaxed">
                 <div className="flex justify-between">
@@ -618,16 +638,27 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
                 
 
                 <div className="border-t border-dotted border-slate-400 pt-1.5 flex justify-between text-[20px] font-bold text-slate-950 mt-1.5">
-                  <span className="tracking-tight">TOTAL</span>
+                  <span className="tracking-tight">{isDueLater ? 'AMOUNT DUE' : 'TOTAL'}</span>
                   <span className="font-black">{activeCurrency} {bill.totalAmount.toLocaleString()}</span>
                 </div>
               </div>
+
+              {isDueLater && bill.dueLaterNote && (
+                <div className="mt-2 text-[9px] text-slate-700">
+                  <span className="font-bold uppercase">Note: </span>
+                  {bill.dueLaterNote}
+                </div>
+              )}
 
               <div className="border-b border-dashed border-slate-400 my-3" />
 
               {/* Receipt Footer Message */}
               <div className="text-center text-[10px] text-slate-600 space-y-1">
-                <p className="font-bold whitespace-pre-wrap">{s.receiptFooterMessage}</p>
+                <p className="font-bold whitespace-pre-wrap">
+                  {isDueLater
+                    ? 'Balance remains outstanding. Please settle with the front desk at your earliest convenience.'
+                    : s.receiptFooterMessage}
+                </p>
               </div>
 
             </div>

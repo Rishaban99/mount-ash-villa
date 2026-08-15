@@ -35,6 +35,7 @@ import {
   Save,
   TrendingUp,
   History,
+  Handshake,
 } from "lucide-react";
 import { Guests } from "@/components/Guests";
 import { LoadingButton } from "@/components/loading-button";
@@ -100,6 +101,7 @@ export const Billing: React.FC<BillingProps> = ({
   const [savingBill, setSavingBill] = useState(false);
   const [foodSearchQuery, setFoodSearchQuery] = useState("");
   const [applyServiceCharge, setApplyServiceCharge] = useState(true);
+  const [dueLaterNote, setDueLaterNote] = useState("");
 
   // Sorting State
   const [sortField, setSortField] = useState<'default' | 'date' | 'name' | 'amount' | 'status'>('default');
@@ -121,6 +123,11 @@ export const Billing: React.FC<BillingProps> = ({
     hasPermission(currentUser.role, 'allowReceptionistModifyPrice', settings);
 
   const displayRooms = useMemo(() => dedupeRoomsByNumber(rooms), [rooms]);
+  const currentTerminalBill = terminalBillId
+    ? bills.find((b) => b.id === terminalBillId)
+    : undefined;
+  const isDueLaterFolio = currentTerminalBill?.status === "DueLater";
+  const folioLocked = savingBill || isDueLaterFolio;
 
   useEffect(() => {
     fetchBills();
@@ -191,6 +198,7 @@ export const Billing: React.FC<BillingProps> = ({
       new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split("T")[0],
     );
     setCustomerInputMode("new");
+    setDueLaterNote("");
 
     setIsTerminalActive(true);
   };
@@ -224,11 +232,13 @@ export const Billing: React.FC<BillingProps> = ({
     setNewGuestCheckOut(bill.guestDetails.checkOutDate.split("T")[0]);
     setCustomerInputMode("existing");
     setApplyServiceCharge(bill.foodSubtotal > 0 ? bill.serviceCharge > 0 : true);
+    setDueLaterNote(bill.dueLaterNote || "");
     setIsTerminalActive(true);
   };
 
   // Quick action tap triggers
   const handleQuickTapRoom = (room: Room) => {
+    if (isDueLaterFolio) return;
     const existingIndex = selectedRooms.findIndex(
       (ri) => ri.roomId === room.id || ri.roomNumber === room.roomNumber,
     );
@@ -253,6 +263,7 @@ export const Billing: React.FC<BillingProps> = ({
   };
 
   const handleQuickTapFood = (food: Food) => {
+    if (isDueLaterFolio) return;
     const existingIndex = selectedFoods.findIndex(
       (fi) => fi.foodId === food.id,
     );
@@ -274,6 +285,7 @@ export const Billing: React.FC<BillingProps> = ({
   };
 
   const handleAddRoom = () => {
+    if (isDueLaterFolio) return;
     if (!addRoomId) return;
     const room = rooms.find((r) => r.id === addRoomId);
     if (!room) return;
@@ -318,10 +330,12 @@ export const Billing: React.FC<BillingProps> = ({
   };
 
   const handleRemoveRoom = (roomId: string) => {
+    if (isDueLaterFolio) return;
     setSelectedRooms(selectedRooms.filter((ri) => ri.roomId !== roomId));
   };
 
   const handleAddFood = () => {
+    if (isDueLaterFolio) return;
     if (!addFoodId) return;
     const food = foods.find((f) => f.id === addFoodId);
     if (!food) return;
@@ -346,6 +360,7 @@ export const Billing: React.FC<BillingProps> = ({
   };
 
   const updateFoodQty = (foodId: string, delta: number) => {
+    if (isDueLaterFolio) return;
     const updated = selectedFoods.map((fi) => {
       if (fi.foodId === foodId) {
         return { ...fi, quantity: Math.max(1, fi.quantity + delta) };
@@ -356,6 +371,7 @@ export const Billing: React.FC<BillingProps> = ({
   };
 
   const handleRemoveFood = (foodId: string) => {
+    if (isDueLaterFolio) return;
     setSelectedFoods(selectedFoods.filter((fi) => fi.foodId !== foodId));
   };
 
@@ -444,6 +460,7 @@ export const Billing: React.FC<BillingProps> = ({
         foodItems: selectedFoods,
         applyServiceCharge,
         status,
+        dueLaterNote: dueLaterNote.trim() || undefined,
       };
 
       const res = await apiFetch("/api/bills", {
@@ -469,7 +486,7 @@ export const Billing: React.FC<BillingProps> = ({
       await fetchRooms();
       setIsTerminalActive(false);
 
-      if (status === "Completed") {
+      if (status === "Completed" || status === "DueLater") {
         onShowReceipt(savedBill);
       }
     } catch (e: any) {
@@ -491,7 +508,9 @@ export const Billing: React.FC<BillingProps> = ({
       .sort((a, b) => {
         if (sortField === 'default') {
           if (a.status !== b.status) {
-            return a.status === "Active" ? -1 : 1;
+            const rank = (s: BillStatus) =>
+              s === "Active" ? 0 : s === "DueLater" ? 1 : 2;
+            return rank(a.status) - rank(b.status);
           }
           const timeA = new Date(a.updatedAt || a.createdAt).getTime();
           const timeB = new Date(b.updatedAt || b.createdAt).getTime();
@@ -536,10 +555,11 @@ export const Billing: React.FC<BillingProps> = ({
 
   // Calculate live statistics for top indicators
   const totalActiveBills = bills.filter((b) => b.status === "Active").length;
+  const totalDueLaterBills = bills.filter((b) => b.status === "DueLater").length;
   const totalCompletedBills = bills.filter((b) => b.status === "Completed").length;
   
   const totalOutstandingLedger = bills
-    .filter((b) => b.status === "Active")
+    .filter((b) => b.status === "Active" || b.status === "DueLater")
     .reduce((sum, b) => sum + (b.totalAmount || 0), 0);
 
   const totalSettledTurnover = bills
@@ -680,7 +700,7 @@ export const Billing: React.FC<BillingProps> = ({
                 </p>
               </div>
               <div className="bg-indigo-500/10 text-indigo-800 text-[11px] font-bold px-2.5 py-1 rounded-lg">
-                Unbilled Flow
+                {totalDueLaterBills} Due Later
               </div>
             </div>
 
@@ -742,6 +762,21 @@ export const Billing: React.FC<BillingProps> = ({
                     <span>Active Ledger</span>
                     <span className="bg-black/10 text-[9px] px-1.5 py-0.5 rounded-full font-mono">
                       {totalActiveBills}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setListStatus("DueLater")}
+                    className={`py-1.5 px-3.5 rounded-lg text-xs font-semibold tracking-wide transition-all border-0 cursor-pointer flex items-center gap-1.5 ${
+                      listStatus === "DueLater"
+                        ? "bg-amber-600 text-white shadow-xs"
+                        : "bg-slate-50 hover:bg-slate-100 text-slate-650"
+                    }`}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    <span>Due Later</span>
+                    <span className="bg-black/10 text-[9px] px-1.5 py-0.5 rounded-full font-mono">
+                      {totalDueLaterBills}
                     </span>
                   </button>
 
@@ -819,11 +854,12 @@ export const Billing: React.FC<BillingProps> = ({
                         <tbody className="divide-y divide-slate-50 text-slate-700">
                           {paginatedBills.map((bill) => {
                             const isCompleted = bill.status === "Completed";
+                            const isDueLater = bill.status === "DueLater";
                             return (
                               <tr
                                 key={bill.id}
                                 className={`hover:bg-slate-50/50 transition-colors ${
-                                  !isCompleted ? "bg-emerald-50/5" : ""
+                                  isDueLater ? "bg-amber-50/20" : !isCompleted ? "bg-emerald-50/5" : ""
                                 }`}
                               >
                                 <td className="py-4 px-4">
@@ -839,7 +875,11 @@ export const Billing: React.FC<BillingProps> = ({
                                 <td className="py-4 px-4">
                                   <div className="flex items-center gap-3">
                                     <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs ${
-                                      isCompleted ? "bg-slate-100 text-slate-600" : "bg-emerald-100 text-emerald-800"
+                                      isDueLater
+                                        ? "bg-amber-100 text-amber-800"
+                                        : isCompleted
+                                          ? "bg-slate-100 text-slate-600"
+                                          : "bg-emerald-100 text-emerald-800"
                                     }`}>
                                       {getGuestInitials(bill.guestDetails.name)}
                                     </div>
@@ -879,7 +919,12 @@ export const Billing: React.FC<BillingProps> = ({
                                 </td>
 
                                 <td className="py-4 px-4">
-                                  {!isCompleted ? (
+                                  {isDueLater ? (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold gap-1 bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs">
+                                      <Handshake className="h-3 w-3 text-amber-600" />
+                                      DUE LATER
+                                    </span>
+                                  ) : !isCompleted ? (
                                     <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
                                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                       LIVE STAY
@@ -898,7 +943,7 @@ export const Billing: React.FC<BillingProps> = ({
                                       onClick={() => handleResumeBill(bill)}
                                       className="py-1.5 px-3 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-lg text-xs font-bold transition-all shadow-2xs border-0 cursor-pointer"
                                     >
-                                      View / Settle
+                                      {isDueLater ? "Record Settlement" : "View / Settle"}
                                     </button>
                                   ) : (
                                     <button
@@ -989,18 +1034,28 @@ export const Billing: React.FC<BillingProps> = ({
                   <div className="block md:hidden space-y-3">
                     {paginatedBills.map((bill) => {
                       const isCompleted = bill.status === "Completed";
+                      const isDueLater = bill.status === "DueLater";
                       return (
                         <div
                           key={bill.id}
                           className={`bg-white p-4 rounded-xl border shadow-2xs space-y-3 transition-colors ${
-                            !isCompleted ? "border-emerald-100 bg-emerald-50/5" : "border-slate-150"
+                            isDueLater
+                              ? "border-amber-100 bg-amber-50/10"
+                              : !isCompleted
+                                ? "border-emerald-100 bg-emerald-50/5"
+                                : "border-slate-150"
                           }`}
                         >
                           <div className="flex items-center justify-between">
                             <span className="font-mono text-xs text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md">
                               #{bill.id.substring(0, 12).toUpperCase()}
                             </span>
-                            {!isCompleted ? (
+                            {isDueLater ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold gap-1 bg-amber-50 text-amber-800 border border-amber-200">
+                                <Handshake className="h-3 w-3 text-amber-600" />
+                                DUE LATER
+                              </span>
+                            ) : !isCompleted ? (
                               <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold gap-1 bg-emerald-50 text-emerald-750 border border-emerald-200">
                                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                 LIVE STAY
@@ -1015,7 +1070,11 @@ export const Billing: React.FC<BillingProps> = ({
 
                           <div className="flex items-start gap-3">
                             <div className={`h-9 w-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
-                              isCompleted ? "bg-slate-100 text-slate-600" : "bg-emerald-100 text-emerald-805"
+                              isDueLater
+                                ? "bg-amber-100 text-amber-800"
+                                : isCompleted
+                                  ? "bg-slate-100 text-slate-600"
+                                  : "bg-emerald-100 text-emerald-805"
                             }`}>
                               {getGuestInitials(bill.guestDetails.name)}
                             </div>
@@ -1061,7 +1120,7 @@ export const Billing: React.FC<BillingProps> = ({
                                 onClick={() => handleResumeBill(bill)}
                                 className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all border-0 shadow-2xs cursor-pointer flex items-center justify-center"
                               >
-                                View / Settle Bill
+                                {isDueLater ? "Record Settlement" : "View / Settle Bill"}
                               </button>
                             ) : (
                               <button
@@ -1331,9 +1390,11 @@ export const Billing: React.FC<BillingProps> = ({
                   Reception POS Express Terminal
                 </h1>
                 <p className="text-[11px] text-slate-400">
-                  {terminalBillId
-                    ? "Modifying Registered Bill"
-                    : "New High-Density Stay Entry Sheet"}
+                  {isDueLaterFolio
+                    ? "Trust checkout — folio locked until settlement"
+                    : terminalBillId
+                      ? "Modifying Registered Bill"
+                      : "New High-Density Stay Entry Sheet"}
                 </p>
               </div>
             </div>
@@ -1346,7 +1407,7 @@ export const Billing: React.FC<BillingProps> = ({
                 <button
                   type="button"
                   onClick={() => setCustomerInputMode("new")}
-                  disabled={savingBill}
+                  disabled={folioLocked}
                   className={`px-3 py-1 text-xs font-bold rounded-md transition-all disabled:opacity-50 ${
                     customerInputMode === "new"
                       ? "bg-white text-indigo-600 shadow-xs"
@@ -1358,7 +1419,7 @@ export const Billing: React.FC<BillingProps> = ({
                 <button
                   type="button"
                   onClick={() => setCustomerInputMode("existing")}
-                  disabled={savingBill}
+                  disabled={folioLocked}
                   className={`px-3 py-1 text-xs font-bold rounded-md transition-all disabled:opacity-50 ${
                     customerInputMode === "existing"
                       ? "bg-white text-indigo-600 shadow-xs"
@@ -1391,7 +1452,7 @@ export const Billing: React.FC<BillingProps> = ({
                         <input
                           type="text"
                           required
-                          disabled={savingBill}
+                          disabled={folioLocked}
                           value={newGuestName}
                           onChange={(e) => {
                                 const value = e.target.value.replace(/[^a-zA-Z\s]/g, "");
@@ -1408,7 +1469,7 @@ export const Billing: React.FC<BillingProps> = ({
                         <input
                           type="text"
                           required
-                          disabled={savingBill}
+                          disabled={folioLocked}
                           value={newGuestNic}
                           onChange={(e) => {
                           const value = e.target.value
@@ -1430,7 +1491,7 @@ export const Billing: React.FC<BillingProps> = ({
                         </label>
                         <input
                           type="date"
-                          disabled={savingBill}
+                          disabled={folioLocked}
                           value={newGuestCheckIn}
                           onChange={(e) => setNewGuestCheckIn(e.target.value)}
                           className="w-full px-3 py-2 text-xs bg-slate-50/50 border border-slate-200 rounded-lg font-mono"
@@ -1448,7 +1509,7 @@ export const Billing: React.FC<BillingProps> = ({
                       {!selectedGuest && (
                         <button
                           onClick={() => setIsSelectingGuest(!isSelectingGuest)}
-                          disabled={savingBill}
+                          disabled={folioLocked}
                           className="text-xs font-bold text-indigo-600 hover:underline disabled:opacity-50"
                         >
                           {isSelectingGuest
@@ -1484,7 +1545,7 @@ export const Billing: React.FC<BillingProps> = ({
                         <button
                           type="button"
                           onClick={() => setSelectedGuest(null)}
-                          disabled={savingBill}
+                          disabled={folioLocked}
                           className="text-xs text-rose-500 hover:font-bold hover:underline font-semibold disabled:opacity-50"
                         >
                           De-allocate
@@ -1498,7 +1559,7 @@ export const Billing: React.FC<BillingProps> = ({
                         <button
                           type="button"
                           onClick={() => setIsSelectingGuest(true)}
-                          disabled={savingBill}
+                          disabled={folioLocked}
                           className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] uppercase rounded-md shadow-xs disabled:opacity-50"
                         >
                           Search guest database
@@ -1516,7 +1577,7 @@ export const Billing: React.FC<BillingProps> = ({
                         type="checkbox"
                         checked={applyServiceCharge}
                         onChange={(e) => setApplyServiceCharge(e.target.checked)}
-                        disabled={savingBill}
+                        disabled={folioLocked}
                         className="form-checkbox h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded cursor-pointer"
                       />
                       <span>Services Charge</span>
@@ -1536,7 +1597,7 @@ export const Billing: React.FC<BillingProps> = ({
                       <button
                         type="button"
                         onClick={() => setQuickTapsTab("rooms")}
-                        disabled={savingBill}
+                        disabled={folioLocked}
                         className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all border-0 cursor-pointer disabled:opacity-50 ${
                           quickTapsTab === "rooms"
                             ? "bg-indigo-600 text-white font-extrabold"
@@ -1548,7 +1609,7 @@ export const Billing: React.FC<BillingProps> = ({
                       <button
                         type="button"
                         onClick={() => setQuickTapsTab("food")}
-                        disabled={savingBill}
+                        disabled={folioLocked}
                         className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all border-0 cursor-pointer disabled:opacity-50 ${
                           quickTapsTab === "food"
                             ? "bg-indigo-600 text-white font-extrabold"
@@ -1583,7 +1644,7 @@ export const Billing: React.FC<BillingProps> = ({
                                     ? "bg-slate-850/50 text-slate-600 line-through opacity-30 cursor-not-allowed"
                                     : "bg-slate-800 hover:bg-slate-755 text-emerald-400 border border-emerald-950/20"
                               }`}
-                              disabled={savingBill || (isOccupied && !isAllocated)}
+                              disabled={folioLocked || (isOccupied && !isAllocated)}
                             >
                               <span className={`text-xs font-black block ${
                                 isAllocated ? "text-white" : "text-emerald-300"
@@ -1613,7 +1674,7 @@ export const Billing: React.FC<BillingProps> = ({
                           value={foodSearchQuery}
                           onChange={(e) => setFoodSearchQuery(e.target.value)}
                           placeholder="Search by food name or category..."
-                          disabled={savingBill}
+                          disabled={folioLocked}
                           className="w-full px-3 py-2 text-xs bg-slate-50/50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500 font-mono"
                         />
 
@@ -1627,7 +1688,7 @@ export const Billing: React.FC<BillingProps> = ({
                             key={cat}
                             type="button"
                             onClick={() => setSelectedFoodCategory(cat)}
-                            disabled={savingBill}
+                            disabled={folioLocked}
                             className={`px-3 py-1 text-[9.5px] uppercase font-bold tracking-wider rounded-lg transition-all border-0 cursor-pointer disabled:opacity-50 ${
                               selectedFoodCategory === cat
                                 ? "bg-amber-600 text-white shadow-xs font-extrabold"
@@ -1659,7 +1720,7 @@ export const Billing: React.FC<BillingProps> = ({
                                 key={f.id}
                                 type="button"
                                 onClick={() => handleQuickTapFood(f)}
-                                disabled={savingBill}
+                                disabled={folioLocked}
                                 className={`p-2.5 rounded-xl text-left transition-all border border-transparent relative flex flex-col justify-between h-14 cursor-pointer disabled:opacity-50 ${
                                   countSelected > 0
                                     ? "bg-amber-600 text-white shadow-md scale-[1.01]"
@@ -1727,11 +1788,13 @@ export const Billing: React.FC<BillingProps> = ({
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-bold text-slate-500 uppercase">Status</span>
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                currentBill.status === 'Active' 
-                                  ? 'bg-emerald-100 text-emerald-700' 
-                                  : 'bg-slate-200 text-slate-700'
+                                currentBill.status === 'Active'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : currentBill.status === 'DueLater'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-slate-200 text-slate-700'
                               }`}>
-                                {currentBill.status}
+                                {currentBill.status === 'DueLater' ? 'Due Later' : currentBill.status}
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-[10px]">
@@ -1783,13 +1846,13 @@ export const Billing: React.FC<BillingProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleRemoveRoom(rm.roomId)}
-                                disabled={savingBill || !canDeleteBill}
+                                disabled={folioLocked || !canDeleteBill}
                                 className={`text-slate-400 hover:text-red-600 transition-colors bg-transparent border-0 cursor-pointer p-1 disabled:opacity-50 ${
-                                  !canDeleteBill
+                                  !canDeleteBill || isDueLaterFolio
                                     ? "opacity-30 cursor-not-allowed"
                                     : ""
                                 }`}
-                                title={!canDeleteBill ? "Deletion restricted by Administrator" : "Delete Room stay"}
+                                title={isDueLaterFolio ? "Folio locked after trust checkout" : !canDeleteBill ? "Deletion restricted by Administrator" : "Delete Room stay"}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
@@ -1806,7 +1869,7 @@ export const Billing: React.FC<BillingProps> = ({
                                   value={rm.discount || 0}
                                   min="0"
                                   placeholder="0"
-                                  disabled={savingBill || !canApplyDiscount}
+                                  disabled={folioLocked || !canApplyDiscount}
                                   title={!canApplyDiscount ? "Discounts disabled by Admin configuration" : "Set room discount"}
                                   className={`w-14 text-center text-[10px] font-bold bg-blue-50 text-rose-600 border border-blue-200 rounded p-0.5 focus:outline-hidden ${
                                     !canApplyDiscount
@@ -1814,7 +1877,7 @@ export const Billing: React.FC<BillingProps> = ({
                                       : ""
                                   }`}
                                   onChange={(e) => {
-                                    if (!canApplyDiscount) return;
+                                    if (isDueLaterFolio || !canApplyDiscount) return;
                                     const discVal = Number(e.target.value) || 0;
                                     const updated = selectedRooms.map((sr: any) => {
                                       if (sr.roomId === rm.roomId) {
@@ -1881,7 +1944,7 @@ export const Billing: React.FC<BillingProps> = ({
                               <button
                                 type="button"
                                 onClick={() => updateFoodQty(fd.foodId, -1)}
-                                disabled={savingBill}
+                                disabled={folioLocked}
                                 className="px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:text-slate-900 hover:bg-amber-100 transition-colors bg-transparent border-0 cursor-pointer disabled:opacity-50"
                               >
                                 -
@@ -1892,7 +1955,7 @@ export const Billing: React.FC<BillingProps> = ({
                               <button
                                 type="button"
                                 onClick={() => updateFoodQty(fd.foodId, 1)}
-                                disabled={savingBill}
+                                disabled={folioLocked}
                                 className="px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:text-slate-900 hover:bg-amber-100 transition-colors bg-transparent border-0 cursor-pointer disabled:opacity-50"
                               >
                                 +
@@ -1907,13 +1970,13 @@ export const Billing: React.FC<BillingProps> = ({
                             <button
                               type="button"
                               onClick={() => handleRemoveFood(fd.foodId)}
-                              disabled={savingBill || !canDeleteBill}
+                              disabled={folioLocked || !canDeleteBill}
                               className={`text-slate-400 hover:text-red-600 transition-colors bg-transparent border-0 cursor-pointer p-1 disabled:opacity-50 ${
-                                !canDeleteBill
+                                !canDeleteBill || isDueLaterFolio
                                   ? "opacity-30 cursor-not-allowed"
                                   : ""
                               }`}
-                              title={!canDeleteBill ? "Deletion restricted by Administrator" : "Delete food item"}
+                              title={isDueLaterFolio ? "Folio locked after trust checkout" : !canDeleteBill ? "Deletion restricted by Administrator" : "Delete food item"}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
@@ -1993,31 +2056,84 @@ export const Billing: React.FC<BillingProps> = ({
                 {((customerInputMode === "new" && newGuestName.trim() && newGuestNic.trim()) ||
                   (customerInputMode === "existing" && selectedGuest)) ? (
                   <div className="space-y-2 pt-3 border-t border-slate-100">
-                    
-                    
-                    <LoadingButton
-                      type="button"
-                      onClick={() => handleSaveBill("Active")}
-                      loading={savingBill}
-                      loadingLabel="Saving..."
-                      className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg uppercase tracking-widest flex items-center justify-center gap-2 transition-all cursor-pointer border-0"
-                    >
-                      <Clock className="h-4 w-4" />
-                      Make Active Check-Stay
-                    </LoadingButton>
+                    {isDueLaterFolio ? (
+                      <>
+                        <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-100 text-[11px] text-amber-800 font-semibold">
+                          Guest checked out on trust. Rooms are free. Record settlement when payment is received.
+                        </div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase">
+                          Trust note (optional)
+                        </label>
+                        <textarea
+                          value={dueLaterNote}
+                          onChange={(e) => setDueLaterNote(e.target.value)}
+                          disabled={savingBill}
+                          rows={2}
+                          placeholder="Who authorized, promised date, or other note"
+                          className="w-full px-3 py-2 text-xs bg-slate-50/50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-amber-500"
+                        />
+                        <LoadingButton
+                          type="button"
+                          onClick={() => handleSaveBill("Completed")}
+                          loading={savingBill}
+                          loadingLabel="Saving..."
+                          className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] rounded-lg uppercase tracking-widest flex items-center justify-center gap-2 transition-all cursor-pointer border-0"
+                        >
+                          <Printer className="h-4 w-4" />
+                          Record Settlement & Print
+                        </LoadingButton>
+                      </>
+                    ) : (
+                      <>
+                        <LoadingButton
+                          type="button"
+                          onClick={() => handleSaveBill("Active")}
+                          loading={savingBill}
+                          loadingLabel="Saving..."
+                          className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg uppercase tracking-widest flex items-center justify-center gap-2 transition-all cursor-pointer border-0"
+                        >
+                          <Clock className="h-4 w-4" />
+                          Make Active Check-Stay
+                        </LoadingButton>
 
+                        <LoadingButton
+                          type="button"
+                          onClick={() => handleSaveBill("Completed")}
+                          loading={savingBill}
+                          loadingLabel="Saving..."
+                          className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] rounded-lg uppercase tracking-widest flex items-center justify-center gap-2 transition-all cursor-pointer border-0"
+                        >
+                          <Printer className="h-4 w-4" />
+                          Complete Stay & Print Bill
+                        </LoadingButton>
 
-
-                    <LoadingButton
-                      type="button"
-                      onClick={() => handleSaveBill("Completed")}
-                      loading={savingBill}
-                      loadingLabel="Saving..."
-                      className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] rounded-lg uppercase tracking-widest flex items-center justify-center gap-2 transition-all cursor-pointer border-0"
-                    >
-                      <Printer className="h-4 w-4" />
-                      Complete Stay & Print Bill
-                    </LoadingButton>
+                        {terminalBillId && (
+                          <>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase pt-1">
+                              Trust note (optional)
+                            </label>
+                            <textarea
+                              value={dueLaterNote}
+                              onChange={(e) => setDueLaterNote(e.target.value)}
+                              disabled={savingBill}
+                              rows={2}
+                              placeholder="Who authorized, promised date, or other note"
+                              className="w-full px-3 py-2 text-xs bg-slate-50/50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-amber-500"
+                            />
+                            <LoadingButton
+                              type="button"
+                              onClick={() => handleSaveBill("DueLater")}
+                              loading={savingBill}
+                              loadingLabel="Saving..."
+                              className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] rounded-lg uppercase tracking-widest flex items-center justify-center gap-2 transition-all cursor-pointer border-0"
+                            >
+                              <Handshake className="h-4 w-4" />
+                              Checkout on Trust
+                            </LoadingButton>
+                          </>
+                        )}
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="pt-3 border-t border-slate-100 text-center">

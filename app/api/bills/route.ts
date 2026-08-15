@@ -60,8 +60,26 @@ export async function POST(request: Request) {
       return errorResponse('Guest details are required for creating a bill', 400);
     }
 
-    const foodItems = billData.foodItems || [];
-    const roomItems: RoomItem[] = billData.roomItems || [];
+    let foodItems = billData.foodItems || [];
+    let roomItems: RoomItem[] = billData.roomItems || [];
+    const requestedStatus = billData.status || 'Active';
+
+    const bills = await getBills();
+    const existingBill = billData.id ? bills.find((b) => b.id === billData.id) : undefined;
+
+    if (!existingBill && requestedStatus === 'DueLater') {
+      return errorResponse('Checkout on trust requires an existing active stay.', 400);
+    }
+    if (existingBill?.status === 'DueLater' && requestedStatus === 'Active') {
+      return errorResponse('Cannot reopen a trust-checkout bill as an active stay.', 400);
+    }
+    if (existingBill?.status === 'Completed' && requestedStatus === 'DueLater') {
+      return errorResponse('Cannot mark a settled bill as due later.', 400);
+    }
+    if (existingBill?.status === 'DueLater') {
+      roomItems = existingBill.roomItems;
+      foodItems = existingBill.foodItems;
+    }
 
     const restrictionError = await validateReceptionistBillRestrictions(
       auth.session.role,
@@ -71,16 +89,28 @@ export async function POST(request: Request) {
       return errorResponse(restrictionError, 403);
     }
 
-    const foodSubtotal = foodItems.reduce((acc: number, item: { price: number; quantity: number }) => acc + item.price * item.quantity, 0);
+    const foodSubtotal = existingBill?.status === 'DueLater'
+      ? existingBill.foodSubtotal
+      : foodItems.reduce((acc: number, item: { price: number; quantity: number }) => acc + item.price * item.quantity, 0);
     const settings = await getSettings();
     const serviceChargePercent = settings?.serviceChargePercent ?? 10;
     const applyServiceCharge = billData.applyServiceCharge !== false;
-    const serviceCharge = applyServiceCharge ? Math.round(foodSubtotal * (serviceChargePercent / 100)) : 0;
-    const roomSubtotal = roomItems.reduce((acc: number, item: { pricePerNight: number; nights: number }) => acc + item.pricePerNight * item.nights, 0);
-    const totalAmount = foodSubtotal + serviceCharge + roomSubtotal;
+    const serviceCharge = existingBill?.status === 'DueLater'
+      ? existingBill.serviceCharge
+      : applyServiceCharge ? Math.round(foodSubtotal * (serviceChargePercent / 100)) : 0;
+    const roomSubtotal = existingBill?.status === 'DueLater'
+      ? existingBill.roomSubtotal
+      : roomItems.reduce((acc: number, item: { pricePerNight: number; nights: number }) => acc + item.pricePerNight * item.nights, 0);
+    const totalAmount = existingBill?.status === 'DueLater'
+      ? existingBill.totalAmount
+      : foodSubtotal + serviceCharge + roomSubtotal;
 
-    const bills = await getBills();
-    const existingBill = billData.id ? bills.find((b) => b.id === billData.id) : undefined;
+    const dueLaterNote = typeof billData.dueLaterNote === 'string'
+      ? billData.dueLaterNote.trim()
+      : existingBill?.dueLaterNote;
+    const dueLaterAt = requestedStatus === 'DueLater'
+      ? (existingBill?.dueLaterAt || new Date().toISOString())
+      : existingBill?.dueLaterAt;
 
     const fullBill: Bill = {
       id: billData.id || '',
@@ -92,13 +122,19 @@ export async function POST(request: Request) {
       serviceCharge,
       roomSubtotal,
       totalAmount,
-      status: billData.status || 'Active',
+      status: requestedStatus,
+      dueLaterNote: dueLaterNote || undefined,
+      dueLaterAt,
       createdAt: billData.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     const saved = await saveBill(fullBill);
-    const actionLabel = billData.status === 'Completed' ? 'Settled' : existingBill ? 'Updated' : 'Created';
+    const actionLabel = requestedStatus === 'Completed'
+      ? 'Settled'
+      : requestedStatus === 'DueLater'
+        ? 'Checked out on trust'
+        : existingBill ? 'Updated' : 'Created';
     await recordAudit({
       request,
       action: existingBill ? 'UPDATE' : 'CREATE',
@@ -110,7 +146,7 @@ export async function POST(request: Request) {
         ? buildUpdateDetails(
             existingBill as unknown as Record<string, unknown>,
             saved as unknown as Record<string, unknown>,
-            ['status', 'totalAmount', 'foodSubtotal', 'roomSubtotal', 'serviceCharge']
+            ['status', 'totalAmount', 'foodSubtotal', 'roomSubtotal', 'serviceCharge', 'dueLaterNote']
           )
         : undefined,
     });

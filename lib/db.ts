@@ -316,19 +316,31 @@ export async function saveBill(bill: Bill): Promise<Bill> {
   const previousBill = await prisma.bill.findUnique({ where: { id: newBill.id } });
   newBill.roomItems = await normalizeRoomItems(newBill.roomItems);
 
-  const targetStatus: RoomStatus = newBill.status === 'Completed' ? 'Available' : 'Occupied';
-  const newRoomNumbers = new Set(newBill.roomItems.map((r) => r.roomNumber));
-
-  if (previousBill?.status === 'Active' && newBill.status === 'Active') {
-    for (const rItem of previousBill.roomItems) {
-      if (!newRoomNumbers.has(rItem.roomNumber)) {
-        await setRoomStatusByNumber(rItem.roomNumber, 'Available');
-      }
-    }
+  if (newBill.status === 'DueLater' && !newBill.dueLaterAt) {
+    newBill.dueLaterAt = new Date().toISOString();
   }
 
-  for (const rItem of newBill.roomItems) {
-    await setRoomStatusByNumber(rItem.roomNumber, targetStatus);
+  // DueLater → Completed (or any update of a departed/settled folio) must not
+  // overwrite rooms — a new guest may already occupy them.
+  const previousStatus = previousBill?.status;
+  const shouldSyncRooms = previousStatus !== 'DueLater' && previousStatus !== 'Completed';
+
+  if (shouldSyncRooms) {
+    const targetStatus: RoomStatus =
+      newBill.status === 'Active' ? 'Occupied' : 'Available';
+    const newRoomNumbers = new Set(newBill.roomItems.map((r) => r.roomNumber));
+
+    if (previousStatus === 'Active' && newBill.status === 'Active') {
+      for (const rItem of previousBill!.roomItems) {
+        if (!newRoomNumbers.has(rItem.roomNumber)) {
+          await setRoomStatusByNumber(rItem.roomNumber, 'Available');
+        }
+      }
+    }
+
+    for (const rItem of newBill.roomItems) {
+      await setRoomStatusByNumber(rItem.roomNumber, targetStatus);
+    }
   }
 
   const saved = (await prisma.bill.upsert({
@@ -344,6 +356,8 @@ export async function saveBill(bill: Bill): Promise<Bill> {
       roomSubtotal: newBill.roomSubtotal,
       totalAmount: newBill.totalAmount,
       status: newBill.status,
+      dueLaterNote: newBill.dueLaterNote,
+      dueLaterAt: newBill.dueLaterAt,
       createdAt: newBill.createdAt,
       updatedAt: newBill.updatedAt,
     },
@@ -357,6 +371,8 @@ export async function saveBill(bill: Bill): Promise<Bill> {
       roomSubtotal: newBill.roomSubtotal,
       totalAmount: newBill.totalAmount,
       status: newBill.status,
+      dueLaterNote: newBill.dueLaterNote,
+      dueLaterAt: newBill.dueLaterAt,
       updatedAt: newBill.updatedAt,
     },
   })) as Bill;

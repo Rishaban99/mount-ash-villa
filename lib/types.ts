@@ -64,7 +64,7 @@ export interface FoodItem {
   quantity: number;
 }
 
-export type BillStatus = 'Active' | 'Completed';
+export type BillStatus = 'Active' | 'DueLater' | 'Completed';
 
 export interface Bill {
   id: string;
@@ -77,6 +77,8 @@ export interface Bill {
   roomSubtotal: number;
   totalAmount: number;
   status: BillStatus;
+  dueLaterNote?: string;
+  dueLaterAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -87,6 +89,8 @@ export interface DashboardStats {
   occupiedRooms: number;
   todayRevenue: number;
   activeBillsCount: number;
+  dueLaterBillsCount: number;
+  dueLaterAmount: number;
   foodOrdersCount: number;
 }
 

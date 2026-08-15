@@ -21,7 +21,10 @@ export async function GET() {
       .filter((b) => b.status === 'Completed' && isToday(b.updatedAt))
       .reduce((acc, b) => acc + b.totalAmount, 0);
 
+    const dueLaterBills = bills.filter((b) => b.status === 'DueLater');
     const activeBillsCount = bills.filter((b) => b.status === 'Active').length;
+    const dueLaterBillsCount = dueLaterBills.length;
+    const dueLaterAmount = dueLaterBills.reduce((acc, b) => acc + b.totalAmount, 0);
 
     const foodOrdersCount = bills
       .filter((b) => isToday(b.createdAt))
@@ -36,6 +39,8 @@ export async function GET() {
       occupiedRooms,
       todayRevenue,
       activeBillsCount,
+      dueLaterBillsCount,
+      dueLaterAmount,
       foodOrdersCount,
     };
 

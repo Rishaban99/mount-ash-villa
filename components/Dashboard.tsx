@@ -51,6 +51,8 @@ export const Dashboard: React.FC = () => {
     occupiedRooms: 0,
     todayRevenue: 0,
     activeBillsCount: 0,
+    dueLaterBillsCount: 0,
+    dueLaterAmount: 0,
     foodOrdersCount: 0,
   });
 
@@ -315,10 +317,13 @@ export const Dashboard: React.FC = () => {
                       Current frontdesk active checkouts
                     </h3>
                   </div>
-                  <div className="flex gap-1.5">
+                  <div className="flex flex-wrap gap-1.5 justify-end">
                     <span className="text-[10px] uppercase tracking-wide font-bold bg-emerald-50 border border-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full flex items-center gap-1">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                       Live Stay Ledgers ({activeBillsList.filter(b => b.status === 'Active').length})
+                    </span>
+                    <span className="text-[10px] uppercase tracking-wide font-bold bg-amber-50 border border-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                      Due Later ({stats.dueLaterBillsCount}) · Rs. {stats.dueLaterAmount.toLocaleString()}
                     </span>
                   </div>
                 </div>

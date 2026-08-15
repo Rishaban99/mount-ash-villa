@@ -26,6 +26,7 @@ enum RoomStatus {
 
 enum BillStatus {
   Active
+  DueLater
   Completed
 }
 
@@ -128,6 +129,8 @@ model Bill {
   roomSubtotal  Float
   totalAmount   Float
   status        BillStatus
+  dueLaterNote  String?
+  dueLaterAt    String?
   createdAt     String
   updatedAt     String
 
