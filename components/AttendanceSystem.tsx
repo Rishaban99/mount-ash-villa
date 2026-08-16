@@ -213,7 +213,8 @@ export const AttendanceSystem: React.FC = () => {
         userId,
         userName,
         userRole,
-        date: selectedDate,
+        // allow caller to specify a date in updates (for monthly remarks), fallback to selectedDate
+        date: (updates as any).date || selectedDate,
         ...updates,
       };
       const res = await apiFetch('/api/attendance', {
@@ -225,7 +226,7 @@ export const AttendanceSystem: React.FC = () => {
       if (res.ok) {
         const saved: Attendance = await res.json();
         setAttendanceList((prev) => {
-          const idx = prev.findIndex((a) => a.userId === userId && a.date === selectedDate);
+          const idx = prev.findIndex((a) => a.userId === userId && a.date === payload.date);
           if (idx >= 0) {
             const next = [...prev];
             next[idx] = saved;
@@ -912,8 +913,39 @@ export const AttendanceSystem: React.FC = () => {
 
                         return (
                           <td key={dayNum} className="py-2.5 px-1 text-center">
-                            <div className="flex items-center justify-center">
-                              {getStatusPillLetter(rec?.status)}
+                            <div
+                              role="button"
+                              title={rec?.notes ? rec.notes : `Add remark for ${dateStr}`}
+                              onClick={() => {
+                                if (rec) {
+                                  setEditingRecord(rec);
+                                  setTempNotes(rec.notes || '');
+                                } else {
+                                  const fake: Attendance = {
+                                    id: '',
+                                    userId: u.id,
+                                    userName: u.name,
+                                    userRole: u.role,
+                                    date: dateStr,
+                                    checkIn: '',
+                                    checkOut: '',
+                                    status: 'Extra Leave' as Attendance['status'],
+                                    shift: 'Full Day' as Attendance['shift'],
+                                    workHours: 0,
+                                    notes: '',
+                                    recordedBy: '',
+                                    createdAt: '',
+                                  } as Attendance;
+                                  setEditingRecord(fake);
+                                  setTempNotes('');
+                                }
+                                setNoteModalOpen(true);
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <div className="flex items-center justify-center">
+                                {getStatusPillLetter(rec?.status)}
+                              </div>
                             </div>
                           </td>
                         );
@@ -931,7 +963,63 @@ export const AttendanceSystem: React.FC = () => {
               </tbody>
             </table>
           </div>
+          
+
+          {/* REMARKS: per-day edit on monthly matrix + summary list */}
+          <div className="p-4 border-t border-slate-100 bg-white">
+            <h3 className="text-sm font-bold text-slate-800 mb-3">Remarks for {selectedMonth}</h3>
+            <p className="text-xs text-slate-500 mb-3">Click any day cell to add or edit a remark for that date. Existing remarks:</p>
+
+            <div className="max-h-52 overflow-auto">
+              {attendanceList.filter((a) => a.date.startsWith(selectedMonth) && a.notes).length === 0 ? (
+                <div className="text-xs text-slate-400">No remarks for this month.</div>
+              ) : (
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="text-slate-600">
+                      <th className="py-2 px-2">Date</th>
+                      <th className="py-2 px-2">Staff</th>
+                      <th className="py-2 px-2">Remark</th>
+                      <th className="py-2 px-2 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attendanceList
+                      .filter((a) => a.date.startsWith(selectedMonth) && a.notes)
+                      .sort((x, y) => x.date.localeCompare(y.date))
+                      .map((a) => (
+                        <tr key={`${a.userId}-${a.date}`} className="border-t border-slate-100">
+                          <td className="py-2 px-2 font-mono">{a.date}</td>
+                          <td className="py-2 px-2 font-bold">{a.userName}</td>
+                          <td className="py-2 px-2 truncate max-w-[400px]">{a.notes}</td>
+                          <td className="py-2 px-2 text-right">
+                            <button
+                              onClick={() => {
+                                setEditingRecord(a);
+                                setTempNotes(a.notes || '');
+                                setNoteModalOpen(true);
+                              }}
+                              className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-semibold"
+                            >
+                              Edit
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+          
+
+         
+              
+
+
         </div>
+
+       
       )}
 
       {/* NOTES MODAL */}
@@ -941,7 +1029,7 @@ export const AttendanceSystem: React.FC = () => {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
                 <Edit2 className="h-4 w-4 text-indigo-600" />
-                Attendance Remarks - {editingRecord.userName}
+                Staff Remarks - {editingRecord.userName}
               </h3>
               <button
                 onClick={() => setNoteModalOpen(false)}
@@ -957,7 +1045,7 @@ export const AttendanceSystem: React.FC = () => {
                 rows={3}
                 value={tempNotes}
                 onChange={(e) => setTempNotes(e.target.value)}
-                placeholder="E.g. Approved half day leave, medical reason, shift swap..."
+                placeholder="Add any remarks or exceptions for this staff member's attendance..."
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
               />
             </div>
@@ -975,7 +1063,7 @@ export const AttendanceSystem: React.FC = () => {
                     editingRecord.userId,
                     editingRecord.userName,
                     editingRecord.userRole,
-                    { notes: tempNotes }
+                    { notes: tempNotes, date: editingRecord.date }
                   );
                   setNoteModalOpen(false);
                 }}
