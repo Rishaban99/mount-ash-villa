@@ -300,3 +300,11 @@ model Attendance {
   @@map("attendances")
 }
 
+model ScanSession {
+  id        String @id @map("_id")
+  token     String @unique
+  roomId    String
+  expiresAt String
+
+  @@map("scan_sessions")
+}

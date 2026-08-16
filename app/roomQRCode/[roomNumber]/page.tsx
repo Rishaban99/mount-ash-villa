@@ -5,9 +5,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { GuestAmbientBackground } from '@/components/GuestAmbientBackground';
 import { Logo } from '@/components/Logo';
 
@@ -71,6 +71,7 @@ interface ApiResponse {
   room: RoomInfo;
   bill: BillInfo | null;
   settings: HotelSettings;
+  sessionExpiresAt: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -636,32 +637,174 @@ function BillFooter({ settings }: { settings: HotelSettings }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-type AppState = 'loading' | 'error' | 'welcome' | 'bill';
+type AppState = 'loading' | 'error' | 'welcome' | 'bill' | 'expired' | 'redirecting';
+
+// ─── Session Expired Screen ───────────────────────────────────────────────────
+
+function SessionExpiredScreen({ roomNumber }: { roomNumber: string }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), 60);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <div className={`expired-screen ${visible ? 'expired-in' : ''}`}>
+      <div className="expired-content">
+        <div className="expired-icon" aria-hidden>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+        </div>
+        <p className="expired-eyebrow">Security Notice</p>
+        <h1 className="expired-title">Session Expired</h1>
+        <p className="expired-sub">
+          For your privacy and security, this session has timed out after 5 minutes.
+        </p>
+        <div className="expired-divider" />
+        <p className="expired-instruction">
+          Please scan the QR code in your room again to view your folio.
+        </p>
+        <div className="expired-qr-icon" aria-hidden>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="3" width="7" height="7" rx="1" />
+            <rect x="3" y="14" width="7" height="7" rx="1" />
+            <path d="M14 14h.01M18 14h.01M14 18h.01M18 18h.01M14 14v4M18 14v4" />
+          </svg>
+          <span>Scan QR Code Again</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function RoomQRCodePage() {
   const { roomNumber } = useParams<{ roomNumber: string }>();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const token = searchParams.get('token');
+
   const [data, setData] = useState<ApiResponse | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [appState, setAppState] = useState<AppState>('loading');
+  const [timeLeft, setTimeLeft] = useState<number>(300); // seconds
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // ── Session Expiry Handler ──────────────────────────────────────────────
+  const handleExpiry = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setData(null);          // immediately purge all bill data from memory
+    setAppState('expired');
+  };
+
+  // ── Token Gate: redirect to scan API if no token in URL ────────────────
   useEffect(() => {
     if (!roomNumber) return;
-    fetch(`/api/guest/room/${encodeURIComponent(roomNumber)}`)
-      .then((r) => r.json())
-      .then((json: ApiResponse & { error?: string }) => {
-        if (json.error) {
-          setFetchError(json.error);
-          setAppState('error');
-        } else {
-          setData(json);
-          setAppState(json.bill && json.room.status === 'Occupied' ? 'welcome' : 'bill');
+    if (!token) {
+      setAppState('redirecting');
+      router.replace(`/api/guest/scan/${encodeURIComponent(roomNumber)}`);
+    }
+  }, [roomNumber, token, router]);
+
+  // ── Fetch Bill Data ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!roomNumber || !token) return;
+
+    fetch(`/api/guest/room/${encodeURIComponent(roomNumber)}?token=${encodeURIComponent(token)}`, {
+      cache: 'no-store',
+    })
+      .then(async (r) => {
+        const json = await r.json();
+        if (r.status === 410 || r.status === 401) {
+          setFetchError(json.error ?? 'Session expired.');
+          setAppState('expired');
+          return;
         }
+        if (!r.ok || json.error) {
+          setFetchError(json.error ?? 'Could not load folio.');
+          setAppState('error');
+          return;
+        }
+
+        setData(json);
+
+        // Sync timer to precise server expiry time
+        const secondsLeft = Math.max(
+          0,
+          Math.floor((new Date(json.sessionExpiresAt).getTime() - Date.now()) / 1000)
+        );
+        setTimeLeft(secondsLeft);
+
+        if (secondsLeft === 0) {
+          handleExpiry();
+          return;
+        }
+
+        setAppState(json.bill && json.room.status === 'Occupied' ? 'welcome' : 'bill');
       })
       .catch(() => {
         setFetchError('Unable to reach the server. Please try again.');
         setAppState('error');
       });
-  }, [roomNumber]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomNumber, token]);
+
+  // ── Countdown Timer ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (appState !== 'bill' && appState !== 'welcome') return;
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    timerRef.current = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          handleExpiry();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appState]);
+
+  // ── Timer display helpers ───────────────────────────────────────────────
+  const timerMinutes = String(Math.floor(timeLeft / 60)).padStart(2, '0');
+  const timerSeconds = String(timeLeft % 60).padStart(2, '0');
+  const timerUrgent = timeLeft <= 60;
+
+  // ── Redirecting ───────────────────────────────────────────────────────
+  if (appState === 'redirecting' || (!token && appState === 'loading')) {
+    return (
+      <div className="full-center gradient-bg">
+        <GuestAmbientBackground />
+        <div className="guest-foreground">
+          <div className="loader-ring" />
+          <p className="loader-text">Securing your session…</p>
+        </div>
+        <style>{BASE_CSS}</style>
+      </div>
+    );
+  }
+
+  // ── Expired ─────────────────────────────────────────────────────────────
+  if (appState === 'expired') {
+    return (
+      <div className="app-root gradient-bg">
+        <GuestAmbientBackground />
+        <div className="guest-foreground">
+          <SessionExpiredScreen roomNumber={typeof roomNumber === 'string' ? roomNumber : ''} />
+        </div>
+        <style>{BASE_CSS}</style>
+      </div>
+    );
+  }
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (appState === 'loading') {
@@ -701,8 +844,23 @@ export default function RoomQRCodePage() {
   // ── Welcome → Bill ───────────────────────────────────────────────────────
   return (
     <div className="app-root gradient-bg">
+      {/* No-cache meta tags for extra browser protection */}
+      <meta httpEquiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+      <meta httpEquiv="Pragma" content="no-cache" />
       <GuestAmbientBackground />
       <div className="guest-foreground">
+        {/* Session Timer Bar — always visible when viewing folio */}
+        {(appState === 'bill' || appState === 'welcome') && (
+          <div className={`session-timer-bar ${timerUrgent ? 'session-timer-urgent' : ''}`}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span className="session-timer-label">Session</span>
+            <span className="session-timer-count">{timerMinutes}:{timerSeconds}</span>
+          </div>
+        )}
+
         {appState === 'welcome' && data.bill && (
           <WelcomeScreen
             hotelName={data.settings.hotelName}
@@ -1681,6 +1839,164 @@ const BASE_CSS = `
     font-family: var(--font-body);
   }
 
+  /* ══════════════════════════════════════
+     SESSION TIMER BAR
+  ══════════════════════════════════════ */
+  .session-timer-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    padding: 8px 16px;
+    padding-top: max(8px, env(safe-area-inset-top));
+    background: rgba(6, 10, 18, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(196, 163, 90, 0.12);
+    font-family: var(--font-body);
+    transition: background 0.3s ease, border-color 0.3s ease;
+    pointer-events: none;
+  }
+  .session-timer-bar svg {
+    color: var(--champagne);
+    opacity: 0.7;
+    flex-shrink: 0;
+  }
+  .session-timer-label {
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    font-weight: 500;
+  }
+  .session-timer-count {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--champagne);
+    font-variant-numeric: tabular-nums;
+    min-width: 38px;
+    text-align: right;
+  }
+  .session-timer-urgent {
+    background: rgba(40, 6, 6, 0.72);
+    border-bottom-color: rgba(220, 80, 80, 0.3);
+  }
+  .session-timer-urgent svg { color: #f87171; }
+  .session-timer-urgent .session-timer-count {
+    color: #f87171;
+    animation: timerPulse 1s ease-in-out infinite;
+  }
+  @keyframes timerPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+
+  /* ══════════════════════════════════════
+     SESSION EXPIRED SCREEN
+  ══════════════════════════════════════ */
+  .expired-screen {
+    position: relative;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 22px 56px;
+    font-family: var(--font-body);
+    opacity: 0;
+    transition: opacity 0.6s var(--ease);
+  }
+  .expired-screen.expired-in { opacity: 1; }
+
+  .expired-content {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 320px;
+    animation: fadeRise 0.75s var(--ease) both;
+  }
+
+  .expired-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    background: rgba(248, 113, 113, 0.08);
+    color: #f87171;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+
+  .expired-eyebrow {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #f87171;
+    opacity: 0.75;
+    margin-bottom: 10px;
+  }
+
+  .expired-title {
+    font-family: var(--font-display);
+    font-size: 44px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1.05;
+    color: var(--linen);
+    margin-bottom: 14px;
+  }
+
+  .expired-sub {
+    font-size: 15px;
+    font-weight: 300;
+    color: var(--text-muted);
+    line-height: 1.65;
+    max-width: 270px;
+    margin-bottom: 20px;
+  }
+
+  .expired-divider {
+    width: 40px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(196, 163, 90, 0.5), transparent);
+    margin-bottom: 20px;
+  }
+
+  .expired-instruction {
+    font-size: 14px;
+    color: var(--text-faint);
+    line-height: 1.6;
+    max-width: 250px;
+    margin-bottom: 28px;
+  }
+
+  .expired-qr-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid var(--champagne-line);
+    color: var(--champagne);
+    background: rgba(196, 163, 90, 0.07);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 12px 20px;
+    border-radius: 999px;
+  }
+
   @media (min-width: 480px) {
     .welcome-name { font-size: 56px; }
     .total-number { font-size: 52px; }
@@ -1693,5 +2009,6 @@ const BASE_CSS = `
       align-items: center;
       padding: 24px;
     }
+    .expired-title { font-size: 52px; }
   }
 `;

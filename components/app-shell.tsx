@@ -219,6 +219,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </span>
               </div>
             </div>
+
+            {/* reception QR Code ( buttons -> webside and menu and feedback and call ican )  */}
+            <div className="flex items-center gap-2">
+              <button className="bg-slate-200 hover:bg-slate-300 text-slate-700 hover:text-slate-900 py-1 px-2 rounded-md text-sm font-medium transition-colors">
+                QR Code
+              </button>
+            </div>
+
             <div className="flex items-center gap-3 shrink-0">
               <FeedbackNotification />
               <div className="text-right">
