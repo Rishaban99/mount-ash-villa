@@ -1151,7 +1151,8 @@ const BASE_CSS = `
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    max-width: 440px;
+    max-width: 880px;
+    width: calc(100% - 32px);
     margin: 0 auto;
   }
   .bill-brand-text {
@@ -1213,12 +1214,12 @@ const BASE_CSS = `
   }
 
   .bill-body {
-    max-width: 440px;
+    max-width: 880px;
     margin: 0 auto;
-    padding: 18px 16px 28px;
+    padding: 22px 20px 36px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
   }
 
   .welcome-banner {
@@ -1844,36 +1845,33 @@ const BASE_CSS = `
   ══════════════════════════════════════ */
   .session-timer-bar {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 200;
+    top: 12px;
+    right: 16px;
+    left: auto;
+    z-index: 300;
     display: flex;
     align-items: center;
-    justify-content: flex-end;
-    gap: 6px;
-    padding: 8px 16px;
-    padding-top: max(8px, env(safe-area-inset-top));
-    background: rgba(6, 10, 18, 0.6);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgba(196, 163, 90, 0.12);
+    justify-content: center;
+    gap: 8px;
+    padding: 6px 10px;
+    padding-top: max(6px, env(safe-area-inset-top));
+    background: rgba(6, 10, 18, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(196, 163, 90, 0.12);
+    border-radius: 999px;
     font-family: var(--font-body);
-    transition: background 0.3s ease, border-color 0.3s ease;
-    pointer-events: none;
+    transition: transform 0.18s var(--ease), background 0.25s var(--ease);
+    pointer-events: auto;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.45);
   }
   .session-timer-bar svg {
     color: var(--champagne);
     opacity: 0.7;
     flex-shrink: 0;
   }
-  .session-timer-label {
-    font-size: 10px;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--text-faint);
-    font-weight: 500;
-  }
+  /* Hide the verbose label to keep the timer compact */
+  .session-timer-label { display: none; }
   .session-timer-count {
     font-size: 12px;
     font-weight: 700;
