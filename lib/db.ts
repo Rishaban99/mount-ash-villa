@@ -691,28 +691,43 @@ export async function savePrintLog(log: Omit<PrintLog, 'id'>): Promise<PrintLog>
 
 export async function getGuestFeedbacks(): Promise<GuestFeedback[]> {
   // @ts-ignore - dynamic model added
+  // @ts-ignore - when using the dynamic client, fallback to raw commands
   if (!prisma.guestFeedback) {
-    const result = await prisma.$runCommandRaw({
-      find: 'guest_feedbacks',
-      filter: {},
-      sort: { createdAt: -1 }
-    });
-    const docs = (result as any)?.cursor?.firstBatch || [];
-    return docs.map((doc: any) => ({
-      id: String(doc._id),
-      roomNumber: doc.roomNumber,
-      guestName: doc.guestName,
-      rating: doc.rating,
-      category: doc.category,
-      message: doc.message,
-      isRead: Boolean(doc.isRead),
-      createdAt: doc.createdAt
-    }));
+    try {
+      const result = await prisma.$runCommandRaw({
+        find: 'guest_feedbacks',
+        filter: {},
+        sort: { createdAt: -1 }
+      });
+      const docs = (result as any)?.cursor?.firstBatch || [];
+      return docs.map((doc: any) => ({
+        id: String(doc._id),
+        roomNumber: doc.roomNumber,
+        guestName: doc.guestName,
+        rating: doc.rating,
+        category: doc.category,
+        message: doc.message,
+        isRead: Boolean(doc.isRead),
+        createdAt: doc.createdAt
+      }));
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Fallback $runCommandRaw failed for guest feedbacks', err);
+      return [];
+    }
   }
-  // @ts-ignore
-  return prisma.guestFeedback.findMany({
-    orderBy: { createdAt: 'desc' },
-  });
+
+  try {
+    // @ts-ignore
+    return await prisma.guestFeedback.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+  } catch (err) {
+    // Prisma connectivity error — log and return empty list to avoid crashing endpoints
+    // eslint-disable-next-line no-console
+    console.error('prisma.guestFeedback.findMany failed', err);
+    return [];
+  }
 }
 
 export async function saveGuestFeedback(feedback: Omit<GuestFeedback, 'id' | 'isRead' | 'createdAt'>): Promise<GuestFeedback> {
