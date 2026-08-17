@@ -732,41 +732,7 @@ export const Expenses: React.FC = () => {
                 />
               </div>
 
-              {category === 'Salaries' && (
-                <div className="space-y-1 bg-indigo-50/40 p-3 rounded-xl border border-indigo-100/60 animate-fade-in text-slate-850">
-                  <label className="text-[10px] font-bold text-indigo-750 uppercase tracking-wider block">Beneficiary Staff (Auto-fill)</label>
-                  <select
-                    onChange={(e) => {
-                      const selectedId = e.target.value;
-                      if (!selectedId) {
-                        setSelectedUserForPay(null);
-                        return;
-                      }
-                      const staff = users.find(u => u.id === selectedId);
-                      if (staff) {
-                        const bal = getBalanceSalary(staff);
-                        const activeMonth = selectedMonth !== 'All' ? selectedMonth : new Date().toISOString().substring(0, 7);
-                        const staffMonthSalary = staff.monthlyBaseSalaries?.[activeMonth] !== undefined
-                          ? staff.monthlyBaseSalaries[activeMonth]
-                          : (staff.salary || 35000);
-                        setTitle(`Salary - ${staff.name} (${getSelectedMonthName()})`);
-                        setAmount(String(bal > 0 ? bal : staffMonthSalary));
-                        setDescription(`Salary payout to ${staff.name} for ${getSelectedMonthName()}.`);
-                        setSelectedUserForPay(staff);
-                      }
-                    }}
-                    value={selectedUserForPay?.id || ''}
-                    className="w-full px-2.5 py-1.5 border border-indigo-200 rounded-lg text-xs text-slate-705 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-550 focus:border-indigo-500"
-                  >
-                    <option value="">-- Choose employee to auto-fill --</option>
-                    {payrollEligibleStaff.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name} ({u.role === 'manager' ? 'Manager' : 'Receptionist'} - Balance Due: Rs. {getBalanceSalary(u).toLocaleString()})
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              )}
+              
 
               {category === 'Utilities' && (
                 <div className="space-y-1 bg-purple-50/40 p-3 rounded-xl border border-purple-100/60 animate-fade-in text-slate-850">
@@ -853,7 +819,6 @@ export const Expenses: React.FC = () => {
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-600 focus:outline-none focus:border-indigo-500 transition-colors bg-white"
                   >
                     <option value="Utilities">Utilities</option>
-                    <option value="Salaries">Salaries</option>
                     <option value="Staff Food & Supplies">Staff Food & Supplies</option>
                     <option value="Guest Food & Supplies">Guest Food & Supplies</option>
                     <option value="Maintenance">Maintenance</option>
@@ -1262,27 +1227,13 @@ export const Expenses: React.FC = () => {
 
                     <div className="pt-2">
                       {balance > 0 ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            // Preset the record expense modal
-                            setEditingId(null);
-                            setTitle(`Salary - ${u.name} (${getSelectedMonthName()})`);
-                            setAmount(String(balance));
-                            setCategory('Salaries');
-                            setDate(new Date().toISOString().split('T')[0]);
-                            setDescription(`Salary payout of Rs. ${balance.toLocaleString()} to ${u.name} for ${getSelectedMonthName()}.`);
-                            setPaymentMethod('Bank Transfer');
-                            setApprovedBy(currentUser.name);
-                            setSelectedUserForPay(u); // keep track so we update their profile timestamp after saving
-                            setError(null);
-                            setIsModalOpen(true);
-                          }}
-                          className="w-full py-2 bg-indigo-600 hover:bg-slate-900 text-white text-[10px] font-bold uppercase rounded-lg shadow-xs transition-all border-0 cursor-pointer text-center flex items-center justify-center gap-1"
-                        >
-                          💸 Pay Balance Salary
-                        </button>
-                      ) : (
+                          <a
+                            href={`/users`}
+                            className="w-full py-2 bg-indigo-600 hover:bg-slate-900 text-white text-[10px] font-bold uppercase rounded-lg shadow-xs transition-all border-0 cursor-pointer text-center flex items-center justify-center gap-1"
+                          >
+                            💸 Pay Balance Salary
+                          </a>
+                        ) : (
                         <div className="w-full py-1.5 bg-emerald-50 border border-emerald-100/10 text-emerald-700 text-[9px] font-bold uppercase rounded-lg text-center font-sans tracking-wide">
                           ✓ Settled for {getSelectedMonthShortName()}
                         </div>
@@ -2133,42 +2084,6 @@ export const Expenses: React.FC = () => {
                 />
               </div>
 
-              {category === 'Salaries' && (
-                <div className="space-y-1 bg-indigo-50/40 p-3 rounded-xl border border-indigo-100/60 animate-fade-in text-slate-850">
-                  <label className="text-[10px] font-bold text-indigo-750 uppercase tracking-wider block">Beneficiary Staff (Auto-fill)</label>
-                  <select
-                    onChange={(e) => {
-                      const selectedId = e.target.value;
-                      if (!selectedId) {
-                        setSelectedUserForPay(null);
-                        return;
-                      }
-                      const staff = users.find(u => u.id === selectedId);
-                      if (staff) {
-                        const bal = getBalanceSalary(staff);
-                        const activeMonth = selectedMonth !== 'All' ? selectedMonth : new Date().toISOString().substring(0, 7);
-                        const staffMonthSalary = staff.monthlyBaseSalaries?.[activeMonth] !== undefined
-                          ? staff.monthlyBaseSalaries[activeMonth]
-                          : (staff.salary || 35000);
-                        setTitle(`Salary - ${staff.name} (${getSelectedMonthName()})`);
-                        setAmount(String(bal > 0 ? bal : staffMonthSalary));
-                        setDescription(`Salary payout to ${staff.name} for ${getSelectedMonthName()}.`);
-                        setSelectedUserForPay(staff);
-                      }
-                    }}
-                    value={selectedUserForPay?.id || ''}
-                    className="w-full px-2.5 py-1.5 border border-indigo-200 rounded-lg text-xs text-slate-705 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-550 focus:border-indigo-500"
-                  >
-                    <option value="">-- Choose employee to auto-fill --</option>
-                    {payrollEligibleStaff.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name} ({u.role === 'manager' ? 'Manager' : 'Receptionist'} - Balance Due: Rs. {getBalanceSalary(u).toLocaleString()})
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              )}
-
               {category === 'Utilities' && (
                 <div className="space-y-1 bg-purple-50/40 p-3 rounded-xl border border-purple-100/60 animate-fade-in">
                   <label className="text-[10px] font-bold text-purple-750 uppercase tracking-wider block mb-1">Quick Utilities Presets (Auto-fill)</label>
@@ -2255,7 +2170,6 @@ export const Expenses: React.FC = () => {
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-600 focus:outline-none focus:border-indigo-500 transition-colors"
                   >
                     <option value="Utilities">Utilities</option>
-                    <option value="Salaries">Salaries</option>
                     <option value="Staff Food & Supplies">Staff Food & Supplies</option>
                     <option value="Guest Food & Supplies">Guest Food & Supplies</option>
                     <option value="Maintenance">Maintenance</option>
