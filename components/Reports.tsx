@@ -16,6 +16,7 @@ import {
   Trash2,
   BarChart2,
   TrendingUp,
+  TrendingDown,
   BookOpen,
   Lock,
   Unlock,
@@ -30,6 +31,17 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Sparkles,
+  Layers,
+  Percent,
+  Activity,
+  Image as ImageIcon,
+  HelpCircle,
+  X,
+  FileText,
+  AlertTriangle,
+  Lightbulb,
+  Zap,
 } from 'lucide-react';
 import { LoadingButton } from '@/components/loading-button';
 import { useAuth } from '@/components/auth-provider';
@@ -46,6 +58,8 @@ interface ReportDetails {
   serviceCharge?: number;
   roomRevenue: number;
   billsCount: number;
+  expenses?: number;
+  netProfit?: number;
 }
 
 
@@ -84,9 +98,15 @@ export const Reports: React.FC = () => {
 
   // Chart Interactive State Managers
   const [chartType, setChartType] = useState<'area' | 'bar'>('area');
-  const [activeSeries, setActiveSeries] = useState<'revenue' | 'roomRevenue' | 'foodRevenue' | 'serviceCharge'>('revenue');
+  const [activeSeries, setActiveSeries] = useState<'revenue' | 'roomRevenue' | 'foodRevenue' | 'serviceCharge' | 'expenses' | 'netProfit' | 'all'>('revenue');
   const [chartRange, setChartRange] = useState<number>(7);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+
+  // AI Settlement Intelligence State
+  const [aiModalOpen, setAiModalOpen] = useState<boolean>(false);
+  const [aiLoading, setAiLoading] = useState<boolean>(false);
+  const [aiInsights, setAiInsights] = useState<any>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const fetchReports = async () => {
     try {
@@ -379,13 +399,15 @@ export const Reports: React.FC = () => {
 
   // CSV Export for Daily Report
   const exportDailyCSV = () => {
-    const headers = ['Date', 'Total Revenue (Rs.)', 'Room Revenue (Rs.)', 'Food Revenue (Rs.)', 'Service Charge (Rs.)', 'Invoices Settled'];
-    const rows = filteredDailyAnalytics.map(item => [
+    const headers = ['Date', 'Total Revenue (Rs.)', 'Room Revenue (Rs.)', 'Food Revenue (Rs.)', 'Service Charge (Rs.)', 'Expenses (Rs.)', 'Net Profit (Rs.)', 'Invoices Settled'];
+    const rows = enrichedDailyAnalytics.map(item => [
       item.date,
       item.revenue,
       item.roomRevenue,
       item.foodRevenue,
       item.serviceCharge || 0,
+      item.expenses || 0,
+      item.netProfit || 0,
       item.billsCount
     ]);
 
@@ -472,60 +494,346 @@ export const Reports: React.FC = () => {
     window.print();
   };
 
-  const filteredDailyAnalytics = dailyData
-    .filter((d) => d.date?.startsWith(selectedMonth))
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const dailyExpensesMap = React.useMemo(() => {
+    const map: Record<string, number> = {};
+    (expenses || []).forEach((e: any) => {
+      if (e.date) {
+        map[e.date] = (map[e.date] || 0) + (e.amount || 0);
+      }
+    });
+    return map;
+  }, [expenses]);
+
+  const formatAxisDate = (dateStr?: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length < 3) return dateStr;
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthIdx = parseInt(parts[1], 10) - 1;
+    const day = parts[2];
+    return `${monthNames[monthIdx] || parts[1]} ${day}`;
+  };
+
+  const formatFullDate = (dateStr?: string) => {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-').map(Number);
+    if (!y || !m || !d) return dateStr;
+    const dateObj = new Date(y, m - 1, d);
+    return dateObj.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  // Complete contiguous calendar day sequence (including 0 revenue days e.g. Aug 06, 10, 11, 12, 17)
+  const enrichedDailyAnalytics = React.useMemo(() => {
+    if (!selectedMonth) return [];
+
+    const dailyMap = new Map<string, ReportDetails>();
+    (dailyData || []).forEach((d) => {
+      if (d.date) dailyMap.set(d.date, d);
+    });
+
+    const [yearStr, monthStr] = selectedMonth.split('-');
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10);
+    if (!year || !month) return [];
+
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    const now = new Date();
+    const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const isCurrentMonth = selectedMonth === currentMonthStr;
+
+    let maxRecordedDay = 0;
+    (dailyData || []).forEach((d) => {
+      if (d.date && d.date.startsWith(selectedMonth)) {
+        const dayNum = parseInt(d.date.split('-')[2], 10);
+        if (dayNum > maxRecordedDay) maxRecordedDay = dayNum;
+      }
+    });
+    (expenses || []).forEach((e) => {
+      if (e.date && e.date.startsWith(selectedMonth)) {
+        const dayNum = parseInt(e.date.split('-')[2], 10);
+        if (dayNum > maxRecordedDay) maxRecordedDay = dayNum;
+      }
+    });
+
+    const endDay = isCurrentMonth
+      ? Math.min(daysInMonth, Math.max(now.getDate(), maxRecordedDay, 1))
+      : daysInMonth;
+
+    const result: ReportDetails[] = [];
+    for (let day = 1; day <= endDay; day++) {
+      const dayStr = String(day).padStart(2, '0');
+      const dateKey = `${selectedMonth}-${dayStr}`;
+      const existing = dailyMap.get(dateKey);
+      const exp = dailyExpensesMap[dateKey] || 0;
+
+      if (existing) {
+        result.push({
+          date: dateKey,
+          revenue: existing.revenue,
+          roomRevenue: existing.roomRevenue,
+          foodRevenue: existing.foodRevenue,
+          serviceCharge: existing.serviceCharge || 0,
+          billsCount: existing.billsCount,
+          expenses: exp,
+          netProfit: existing.revenue - exp,
+        });
+      } else {
+        // Zero-revenue day representation
+        result.push({
+          date: dateKey,
+          revenue: 0,
+          roomRevenue: 0,
+          foodRevenue: 0,
+          serviceCharge: 0,
+          billsCount: 0,
+          expenses: exp,
+          netProfit: 0 - exp,
+        });
+      }
+    }
+
+    return result;
+  }, [selectedMonth, dailyData, dailyExpensesMap, expenses]);
 
   const filteredMonthlyAnalytics = monthlyData.filter((m) => m.month === selectedMonth);
 
-  const maxVal = Math.max(...filteredDailyAnalytics.map(d => d.revenue), 1);
+  const maxVal = Math.max(...enrichedDailyAnalytics.map(d => d.revenue), 1);
 
-  // Prepare chart series math based on active state parameters
-  const chartData = filteredDailyAnalytics.slice(-chartRange).reverse();
-  const maxSeriesValue = Math.max(...chartData.map(d => {
-    if (activeSeries === 'revenue') return d.revenue;
-    if (activeSeries === 'roomRevenue') return d.roomRevenue;
-    if (activeSeries === 'foodRevenue') return d.foodRevenue;
-    return d.serviceCharge || 0;
-  }), 1000);
+  // Chronological Left-to-Right data window (oldest on left -> newest on right)
+  const chartData = React.useMemo(() => {
+    if (chartRange === 0 || chartRange >= enrichedDailyAnalytics.length) {
+      return enrichedDailyAnalytics;
+    }
+    return enrichedDailyAnalytics.slice(-chartRange);
+  }, [enrichedDailyAnalytics, chartRange]);
 
-  const svgWidth = 640;
-  const svgHeight = 240;
-  const paddingLeft = 60;
-  const paddingRight = 20;
-  const paddingTop = 25;
-  const paddingBottom = 40;
+  // Executive Range Performance Statistics
+  const rangeStats = React.useMemo(() => {
+    if (chartData.length === 0) {
+      return {
+        totalRevenue: 0,
+        totalExpenses: 0,
+        netProfit: 0,
+        roomRevenue: 0,
+        foodRevenue: 0,
+        serviceCharge: 0,
+        totalBills: 0,
+        avgDailyRevenue: 0,
+        peakDay: null as { date: string; amount: number } | null,
+        marginPct: 0,
+      };
+    }
+
+    let totalRevenue = 0;
+    let totalExpenses = 0;
+    let roomRevenue = 0;
+    let foodRevenue = 0;
+    let serviceCharge = 0;
+    let totalBills = 0;
+    let peakDay: { date: string; amount: number } | null = null;
+
+    chartData.forEach((d) => {
+      totalRevenue += d.revenue;
+      totalExpenses += (d.expenses || 0);
+      roomRevenue += d.roomRevenue;
+      foodRevenue += d.foodRevenue;
+      serviceCharge += (d.serviceCharge || 0);
+      totalBills += d.billsCount;
+
+      if (!peakDay || d.revenue > peakDay.amount) {
+        peakDay = { date: d.date || '', amount: d.revenue };
+      }
+    });
+
+    const netProfit = totalRevenue - totalExpenses;
+    const avgDailyRevenue = chartData.length > 0 ? totalRevenue / chartData.length : 0;
+    const marginPct = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
+
+    return {
+      totalRevenue,
+      totalExpenses,
+      netProfit,
+      roomRevenue,
+      foodRevenue,
+      serviceCharge,
+      totalBills,
+      avgDailyRevenue,
+      peakDay,
+      marginPct,
+    };
+  }, [chartData]);
+
+  // SVG Smooth Bezier curve generator (Catmull-Rom spline approximation)
+  const getSvgSmoothPath = (pts: { x: number; y: number }[]): string => {
+    if (pts.length === 0) return '';
+    if (pts.length === 1) return `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+    if (pts.length === 2) return `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)} L ${pts[1].x.toFixed(1)} ${pts[1].y.toFixed(1)}`;
+
+    let path = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = i > 0 ? pts[i - 1] : pts[i];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = i < pts.length - 2 ? pts[i + 2] : p2;
+
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+      path += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+    }
+    return path;
+  };
+
+  const maxSeriesValue = Math.max(
+    ...chartData.map((d) => {
+      if (activeSeries === 'revenue') return d.revenue;
+      if (activeSeries === 'roomRevenue') return d.roomRevenue;
+      if (activeSeries === 'foodRevenue') return d.foodRevenue;
+      if (activeSeries === 'serviceCharge') return d.serviceCharge || 0;
+      if (activeSeries === 'expenses') return d.expenses || 0;
+      if (activeSeries === 'netProfit') return Math.max(0, d.netProfit || 0);
+      return Math.max(d.revenue, d.roomRevenue, d.foodRevenue, d.expenses || 0);
+    }),
+    1000
+  );
+
+  const svgWidth = 720;
+  const svgHeight = 260;
+  const paddingLeft = 65;
+  const paddingRight = 24;
+  const paddingTop = 28;
+  const paddingBottom = 44;
 
   const chartWidth = svgWidth - paddingLeft - paddingRight;
   const chartHeight = svgHeight - paddingTop - paddingBottom;
 
-  // Coordinate arrays mapping
+  // Single series coordinate points
   const points = chartData.map((day, i) => {
     const x = paddingLeft + (chartData.length > 1 ? (i / (chartData.length - 1)) * chartWidth : chartWidth / 2);
-    const value = 
-      activeSeries === 'revenue' ? day.revenue : 
-      activeSeries === 'roomRevenue' ? day.roomRevenue : 
-      activeSeries === 'foodRevenue' ? day.foodRevenue : 
-      (day.serviceCharge || 0);
-    const y = paddingTop + chartHeight - (value / maxSeriesValue) * chartHeight;
+    const value =
+      activeSeries === 'revenue' ? day.revenue :
+      activeSeries === 'roomRevenue' ? day.roomRevenue :
+      activeSeries === 'foodRevenue' ? day.foodRevenue :
+      activeSeries === 'serviceCharge' ? (day.serviceCharge || 0) :
+      activeSeries === 'expenses' ? (day.expenses || 0) :
+      activeSeries === 'netProfit' ? (day.netProfit || 0) :
+      day.revenue;
+    const y = paddingTop + chartHeight - (Math.max(0, value) / maxSeriesValue) * chartHeight;
     return { x, y, value, raw: day, index: i };
   });
 
-  // SVG Line and Area path computations
-  let linePath = "";
-  let areaPath = "";
-  if (points.length > 0) {
-    linePath = `M ${points[0].x} ${points[0].y} ` + points.slice(1).map(p => `L ${p.x} ${p.y}`).join(" ");
-      areaPath = `${linePath} L ${points[points.length - 1].x} ${paddingTop + chartHeight} L ${points[0].x} ${paddingTop + chartHeight} Z`;
-    }
+  // Multi-Series curves for 'all' mode
+  const multiSeries = React.useMemo(() => {
+    if (activeSeries !== 'all' || chartData.length === 0) return null;
+    const getPts = (getVal: (d: any) => number) => {
+      return chartData.map((day, i) => {
+        const x = paddingLeft + (chartData.length > 1 ? (i / (chartData.length - 1)) * chartWidth : chartWidth / 2);
+        const val = Math.max(0, getVal(day));
+        const y = paddingTop + chartHeight - (val / maxSeriesValue) * chartHeight;
+        return { x, y, value: val, raw: day, index: i };
+      });
+    };
+    const revPts = getPts((d) => d.revenue);
+    const roomPts = getPts((d) => d.roomRevenue);
+    const foodPts = getPts((d) => d.foodRevenue);
+    const expPts = getPts((d) => d.expenses || 0);
 
-  const seriesColor = 
-    activeSeries === "revenue" ? "#4f46e5" :
-    activeSeries === "roomRevenue" ? "#10b981" :
-    activeSeries === "foodRevenue" ? "#f59e0b" : "#a855f7";
+    return {
+      revPts,
+      roomPts,
+      foodPts,
+      expPts,
+      revPath: getSvgSmoothPath(revPts),
+      roomPath: getSvgSmoothPath(roomPts),
+      foodPath: getSvgSmoothPath(foodPts),
+      expPath: getSvgSmoothPath(expPts),
+    };
+  }, [activeSeries, chartData, chartWidth, chartHeight, maxSeriesValue, paddingLeft, paddingTop]);
 
-  const hoveredPt = hoveredIdx !== null ? points[hoveredIdx] : null;
+  const seriesColor =
+    activeSeries === 'revenue' ? '#4f46e5' :
+    activeSeries === 'roomRevenue' ? '#10b981' :
+    activeSeries === 'foodRevenue' ? '#f59e0b' :
+    activeSeries === 'serviceCharge' ? '#a855f7' :
+    activeSeries === 'expenses' ? '#f43f5e' :
+    activeSeries === 'netProfit' ? '#06b6d4' : '#4f46e5';
+
+  const singleLinePath = points.length > 0 ? getSvgSmoothPath(points) : '';
+  const singleAreaPath = points.length > 0
+    ? `${singleLinePath} L ${points[points.length - 1].x.toFixed(1)} ${paddingTop + chartHeight} L ${points[0].x.toFixed(1)} ${paddingTop + chartHeight} Z`
+    : '';
+
+  const hoveredPt = hoveredIdx !== null && points[hoveredIdx] ? points[hoveredIdx] : null;
   const yTicks = [0, 0.25, 0.5, 0.75, 1];
+
+  // Daily Average Benchmark Line
+  const avgRevenueVal = rangeStats.avgDailyRevenue;
+  const avgLineY = paddingTop + chartHeight - (Math.max(0, avgRevenueVal) / maxSeriesValue) * chartHeight;
+
+  // Chart Image Snapshot Export
+  const exportChartPNG = () => {
+    const svgEl = document.getElementById('daily-settlement-svg') as unknown as SVGSVGElement | null;
+    if (!svgEl) return;
+    try {
+      const svgString = new XMLSerializer().serializeToString(svgEl);
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = (svgEl.clientWidth || 720) * 2;
+        canvas.height = (svgEl.clientHeight || 260) * 2;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const pngUrl = canvas.toDataURL('image/png');
+          const dlLink = document.createElement('a');
+          dlLink.download = `Settlement_Telemetry_${selectedMonth}_${chartRange}D.png`;
+          dlLink.href = pngUrl;
+          dlLink.click();
+        }
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    } catch (e) {
+      console.error('Failed to export chart PNG', e);
+    }
+  };
+
+  // AI Insights Briefing Handler
+  const handleFetchAiInsights = async () => {
+    setAiModalOpen(true);
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const res = await apiFetch('/api/reports/ai-insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          month: selectedMonth,
+          rangeDays: chartRange,
+          periodSummary: rangeStats,
+          dailyData: chartData,
+        }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setAiInsights(json.data);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setAiError(err.error || 'Failed to generate AI insights.');
+      }
+    } catch (err: any) {
+      setAiError(err.message || 'Network error fetching AI insights.');
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -693,31 +1001,93 @@ export const Reports: React.FC = () => {
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
           {/* DAILY CHART & DATA LISTING (Left 8 columns) */}
-          <div className="lg:col-span-8 bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
+          <div className="lg:col-span-8 bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-5">
             
-            <div className="flex items-center justify-between pb-3 border-b border-slate-50 no-print">
-              <h3 className="font-display font-bold text-slate-800 flex items-center gap-1.5 text-base">
-                <Calendar className="h-4 w-4 text-indigo-500" />
-                Daily Settlement Records
-              </h3>
-              <button
-                onClick={exportDailyCSV}
-                className="text-xs text-indigo-600 font-bold hover:underline"
-              >
-                Export Excel Sheet CSV
-              </button>
+            {/* CARD TOP HEADER */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2 no-print">
+              <div>
+                <h3 className="font-display font-bold text-slate-900 flex items-center gap-2 text-base">
+                  <Calendar className="h-4.5 w-4.5 text-indigo-600" />
+                  Daily Settlement Telemetry & Trends
+                </h3>
+                <p className="text-[11px] text-slate-400">Chronological daily receipts, F&B orders, and net operational yield</p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* AI Executive Briefing Trigger Button */}
+                <button
+                  type="button"
+                  onClick={handleFetchAiInsights}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-700 hover:to-purple-800 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-md transition-all cursor-pointer"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-amber-300 animate-pulse" />
+                  AI Insights
+                </button>
+
+                {/* PNG Chart Snapshot Button */}
+                <button
+                  type="button"
+                  onClick={exportChartPNG}
+                  title="Export Chart as PNG Image"
+                  className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1"
+                >
+                  <ImageIcon className="h-3.5 w-3.5 text-slate-500" />
+                  <span className="hidden md:inline text-[11px]">PNG</span>
+                </button>
+
+                {/* CSV Export Button */}
+                <button
+                  type="button"
+                  onClick={exportDailyCSV}
+                  className="p-1.5 px-2.5 bg-slate-50 hover:bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5" />
+                  CSV
+                </button>
+              </div>
+            </div>
+
+            {/* EXECUTIVE MINI STAT CARDS ROW */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 no-print">
+              <div className="p-3 bg-indigo-50/40 rounded-xl border border-indigo-100/60 flex flex-col justify-between">
+                <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">Settled Total</span>
+                <span className="text-sm sm:text-base font-extrabold text-slate-900 mt-1">Rs. {rangeStats.totalRevenue.toLocaleString()}</span>
+                <span className="text-[10px] text-slate-400 mt-0.5">{rangeStats.totalBills} folios settled</span>
+              </div>
+
+              <div className="p-3 bg-emerald-50/40 rounded-xl border border-emerald-100/60 flex flex-col justify-between">
+                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Daily Average</span>
+                <span className="text-sm sm:text-base font-extrabold text-slate-900 mt-1">Rs. {Math.round(rangeStats.avgDailyRevenue).toLocaleString()}</span>
+                <span className="text-[10px] text-emerald-600/90 mt-0.5">per active day</span>
+              </div>
+
+              <div className="p-3 bg-amber-50/40 rounded-xl border border-amber-100/60 flex flex-col justify-between">
+                <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Peak Record</span>
+                <span className="text-sm sm:text-base font-extrabold text-slate-900 mt-1">
+                  {rangeStats.peakDay ? `Rs. ${rangeStats.peakDay.amount.toLocaleString()}` : 'Rs. 0'}
+                </span>
+                <span className="text-[10px] text-slate-400 mt-0.5">
+                  {rangeStats.peakDay ? formatAxisDate(rangeStats.peakDay.date) : 'N/A'}
+                </span>
+              </div>
+
+              <div className="p-3 bg-purple-50/40 rounded-xl border border-purple-100/60 flex flex-col justify-between">
+                <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">Net Profit & Yield</span>
+                <span className="text-sm sm:text-base font-extrabold text-slate-900 mt-1">Rs. {rangeStats.netProfit.toLocaleString()}</span>
+                <span className="text-[10px] font-semibold text-purple-700 mt-0.5">{rangeStats.marginPct}% profit margin</span>
+              </div>
             </div>
 
             {/* INTERACTIVE CONTROLS ROW */}
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col md:flex-row justify-between gap-3 no-print">
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col lg:flex-row justify-between gap-3 no-print">
               {/* Metric Selectors */}
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setActiveSeries('revenue')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
                     activeSeries === 'revenue'
-                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
                       : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                   }`}
                 >
@@ -729,23 +1099,23 @@ export const Reports: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setActiveSeries('roomRevenue')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
                     activeSeries === 'roomRevenue'
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
                       : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                   }`}
                 >
                   <span className="flex items-center gap-1.5">
                     <span className={`w-1.5 h-1.5 rounded-full ${activeSeries === 'roomRevenue' ? 'bg-white' : 'bg-emerald-500'}`} />
-                    Rooms Booking
+                    Rooms
                   </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveSeries('foodRevenue')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
                     activeSeries === 'foodRevenue'
-                      ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
                       : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                   }`}
                 >
@@ -757,35 +1127,77 @@ export const Reports: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setActiveSeries('serviceCharge')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
                     activeSeries === 'serviceCharge'
-                      ? 'bg-purple-650 text-white border-purple-600 shadow-sm'
+                      ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
                       : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                   }`}
                 >
                   <span className="flex items-center gap-1.5">
                     <span className={`w-1.5 h-1.5 rounded-full ${activeSeries === 'serviceCharge' ? 'bg-white' : 'bg-purple-500'}`} />
-                    Service Charge
+                    S.C.
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSeries('expenses')}
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                    activeSeries === 'expenses'
+                      ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${activeSeries === 'expenses' ? 'bg-white' : 'bg-rose-500'}`} />
+                    Expenses
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSeries('netProfit')}
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                    activeSeries === 'netProfit'
+                      ? 'bg-cyan-600 text-white border-cyan-600 shadow-xs'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${activeSeries === 'netProfit' ? 'bg-white' : 'bg-cyan-500'}`} />
+                    Net Profit
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSeries('all')}
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                    activeSeries === 'all'
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Layers className="h-3 w-3" />
+                    Multi-Series
                   </span>
                 </button>
               </div>
 
               {/* View options */}
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                 {/* Range Selectors */}
                 <div className="flex bg-white rounded-lg border border-slate-200 p-0.5 shadow-2xs">
-                  {[7, 15, 30].map((days) => (
+                  {[7, 15, 30, 0].map((days) => (
                     <button
                       key={days}
                       type="button"
                       onClick={() => { setChartRange(days); setHoveredIdx(null); }}
-                      className={`px-2 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
+                      className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
                         chartRange === days
                           ? 'bg-slate-800 text-white'
                           : 'text-slate-500 hover:bg-slate-50'
                       }`}
                     >
-                      {days}D
+                      {days === 0 ? 'Month' : `${days}D`}
                     </button>
                   ))}
                 </div>
@@ -795,7 +1207,7 @@ export const Reports: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setChartType('area')}
-                    className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                    className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer flex items-center gap-1 ${
                       chartType === 'area'
                         ? 'bg-indigo-50 text-indigo-700'
                         : 'text-slate-500 hover:bg-slate-50'
@@ -807,7 +1219,7 @@ export const Reports: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setChartType('bar')}
-                    className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                    className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer flex items-center gap-1 ${
                       chartType === 'bar'
                         ? 'bg-indigo-50 text-indigo-700'
                         : 'text-slate-500 hover:bg-slate-50'
@@ -822,56 +1234,91 @@ export const Reports: React.FC = () => {
 
             {/* DYNAMIC INTERACTIVE CHART MODULE */}
             {chartData.length > 0 ? (
-              <div className="relative p-5 bg-white rounded-2xl border border-slate-100 no-print">
+              <div className="relative p-5 bg-gradient-to-b from-slate-50/30 to-white rounded-2xl border border-slate-100 no-print">
                 
-                {/* Floating details card on hover */}
+                {/* Floating telemetry details card on hover */}
                 {hoveredPt ? (
-                  <div className="absolute top-4 right-4 bg-slate-900 text-white p-3 rounded-xl shadow-lg border border-slate-800 flex items-center gap-4 animate-fade-in z-10">
+                  <div className="absolute top-3 right-4 bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-xl shadow-xl border border-slate-800 flex items-center gap-3.5 animate-fade-in z-20">
                     <div className="space-y-0.5">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date</p>
-                      <p className="font-mono text-xs font-extrabold">{hoveredPt.raw.date}</p>
-                </div>
-                    <div className="h-6 w-px bg-slate-850" />
-                    <div className="space-y-0.5">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Revenue</p>
-                      <p className="font-sans text-xs font-black text-indigo-400">Rs. {hoveredPt.raw.revenue.toLocaleString()}</p>
-                      </div>
-                    <div className="h-6 w-px bg-slate-850" />
-                      <div className="space-y-0.5">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Room / Food / SC</p>
-                      <p className="font-mono text-[10px] text-slate-300">
-                        {hoveredPt.raw.roomRevenue.toLocaleString()} / {hoveredPt.raw.foodRevenue.toLocaleString()} / {(hoveredPt.raw.serviceCharge || 0).toLocaleString()}
-                      </p>
-                      </div>
-                      </div>
-                ) : (
-                  <div className="absolute top-4 right-4 text-[10px] text-slate-400 font-medium italic">
-                    Hover data points for detailed telemetry
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Date</p>
+                      <p className="font-mono text-xs font-bold text-slate-200">{formatFullDate(hoveredPt.raw.date)}</p>
                     </div>
-                  )}
+                    <div className="h-7 w-px bg-slate-700/60" />
+                    <div className="space-y-0.5">
+                      <p className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">Revenue</p>
+                      <p className="font-sans text-xs font-black text-white">Rs. {hoveredPt.raw.revenue.toLocaleString()}</p>
+                    </div>
+                    <div className="h-7 w-px bg-slate-700/60" />
+                    <div className="space-y-0.5">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Room / Food / Exp</p>
+                      <p className="font-mono text-[10px] text-slate-300">
+                        {hoveredPt.raw.roomRevenue.toLocaleString()} / {hoveredPt.raw.foodRevenue.toLocaleString()} / {(hoveredPt.raw.expenses || 0).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="h-7 w-px bg-slate-700/60" />
+                    <div className="space-y-0.5">
+                      <p className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">Net Profit</p>
+                      <p className="font-mono text-xs font-bold text-emerald-300">
+                        Rs. {(hoveredPt.raw.netProfit || (hoveredPt.raw.revenue - (hoveredPt.raw.expenses || 0))).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="absolute top-3 right-4 flex items-center gap-2 text-[10px] text-slate-400 font-medium">
+                    <Activity className="h-3 w-3 text-indigo-500 animate-pulse" />
+                    <span>Hover data nodes for telemetry breakdown</span>
+                  </div>
+                )}
+
+                {/* Multi-series legend if active */}
+                {activeSeries === 'all' && (
+                  <div className="flex items-center gap-4 text-[10px] font-bold mb-2 pb-1 border-b border-slate-100">
+                    <span className="flex items-center gap-1 text-indigo-600">
+                      <span className="w-2.5 h-1 bg-indigo-600 rounded-full" /> Total Revenue
+                    </span>
+                    <span className="flex items-center gap-1 text-emerald-600">
+                      <span className="w-2.5 h-1 bg-emerald-600 rounded-full" /> Room Stay
+                    </span>
+                    <span className="flex items-center gap-1 text-amber-600">
+                      <span className="w-2.5 h-1 bg-amber-600 rounded-full" /> Food & Beverage
+                    </span>
+                    <span className="flex items-center gap-1 text-rose-600">
+                      <span className="w-2.5 h-1 bg-rose-600 rounded-full" /> Expenses
+                    </span>
+                  </div>
+                )}
 
                 <div className="w-full overflow-hidden">
                   <svg 
+                    id="daily-settlement-svg"
                     viewBox={`0 0 ${svgWidth} ${svgHeight}`} 
                     className="w-full h-auto select-none overflow-visible"
                   >
                     {/* Background Gradients Definitions */}
                     <defs>
                       <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.16" />
+                        <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.22" />
                         <stop offset="100%" stopColor="#4f46e5" stopOpacity="0.00" />
                       </linearGradient>
                       <linearGradient id="chartRoomGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.16" />
+                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.22" />
                         <stop offset="100%" stopColor="#10b981" stopOpacity="0.00" />
                       </linearGradient>
                       <linearGradient id="chartFoodGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.16" />
+                        <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.22" />
                         <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.00" />
                       </linearGradient>
                       <linearGradient id="chartServiceGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#a855f7" stopOpacity="0.16" />
+                        <stop offset="0%" stopColor="#a855f7" stopOpacity="0.22" />
                         <stop offset="100%" stopColor="#a855f7" stopOpacity="0.00" />
+                      </linearGradient>
+                      <linearGradient id="chartExpenseGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.22" />
+                        <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.00" />
+                      </linearGradient>
+                      <linearGradient id="chartProfitGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.22" />
+                        <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.00" />
                       </linearGradient>
                     </defs>
 
@@ -886,9 +1333,9 @@ export const Reports: React.FC = () => {
                             y1={yVal} 
                             x2={svgWidth - paddingRight} 
                             y2={yVal} 
-                            stroke="#F8FAFC" 
-                            strokeWidth="1.5" 
-                            strokeDasharray={idx === 0 ? "0" : "4,4"} 
+                            stroke="#EEF2F6" 
+                            strokeWidth="1" 
+                            strokeDasharray={idx === 0 ? "0" : "3,3"} 
                           />
                           <text 
                             x={paddingLeft - 10} 
@@ -902,25 +1349,72 @@ export const Reports: React.FC = () => {
                       );
                     })}
 
-                    {/* Render visual elements depending on selected chartType */}
-                    {chartType === 'area' ? (
+                    {/* Daily Average Benchmark Line */}
+                    {avgRevenueVal > 0 && avgLineY >= paddingTop && avgLineY <= paddingTop + chartHeight && (
+                      <g className="opacity-75">
+                        <line 
+                          x1={paddingLeft} 
+                          y1={avgLineY} 
+                          x2={svgWidth - paddingRight} 
+                          y2={avgLineY} 
+                          stroke="#6366f1" 
+                          strokeWidth="1.2" 
+                          strokeDasharray="4,4" 
+                        />
+                        <text
+                          x={svgWidth - paddingRight + 4}
+                          y={avgLineY + 3}
+                          className="fill-indigo-500 font-mono text-[8px] font-bold"
+                        >
+                          Avg: Rs. {avgRevenueVal >= 1000 ? `${(avgRevenueVal / 1000).toFixed(1)}k` : Math.round(avgRevenueVal)}
+                        </text>
+                      </g>
+                    )}
+
+                    {/* MULTI SERIES RENDER */}
+                    {activeSeries === 'all' && multiSeries ? (
+                      <>
+                        {/* Revenue line */}
+                        <path d={multiSeries.revPath} fill="none" stroke="#4f46e5" strokeWidth="3" strokeLinecap="round" />
+                        {/* Room stay line */}
+                        <path d={multiSeries.roomPath} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" />
+                        {/* Food sales line */}
+                        <path d={multiSeries.foodPath} fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" />
+                        {/* Expense line */}
+                        <path d={multiSeries.expPath} fill="none" stroke="#f43f5e" strokeWidth="2" strokeDasharray="3,3" strokeLinecap="round" />
+
+                        {multiSeries.revPts.map((p, idx) => (
+                          <circle 
+                            key={idx} 
+                            cx={p.x} 
+                            cy={p.y} 
+                            r="3.5" 
+                            fill="#4f46e5" 
+                            stroke="#ffffff" 
+                            strokeWidth="1.5" 
+                          />
+                        ))}
+                      </>
+                    ) : chartType === 'area' ? (
                       <>
                         {/* Shaded Area fill path */}
                         <path 
-                          d={areaPath} 
+                          d={singleAreaPath} 
                           fill={`url(#${
                             activeSeries === 'revenue' ? 'chartGradient' : 
                             activeSeries === 'roomRevenue' ? 'chartRoomGradient' : 
-                            activeSeries === 'foodRevenue' ? 'chartFoodGradient' : 'chartServiceGradient'
+                            activeSeries === 'foodRevenue' ? 'chartFoodGradient' : 
+                            activeSeries === 'serviceCharge' ? 'chartServiceGradient' :
+                            activeSeries === 'expenses' ? 'chartExpenseGradient' : 'chartProfitGradient'
                           })`}
                           className="transition-all duration-350"
                         />
-                        {/* Bold Stroke line path */}
+                        {/* Smooth Catmull-Rom Bezier Stroke */}
                         <path 
-                          d={linePath} 
+                          d={singleLinePath} 
                           fill="none" 
                           stroke={seriesColor} 
-                          strokeWidth="3.5" 
+                          strokeWidth="3.2" 
                           strokeLinecap="round" 
                           strokeLinejoin="round"
                           className="transition-all duration-355"
@@ -932,17 +1426,17 @@ export const Reports: React.FC = () => {
                             <circle 
                               cx={p.x} 
                               cy={p.y} 
-                              r="4.5" 
+                              r={hoveredIdx === idx ? "5.5" : "4"} 
                               fill={seriesColor} 
                               stroke="#ffffff" 
                               strokeWidth="2" 
-                              className="transition-all duration-200" 
+                              className="transition-all duration-200 cursor-pointer" 
                             />
                             {hoveredIdx === idx && (
                               <circle 
                                 cx={p.x} 
                                 cy={p.y} 
-                                r="8" 
+                                r="9" 
                                 fill="none" 
                                 stroke={seriesColor} 
                                 strokeWidth="1.5" 
@@ -956,7 +1450,7 @@ export const Reports: React.FC = () => {
                       <>
                         {/* Render vertical bars */}
                         {points.map((p, idx) => {
-                          const barWidth = Math.min(26, (chartWidth / chartData.length) * 0.45);
+                          const barWidth = Math.min(26, (chartWidth / chartData.length) * 0.48);
                           const rectX = p.x - barWidth / 2;
                           const rectY = p.y;
                           const rectHeight = Math.max(4, paddingTop + chartHeight - p.y);
@@ -970,7 +1464,7 @@ export const Reports: React.FC = () => {
                               height={rectHeight}
                               rx="4"
                               fill={seriesColor}
-                              opacity={isHovered ? 1 : 0.85}
+                              opacity={isHovered ? 1 : 0.88}
                               className="transition-all duration-200 cursor-pointer"
                             />
                           );
@@ -992,18 +1486,18 @@ export const Reports: React.FC = () => {
                       />
                     )}
 
-                    {/* Horizontal Date labels on the X axis */}
+                    {/* Horizontal Date labels on the X axis (Chronological Left to Right) */}
                     {points.map((p, idx) => (
                       <text
                         key={idx}
                         x={p.x}
-                        y={paddingTop + chartHeight + 16}
+                        y={paddingTop + chartHeight + 18}
                         textAnchor="middle"
-                        className={`fill-slate-400 font-mono font-bold text-[9px] transition-all ${
-                          hoveredIdx === idx ? 'fill-indigo-600 font-extrabold text-[10px]' : ''
+                        className={`font-mono text-[9px] font-bold transition-all ${
+                          hoveredIdx === idx ? 'fill-indigo-600 font-extrabold text-[10px]' : 'fill-slate-400'
                         }`}
                       >
-                        {p.raw.date ? `${p.raw.date.substring(5, 7)}/${p.raw.date.substring(8, 10)}` : ''}
+                        {formatAxisDate(p.raw.date)}
                       </text>
                     ))}
 
@@ -1018,7 +1512,7 @@ export const Reports: React.FC = () => {
                           x={triggerX}
                           y={paddingTop}
                           width={triggerWidth}
-                          height={chartHeight}
+                          height={chartHeight + 20}
                           fill="transparent"
                           className="cursor-pointer"
                           onMouseEnter={() => setHoveredIdx(idx)}
@@ -1035,8 +1529,8 @@ export const Reports: React.FC = () => {
               </div>
             )}
 
-            {/* TABLE */}
-            <div className="overflow-x-auto">
+            {/* MODERNIZED SETTLEMENT DATA GRID TABLE */}
+            <div className="overflow-x-auto rounded-xl border border-slate-100">
               <table className="w-full text-left text-xs text-slate-700">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
@@ -1044,33 +1538,227 @@ export const Reports: React.FC = () => {
                     <th className="py-3 px-4">Room Revenue</th>
                     <th className="py-3 px-4">Food Sales</th>
                     <th className="py-3 px-4">Service Charge</th>
+                    <th className="py-3 px-4">Expenses</th>
                     <th className="py-3 px-4 font-bold text-slate-800">Total Settled</th>
-                    <th className="py-3 px-4 text-center">Checkout Count</th>
+                    <th className="py-3 px-4 text-emerald-600 font-bold">Net Margin</th>
+                    <th className="py-3 px-4 text-center">Folios</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 font-sans">
-                  {filteredDailyAnalytics.map((day, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3 px-4 font-mono font-semibold text-slate-800">{day.date}</td>
-                      <td className="py-3 px-4 text-slate-500">Rs. {day.roomRevenue.toLocaleString()}</td>
-                      <td className="py-3 px-4 text-slate-500">Rs. {day.foodRevenue.toLocaleString()}</td>
-                      <td className="py-3 px-4 text-slate-500">Rs. {(day.serviceCharge || 0).toLocaleString()}</td>
-                      <td className="py-3 px-4 font-semibold text-indigo-600 font-sans">Rs. {day.revenue.toLocaleString()}</td>
-                      <td className="py-3 px-4 text-center font-mono font-semibold">{day.billsCount}</td>
-                    </tr>
-                  ))}
-                  {filteredDailyAnalytics.length === 0 && (
+                  {enrichedDailyAnalytics.map((day, idx) => {
+                    const margin = day.revenue > 0 ? Math.round(((day.netProfit || 0) / day.revenue) * 100) : 0;
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/70 transition-colors group">
+                        <td className="py-3 px-4 font-mono font-semibold text-slate-800">
+                          <span className="font-bold text-slate-900">{formatAxisDate(day.date)}</span>
+                          <span className="text-[10px] text-slate-400 block">{day.date}</span>
+                        </td>
+                        <td className="py-3 px-4 text-slate-600">Rs. {day.roomRevenue.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-slate-600">Rs. {day.foodRevenue.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-slate-500">Rs. {(day.serviceCharge || 0).toLocaleString()}</td>
+                        <td className="py-3 px-4 text-rose-500 font-mono">
+                          {(day.expenses || 0) > 0 ? `-Rs. ${(day.expenses || 0).toLocaleString()}` : '—'}
+                        </td>
+                        <td className="py-3 px-4 font-bold text-indigo-600 font-sans">Rs. {day.revenue.toLocaleString()}</td>
+                        <td className="py-3 px-4">
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            (day.netProfit || 0) >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                          }`}>
+                            Rs. {(day.netProfit || 0).toLocaleString()} ({margin}%)
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span className="px-2 py-0.5 bg-slate-100 group-hover:bg-indigo-50 group-hover:text-indigo-600 rounded font-mono font-bold text-[11px] text-slate-600 transition-colors">
+                            {day.billsCount}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {enrichedDailyAnalytics.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-400">
+                      <td colSpan={8} className="py-8 text-center text-slate-400">
                         No checked-out receipt data available for {curMonthLabel}.
                       </td>
                     </tr>
                   )}
                 </tbody>
+                {enrichedDailyAnalytics.length > 0 && (
+                  <tfoot className="bg-slate-50/80 font-bold border-t border-slate-200 text-slate-800 text-xs">
+                    <tr>
+                      <td className="py-3 px-4">Total ({enrichedDailyAnalytics.length} Days)</td>
+                      <td className="py-3 px-4 text-slate-700">
+                        Rs. {enrichedDailyAnalytics.reduce((s, d) => s + d.roomRevenue, 0).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-4 text-slate-700">
+                        Rs. {enrichedDailyAnalytics.reduce((s, d) => s + d.foodRevenue, 0).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-4 text-slate-700">
+                        Rs. {enrichedDailyAnalytics.reduce((s, d) => s + (d.serviceCharge || 0), 0).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-4 text-rose-600">
+                        Rs. {enrichedDailyAnalytics.reduce((s, d) => s + (d.expenses || 0), 0).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-4 text-indigo-700 font-extrabold text-sm">
+                        Rs. {enrichedDailyAnalytics.reduce((s, d) => s + d.revenue, 0).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-4 text-emerald-700 font-extrabold">
+                        Rs. {enrichedDailyAnalytics.reduce((s, d) => s + (d.netProfit || 0), 0).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-4 text-center font-mono font-bold">
+                        {enrichedDailyAnalytics.reduce((s, d) => s + d.billsCount, 0)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
 
           </div>
+
+          {/* AI EXECUTIVE BRIEFING MODAL */}
+          {aiModalOpen && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in no-print">
+              <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
+                {/* Modal Header */}
+                <div className="p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-indigo-500/20 rounded-xl border border-indigo-400/30 text-amber-300">
+                      <Sparkles className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-display font-bold text-lg text-white flex items-center gap-2">
+                        AI Settlement Executive Intelligence
+                      </h3>
+                      <p className="text-xs text-indigo-200">
+                        Analytical synthesis for {curMonthLabel} ({chartRange === 0 ? 'Full Month' : `${chartRange} Days Range`})
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAiModalOpen(false)}
+                    className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {/* Modal Body */}
+                <div className="p-6 overflow-y-auto space-y-5 text-slate-700">
+                  {aiLoading ? (
+                    <div className="py-16 text-center space-y-3">
+                      <Loader2 className="h-8 w-8 text-indigo-600 animate-spin mx-auto" />
+                      <p className="font-bold text-sm text-slate-800">Synthesizing settlement telemetry & revenue velocity...</p>
+                      <p className="text-xs text-slate-400">Evaluating room attachment rates, food sales, and cost health...</p>
+                    </div>
+                  ) : aiError ? (
+                    <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-xs uppercase tracking-wider">Analysis Failed</p>
+                        <p className="text-xs mt-1">{aiError}</p>
+                      </div>
+                    </div>
+                  ) : aiInsights ? (
+                    <div className="space-y-5">
+                      {/* Health Score & Performance Tier */}
+                      <div className="flex items-center justify-between p-4 bg-indigo-50/60 rounded-2xl border border-indigo-100">
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 rounded-2xl bg-indigo-600 text-white font-extrabold text-lg flex items-center justify-center shadow-xs">
+                            {aiInsights.healthScore || 85}
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Property Health Rating</span>
+                            <h4 className="font-bold text-slate-900 text-base">{aiInsights.performanceTier || 'Healthy Performance'}</h4>
+                          </div>
+                        </div>
+                        <span className="px-3 py-1 bg-white text-indigo-700 rounded-xl text-xs font-bold shadow-2xs border border-indigo-100">
+                          {rangeStats.marginPct}% Operating Margin
+                        </span>
+                      </div>
+
+                      {/* Executive Summary */}
+                      <div className="space-y-1.5">
+                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                          <Activity className="h-3.5 w-3.5 text-indigo-600" /> Executive Overview
+                        </h4>
+                        <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                          {aiInsights.executiveSummary}
+                        </p>
+                      </div>
+
+                      {/* Key Highlights */}
+                      {aiInsights.keyHighlights && aiInsights.keyHighlights.length > 0 && (
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                            <Zap className="h-3.5 w-3.5 text-amber-500" /> Telemetry Highlights
+                          </h4>
+                          <div className="grid grid-cols-1 gap-2">
+                            {aiInsights.keyHighlights.map((hl: string, idx: number) => (
+                              <div key={idx} className="flex items-start gap-2 text-xs bg-slate-50/80 p-2.5 rounded-lg border border-slate-100">
+                                <Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                                <span className="text-slate-700">{hl}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Food vs Room & Margin Breakdown */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                        <div className="p-3.5 bg-amber-50/40 rounded-xl border border-amber-100/60 space-y-1">
+                          <span className="font-bold text-amber-800 uppercase text-[10px] tracking-wider">F&B vs Lodging Dynamics</span>
+                          <p className="text-slate-600 text-[11px] leading-relaxed">{aiInsights.foodToRoomAnalysis}</p>
+                        </div>
+                        <div className="p-3.5 bg-purple-50/40 rounded-xl border border-purple-100/60 space-y-1">
+                          <span className="font-bold text-purple-800 uppercase text-[10px] tracking-wider">Cost & Margin Telemetry</span>
+                          <p className="text-slate-600 text-[11px] leading-relaxed">{aiInsights.marginAnalysis}</p>
+                        </div>
+                      </div>
+
+                      {/* Tactical Recommendations */}
+                      {aiInsights.recommendations && aiInsights.recommendations.length > 0 && (
+                        <div className="space-y-2 pt-2 border-t border-slate-100">
+                          <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                            <Lightbulb className="h-3.5 w-3.5 text-amber-500" /> Strategic Action Items
+                          </h4>
+                          <div className="space-y-2">
+                            {aiInsights.recommendations.map((rec: any, idx: number) => (
+                              <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-start justify-between gap-3">
+                                <div className="space-y-0.5">
+                                  <p className="text-xs font-bold text-slate-800">{rec.title}</p>
+                                  <p className="text-[11px] text-slate-500">{rec.description}</p>
+                                </div>
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold uppercase shrink-0 ${
+                                  rec.impact === 'High' ? 'bg-rose-100 text-rose-700' :
+                                  rec.impact === 'Medium' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                                }`}>
+                                  {rec.impact}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Modal Footer */}
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400">Powered by Gemini AI & Mount Ash Intelligence</span>
+                  <button
+                    type="button"
+                    onClick={() => setAiModalOpen(false)}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  >
+                    Close Briefing
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* MONTHLY SUMMARY CARD (Right 4 columns) */}
           <div className="lg:col-span-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
