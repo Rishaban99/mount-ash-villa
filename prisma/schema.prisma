@@ -180,6 +180,7 @@ model Settings {
   allowManagerDeleteFoods         Boolean
   allowManagerViewReports         Boolean
   allowManagerDeleteExpenses      Boolean
+  allowManagerDeleteSettledBills  Boolean?
   taxNumber                       String
   email                           String
   checkInTime                     String
@@ -192,6 +193,7 @@ model Settings {
   autoPrintOnSettle               Boolean
   showLogoOnReceipt               Boolean
   showTaxDetails                  Boolean
+  uiTheme                         String?
 
   @@map("settings")
 }

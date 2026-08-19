@@ -42,4 +42,5 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   autoPrintOnSettle: false,
   showLogoOnReceipt: true,
   showTaxDetails: false,
+  uiTheme: 'highlands',
 };

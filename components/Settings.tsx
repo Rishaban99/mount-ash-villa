@@ -26,6 +26,11 @@ import {
   TrendingUp,
   Users,
   Receipt,
+  Palette,
+  Sparkles,
+  Eye,
+  CheckCircle2,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import { LoadingButton } from '@/components/loading-button';
@@ -38,6 +43,7 @@ import {
   countEnabledPermissions,
   type PermissionCategory,
 } from '@/lib/permissions';
+import { NATURAL_THEMES, NaturalThemeId, getThemeConfig } from '@/lib/themes';
 
 const categoryIcons: Record<PermissionCategory, LucideIcon> = {
   Room: Bed,
@@ -58,6 +64,10 @@ export const Settings: React.FC = () => {
   const [activeRoleTab, setActiveRoleTab] = useState<'manager' | 'receptionist'>('manager');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
+  const [previewThemeModal, setPreviewThemeModal] = useState<NaturalThemeId | null>(null);
+
+  // Active theme (defaulting to highlands)
+  const currentThemeId = (settings?.uiTheme || 'highlands') as NaturalThemeId;
 
   // Fetch Settings on Mount
   useEffect(() => {
@@ -120,6 +130,34 @@ export const Settings: React.FC = () => {
       setErrorMsg('Error submitting settings payload upstream.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSelectTheme = async (themeId: NaturalThemeId) => {
+    if (!settings) return;
+    const updated = { ...settings, uiTheme: themeId };
+    setSettings(updated);
+
+    if (currentUser.role === 'admin') {
+      try {
+        const res = await apiFetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            settings: updated,
+            userId: currentUser.id,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setSettings(data);
+          localStorage.setItem('system_settings_cache', JSON.stringify(data));
+          toastSaved(`Applied theme: ${NATURAL_THEMES[themeId]?.name || themeId}`);
+        }
+      } catch (err) {
+        console.warn('Theme save error:', err);
+      }
     }
   };
 
@@ -247,6 +285,122 @@ export const Settings: React.FC = () => {
           
           {/* Column Left (General & Tax settings) - Spans 7 cols */}
           <div className="lg:col-span-7 space-y-6">
+
+            {/* 🎨 UI Theme & Natural Ambience Selection Block */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200/50 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-gradient-to-br from-amber-500 to-indigo-600 text-white rounded-xl shadow-xs">
+                    <Palette className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-display font-bold text-sm text-slate-900">UI Theme & Natural Ambience</h3>
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        {NATURAL_THEMES[currentThemeId]?.name || 'Misty Highlands'} Active
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400">
+                      Choose from 5 nature-inspired atmospheric themes with dynamic ambient backgrounds
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewThemeModal(currentThemeId)}
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    Preview
+                  </button>
+                </div>
+              </div>
+
+              {/* 5 Theme Cards Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {(Object.values(NATURAL_THEMES) as Array<typeof NATURAL_THEMES[NaturalThemeId]>).map((theme) => {
+                  const isSelected = currentThemeId === theme.id;
+
+                  return (
+                    <div
+                      key={theme.id}
+                      onClick={() => handleSelectTheme(theme.id)}
+                      className={`relative p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-2.5 overflow-hidden group ${
+                        isSelected
+                          ? 'border-indigo-600 bg-indigo-50/20 shadow-md ring-2 ring-indigo-500/20'
+                          : 'border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs'
+                      }`}
+                    >
+                      {/* Top Header */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-xl">{theme.emoji}</span>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-xs text-slate-900 truncate flex items-center gap-1.5">
+                              {theme.name}
+                            </h4>
+                            <span className="text-[9px] text-slate-400 block truncate">{theme.subtitle}</span>
+                          </div>
+                        </div>
+
+                        {isSelected ? (
+                          <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                            <Check className="h-3 w-3" />
+                          </div>
+                        ) : (
+                          <span className="text-[8px] font-bold uppercase text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
+                            {theme.badge}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Mini Gradient Background Preview Strip */}
+                      <div
+                        className={`h-9 w-full rounded-xl bg-gradient-to-r ${theme.previewBg} p-1.5 flex items-center justify-between border border-white/10 relative overflow-hidden shadow-inner`}
+                      >
+                        <div className="flex items-center gap-1 z-10">
+                          {theme.swatches.map((color, cIdx) => (
+                            <span
+                              key={cIdx}
+                              className="w-3.5 h-3.5 rounded-full border border-white/30 shadow-xs"
+                              style={{ backgroundColor: color }}
+                              title={color}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-[8px] font-mono font-bold text-white/70 bg-black/30 px-1.5 py-0.5 rounded z-10">
+                          {theme.id}
+                        </span>
+                      </div>
+
+                      {/* Tagline description */}
+                      <p className="text-[10px] text-slate-500 leading-tight">
+                        {theme.tagline}
+                      </p>
+
+                      {/* Selection action pill */}
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px]">
+                        <span className="font-semibold text-slate-400">
+                          {isSelected ? '✓ Currently Active' : 'Click to select'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewThemeModal(theme.id);
+                          }}
+                          className="text-indigo-600 font-bold hover:underline"
+                        >
+                          Inspect →
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* Profile Information Block */}
             <div className="bg-white p-6 rounded-3xl border border-slate-200/50 shadow-xs space-y-4">
@@ -699,6 +853,138 @@ export const Settings: React.FC = () => {
         </fieldset>
 
       </form>
+
+      {/* ── THEME LIVE PREVIEW MODAL ── */}
+      {previewThemeModal && (() => {
+        const theme = getThemeConfig(previewThemeModal);
+        const isCurrentActive = currentThemeId === theme.id;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+            <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl space-y-0 text-white animate-scale-in">
+              {/* Modal Header */}
+              <div className="p-4 px-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-2xl">{theme.emoji}</span>
+                  <div>
+                    <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                      {theme.name}
+                      <span className="text-[9px] px-2 py-0.5 rounded-full bg-white/10 text-slate-300 font-mono">
+                        {theme.id}
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400">{theme.subtitle}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPreviewThemeModal(null)}
+                  className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Miniature Folio Screen Preview */}
+              <div
+                className="p-6 relative overflow-hidden flex flex-col items-center justify-center min-h-[300px] text-center"
+                style={{
+                  background: theme.bgGradient,
+                  color: theme.cssVariables['--text'],
+                }}
+              >
+                {/* Ambient glow accent */}
+                <div
+                  className="absolute inset-0 pointer-events-none opacity-40"
+                  style={{
+                    backgroundImage: `radial-gradient(circle at 50% 30%, ${theme.lightRayColor}, transparent 70%)`,
+                  }}
+                />
+
+                {/* Folio Miniature Box */}
+                <div className="relative z-10 w-full max-w-xs space-y-4">
+                  {/* Hotel Header */}
+                  <div className="flex items-center justify-between text-[11px] opacity-80 border-b border-white/10 pb-2">
+                    <span className="font-serif tracking-wider uppercase">{settings.hotelName || 'Mount Ash Villa'}</span>
+                    <span className="font-mono font-bold bg-white/10 px-2 py-0.5 rounded-full">103 • Single</span>
+                  </div>
+
+                  {/* Icon & Eyebrow */}
+                  <div className="space-y-1.5 pt-2">
+                    <div
+                      className="w-12 h-12 rounded-full border border-white/20 mx-auto flex items-center justify-center shadow-lg"
+                      style={{ backgroundColor: theme.cssVariables['--card'] }}
+                    >
+                      <Hotel className="h-6 w-6" style={{ color: theme.accentColor }} />
+                    </div>
+                    <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: theme.accentColor }}>
+                      GUEST FOLIO
+                    </p>
+                    <h2 className="font-serif text-2xl font-bold tracking-wide">No Active Stay</h2>
+                    <p className="text-[11px] opacity-75 max-w-[220px] mx-auto leading-relaxed">
+                      This room has no open billing session right now. Our front desk will be glad to assist you.
+                    </p>
+                  </div>
+
+                  {/* Sample Call-To-Action buttons */}
+                  <div className="space-y-2 pt-2">
+                    <div
+                      className="w-full py-2.5 rounded-xl font-bold text-xs shadow-md tracking-wider flex items-center justify-center gap-1.5"
+                      style={{
+                        backgroundColor: theme.accentColor,
+                        color: theme.id === 'sunrise' || theme.id === 'cloudmist' ? '#0f172a' : '#04140b',
+                      }}
+                    >
+                      📞 CALL FRONT DESK
+                    </div>
+                    <div
+                      className="w-full py-2 rounded-xl text-xs font-semibold border border-white/20 flex items-center justify-center gap-1.5"
+                      style={{ backgroundColor: theme.cssVariables['--card'] }}
+                    >
+                      💬 SHARE FEEDBACK
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer Controls */}
+              <div className="p-4 px-6 bg-slate-900 border-t border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-slate-400 font-medium">Palette:</span>
+                  {theme.swatches.map((c, i) => (
+                    <span
+                      key={i}
+                      className="w-4 h-4 rounded-full border border-white/20 shadow-xs"
+                      style={{ backgroundColor: c }}
+                    />
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewThemeModal(null)}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 cursor-pointer"
+                  >
+                    Close Preview
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSelectTheme(theme.id);
+                      setPreviewThemeModal(null);
+                    }}
+                    disabled={isCurrentActive}
+                    className="px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:bg-slate-700 cursor-pointer transition-colors shadow-xs"
+                  >
+                    {isCurrentActive ? '✓ Currently Applied' : 'Apply This Theme'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );

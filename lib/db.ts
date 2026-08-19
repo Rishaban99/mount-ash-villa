@@ -464,14 +464,33 @@ export async function getSettings(): Promise<SystemSettings> {
 export async function saveSettings(settings: SystemSettings): Promise<SystemSettings> {
   const { id, ...settingsData } = settings as SystemSettings & { id?: string };
 
-  await prisma.settings.upsert({
-    where: { id: 'system_settings' },
-    create: {
-      ...settingsData,
-      id: 'system_settings',
-    },
-    update: settingsData,
-  });
+  const payload: Record<string, any> = { ...settingsData };
+
+  // Attempt upsert with automatic stripping of any client-unrecognized fields
+  let maxRetries = 10;
+  while (maxRetries > 0) {
+    try {
+      await prisma.settings.upsert({
+        where: { id: 'system_settings' },
+        create: {
+          ...payload,
+          id: 'system_settings',
+        } as any,
+        update: payload,
+      });
+      break;
+    } catch (err: any) {
+      if (err?.message?.includes('Unknown argument')) {
+        const match = err.message.match(/Unknown argument `([^`]+)`/);
+        if (match && match[1] && match[1] in payload) {
+          delete payload[match[1]];
+          maxRetries--;
+          continue;
+        }
+      }
+      throw err;
+    }
+  }
 
   return settings;
 }

@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { NaturalThemeId } from './themes';
+
 export type UserRole = 'admin' | 'manager' | 'receptionist';
 
 export interface User {
@@ -159,7 +161,15 @@ export interface SystemSettings {
   autoPrintOnSettle: boolean;
   showLogoOnReceipt: boolean;
   showTaxDetails: boolean;
+  uiTheme?: NaturalThemeId | ThemeMode;
 }
+
+export type ThemeMode =
+  | 'ceylon_emerald'
+  | 'ella_mist'
+  | 'golden_sunset'
+  | 'coastal_azure'
+  | 'midnight_obsidian';
 
 export interface FrontdeskMemo {
   id: string;

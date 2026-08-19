@@ -10,6 +10,7 @@ import { createPortal } from 'react-dom';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { GuestAmbientBackground } from '@/components/GuestAmbientBackground';
 import { Logo } from '@/components/Logo';
+import { getThemeConfig, NaturalThemeId, NATURAL_THEMES } from '@/lib/themes';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ interface HotelSettings {
   serviceChargePercent: number;
   checkInTime: string;
   checkOutTime: string;
+  uiTheme?: string;
 }
 
 interface ApiResponse {
@@ -641,12 +643,23 @@ type AppState = 'loading' | 'error' | 'welcome' | 'bill' | 'expired' | 'redirect
 
 // ─── Session Expired Screen ───────────────────────────────────────────────────
 
-function SessionExpiredScreen({ roomNumber }: { roomNumber: string }) {
+function SessionExpiredScreen({
+  roomNumber,
+  settings,
+}: {
+  roomNumber: string;
+  settings?: HotelSettings | null;
+}) {
   const [visible, setVisible] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 60);
     return () => clearTimeout(t);
   }, []);
+
+  const phone = settings?.phone || '077-7210369';
+  const hotelName = settings?.hotelName || 'Mount Ash Villa Hatton';
 
   return (
     <div className={`expired-screen ${visible ? 'expired-in' : ''}`}>
@@ -666,7 +679,12 @@ function SessionExpiredScreen({ roomNumber }: { roomNumber: string }) {
         <p className="expired-instruction">
           Please scan the QR code in your room again to view your folio.
         </p>
-        <div className="expired-qr-icon" aria-hidden>
+        <div
+          className="expired-qr-icon"
+          aria-hidden
+          onClick={() => window.location.reload()}
+          style={{ cursor: 'pointer' }}
+        >
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="3" width="7" height="7" rx="1" />
             <rect x="14" y="3" width="7" height="7" rx="1" />
@@ -675,7 +693,36 @@ function SessionExpiredScreen({ roomNumber }: { roomNumber: string }) {
           </svg>
           <span>Scan QR Code Again</span>
         </div>
+
+        {/* ── Call Front Desk & Share Feedback Action Buttons ── */}
+        <div className="cta-stack" style={{ marginTop: '24px', width: '100%', maxWidth: '340px' }}>
+          {phone && (
+            <a href={`tel:${phone}`} className="cta-btn cta-call-btn">
+              <IconPhone />
+              <span>Call Front Desk</span>
+            </a>
+          )}
+          <button
+            type="button"
+            className="cta-btn cta-feedback-btn"
+            onClick={() => setShowFeedback(true)}
+          >
+            <IconMessage />
+            <span>Share Feedback</span>
+          </button>
+        </div>
+
+        {/* ── Feedback Modal ── */}
+        {showFeedback && (
+          <FeedbackModal
+            hotelName={hotelName}
+            roomNumber={roomNumber}
+            onClose={() => setShowFeedback(false)}
+          />
+        )}
       </div>
+
+      {settings && <BillFooter settings={settings} />}
     </div>
   );
 }
@@ -779,16 +826,33 @@ export default function RoomQRCodePage() {
   const timerSeconds = String(timeLeft % 60).padStart(2, '0');
   const timerUrgent = timeLeft <= 60;
 
+  // Active theme configuration
+  const activeThemeId = (data?.settings?.uiTheme || 'highlands') as NaturalThemeId;
+  const activeTheme = getThemeConfig(activeThemeId);
+  const dynamicThemeCss = `
+    :root {
+      ${Object.entries(activeTheme.cssVariables).map(([k, v]) => `${k}: ${v};`).join('\n')}
+    }
+    body {
+      background: ${activeTheme.cssVariables['--ink']};
+      color: ${activeTheme.cssVariables['--text']};
+    }
+    .gradient-bg {
+      background: ${activeTheme.bgGradient} !important;
+    }
+  `;
+
   // ── Redirecting ───────────────────────────────────────────────────────
   if (appState === 'redirecting' || (!token && appState === 'loading')) {
     return (
       <div className="full-center gradient-bg">
-        <GuestAmbientBackground />
+        <GuestAmbientBackground themeId={activeThemeId} />
         <div className="guest-foreground">
           <div className="loader-ring" />
           <p className="loader-text">Securing your session…</p>
         </div>
         <style>{BASE_CSS}</style>
+        <style>{dynamicThemeCss}</style>
       </div>
     );
   }
@@ -797,11 +861,15 @@ export default function RoomQRCodePage() {
   if (appState === 'expired') {
     return (
       <div className="app-root gradient-bg">
-        <GuestAmbientBackground />
+        <GuestAmbientBackground themeId={activeThemeId} />
         <div className="guest-foreground">
-          <SessionExpiredScreen roomNumber={typeof roomNumber === 'string' ? roomNumber : ''} />
+          <SessionExpiredScreen
+            roomNumber={typeof roomNumber === 'string' ? roomNumber : ''}
+            settings={data?.settings}
+          />
         </div>
         <style>{BASE_CSS}</style>
+        <style>{dynamicThemeCss}</style>
       </div>
     );
   }
@@ -810,12 +878,13 @@ export default function RoomQRCodePage() {
   if (appState === 'loading') {
     return (
       <div className="full-center gradient-bg">
-        <GuestAmbientBackground />
+        <GuestAmbientBackground themeId={activeThemeId} />
         <div className="guest-foreground">
           <div className="loader-ring" />
           <p className="loader-text">Preparing your folio…</p>
         </div>
         <style>{BASE_CSS}</style>
+        <style>{dynamicThemeCss}</style>
       </div>
     );
   }
@@ -824,7 +893,7 @@ export default function RoomQRCodePage() {
   if (appState === 'error' || !data) {
     return (
       <div className="full-center gradient-bg">
-        <GuestAmbientBackground />
+        <GuestAmbientBackground themeId={activeThemeId} />
         <div className="guest-foreground">
           <div className="error-icon" aria-hidden>
             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -837,6 +906,7 @@ export default function RoomQRCodePage() {
           <p className="error-hint">Please visit the front desk for assistance.</p>
         </div>
         <style>{BASE_CSS}</style>
+        <style>{dynamicThemeCss}</style>
       </div>
     );
   }
@@ -847,7 +917,7 @@ export default function RoomQRCodePage() {
       {/* No-cache meta tags for extra browser protection */}
       <meta httpEquiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
       <meta httpEquiv="Pragma" content="no-cache" />
-      <GuestAmbientBackground />
+      <GuestAmbientBackground themeId={activeThemeId} />
       <div className="guest-foreground">
         {/* Session Timer Bar — always visible when viewing folio */}
         {(appState === 'bill' || appState === 'welcome') && (
@@ -872,6 +942,7 @@ export default function RoomQRCodePage() {
         {appState === 'bill' && <BillPage data={data} />}
       </div>
       <style>{BASE_CSS}</style>
+      <style>{dynamicThemeCss}</style>
     </div>
   );
 }

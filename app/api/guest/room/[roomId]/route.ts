@@ -76,6 +76,7 @@ export async function GET(
         serviceChargePercent: settings.serviceChargePercent,
         checkInTime: settings.checkInTime,
         checkOutTime: settings.checkOutTime,
+        uiTheme: settings.uiTheme,
       },
       sessionExpiresAt: session.expiresAt,
     };
