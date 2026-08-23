@@ -198,7 +198,9 @@ export const AttendanceSystem: React.FC = () => {
   // Staff Certificate & Monthly Performance Modal
   const [certificateModalOpen, setCertificateModalOpen] = useState(false);
   const [selectedCertStaffId, setSelectedCertStaffId] = useState<string>('all');
-  const [certificateViewTab, setCertificateViewTab] = useState<'certificate' | 'statement' | 'leaderboard'>('certificate');
+  const [certificateViewTab, setCertificateViewTab] = useState<'certificate' | 'statement' | 'leaderboard' | 'ai-certificate'>('certificate');
+  const [aiCertResults, setAiCertResults] = useState<Record<string, import('@/app/api/attendance/ai-evaluation/route').StaffAICertificateResult>>({});
+  const [aiCertLoading, setAiCertLoading] = useState(false);
 
   useEffect(() => {
     if (!isAdmin && viewMode !== 'monthly') {
@@ -445,6 +447,97 @@ export const AttendanceSystem: React.FC = () => {
 
     return list;
   }, [matrixUsers, attendanceList, selectedMonth]);
+
+  // ── AI Certificate Generation ─────────────────────────────────────────────
+  const generateAICertificates = async (targetUserId?: string) => {
+    setAiCertLoading(true);
+    try {
+      const [year, month] = selectedMonth.split('-');
+      const monthName = new Date(`${selectedMonth}-01`).toLocaleString('default', { month: 'long' });
+
+      const staffToEvaluate = targetUserId
+        ? staffMonthlyStats.filter((s) => s.user.id === targetUserId)
+        : staffMonthlyStats;
+
+      const staffList = staffToEvaluate.map((stats) => {
+        const records = attendanceList.filter(
+          (a) => a.userId === stats.user.id && a.date.startsWith(selectedMonth)
+        );
+
+        const breakRecords: Array<{ date: string; off: string; in: string; minutes: number }> = [];
+        const staffRemarksRaw: Array<{ date: string; category: string; notes: string }> = [];
+        const overtimeNotes: string[] = [];
+        const punctualityRecords: string[] = [];
+
+        records.forEach((r) => {
+          if (r.notes && r.notes.trim()) {
+            const parsed = parseRemark(r.notes);
+            staffRemarksRaw.push({ date: r.date, category: parsed.category, notes: r.notes });
+            parsed.breakIntervals.forEach((bi) => {
+              breakRecords.push({ date: r.date, off: bi.off, in: bi.in, minutes: bi.minutes });
+            });
+            if (parsed.category === 'overtime') overtimeNotes.push(`${r.date}: ${r.notes}`);
+          }
+          if (r.status === 'Late' && r.checkIn) {
+            punctualityRecords.push(`${r.date}: Late check-in at ${r.checkIn}`);
+          }
+        });
+
+        const activeDays = stats.totalPresent + stats.totalLate + stats.totalHalfDay;
+        const workingDays = activeDays + stats.totalAbsent;
+        const attendancePct = workingDays > 0
+          ? Math.round(((activeDays) / workingDays) * 100)
+          : 0;
+
+        return {
+          userId: stats.user.id,
+          name: stats.user.name,
+          role: stats.user.role,
+          month: monthName,
+          year,
+          workingDays,
+          presentDays: stats.totalPresent,
+          approvedLeaveDays: stats.totalLeave,
+          unauthorizedAbsentDays: stats.totalAbsent,
+          lateDays: stats.totalLate,
+          attendancePercentage: attendancePct,
+          totalWorkedHours: stats.totalHours,
+          additionalApprovedLeave: undefined as string | undefined,
+          leaveNotes: undefined as string | undefined,
+          breakRecords,
+          punctualityRecords,
+          overtimeHours: 0,
+          overtimeNotes,
+          staffRemarks: staffRemarksRaw,
+        };
+      });
+
+      const res = await apiFetch('/api/attendance/ai-evaluation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ staffList }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const newResults: Record<string, import('@/app/api/attendance/ai-evaluation/route').StaffAICertificateResult> = { ...aiCertResults };
+        if (Array.isArray(data.results)) {
+          data.results.forEach((r: import('@/app/api/attendance/ai-evaluation/route').StaffAICertificateResult) => {
+            newResults[r.userId] = r;
+          });
+        }
+        setAiCertResults(newResults);
+        setCertificateViewTab('ai-certificate');
+      } else {
+        toastError('AI evaluation failed. Please try again.');
+      }
+    } catch (e) {
+      toastError('Failed to connect to AI evaluation service.');
+      console.error(e);
+    } finally {
+      setAiCertLoading(false);
+    }
+  };
 
   // Handle Save / Update single user attendance
   const handleSaveAttendance = async (
@@ -1764,7 +1857,7 @@ export const AttendanceSystem: React.FC = () => {
                 </select>
               </div>
 
-              <div className="flex bg-white rounded-xl p-1 border border-slate-200 shadow-2xs">
+              <div className="flex flex-wrap gap-1.5 bg-white rounded-xl p-1 border border-slate-200 shadow-2xs">
                 <button
                   type="button"
                   onClick={() => setCertificateViewTab('certificate')}
@@ -1775,7 +1868,7 @@ export const AttendanceSystem: React.FC = () => {
                   }`}
                 >
                   <Award className="h-3.5 w-3.5" />
-                  Excellence Certificate
+                  Certificate
                 </button>
 
                 <button
@@ -1788,7 +1881,7 @@ export const AttendanceSystem: React.FC = () => {
                   }`}
                 >
                   <FileText className="h-3.5 w-3.5" />
-                  Detailed Statement
+                  Statement
                 </button>
 
                 <button
@@ -1801,10 +1894,310 @@ export const AttendanceSystem: React.FC = () => {
                   }`}
                 >
                   <Trophy className="h-3.5 w-3.5" />
-                  Monthly Leaderboard
+                  Leaderboard
+                </button>
+
+                {/* AI Remarks Certificate Tab */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (Object.keys(aiCertResults).length > 0) {
+                      setCertificateViewTab('ai-certificate');
+                    } else {
+                      generateAICertificates(selectedCertStaffId === 'all' ? undefined : selectedCertStaffId);
+                    }
+                  }}
+                  disabled={aiCertLoading}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                    certificateViewTab === 'ai-certificate'
+                      ? 'bg-violet-600 text-white shadow-xs'
+                      : 'bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200'
+                  } disabled:opacity-60`}
+                >
+                  {aiCertLoading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5" />
+                  )}
+                  {aiCertLoading ? 'AI Analysing…' : '✨ AI Remarks'}
                 </button>
               </div>
             </div>
+
+            {/* AI Generate Button — visible when not on AI tab */}
+            {certificateViewTab !== 'ai-certificate' && (
+              <div className="flex justify-end no-print">
+                <button
+                  type="button"
+                  onClick={() => generateAICertificates(selectedCertStaffId === 'all' ? undefined : selectedCertStaffId)}
+                  disabled={aiCertLoading}
+                  className="px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-md hover:shadow-lg cursor-pointer disabled:opacity-60"
+                >
+                  {aiCertLoading ? (
+                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> AI Analysing Remarks…</>
+                  ) : (
+                    <><Sparkles className="h-3.5 w-3.5" /> Generate AI Remarks Certificate</>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* TAB: AI REMARKS CERTIFICATE */}
+            {certificateViewTab === 'ai-certificate' && (
+              <div className="space-y-6">
+                {/* AI Regenerate bar */}
+                <div className="flex items-center justify-between bg-violet-50 border border-violet-200 rounded-2xl p-3 no-print">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-violet-600" />
+                    <span className="text-xs font-bold text-violet-800">AI Remarks Analysis — Evidence-Based Evaluation</span>
+                    <span className="text-[10px] bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-bold border border-violet-200">Powered by Gemini AI</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => generateAICertificates(selectedCertStaffId === 'all' ? undefined : selectedCertStaffId)}
+                    disabled={aiCertLoading}
+                    className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-60"
+                  >
+                    {aiCertLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                    Regenerate
+                  </button>
+                </div>
+
+                {(selectedCertStaffId === 'all'
+                  ? staffMonthlyStats
+                  : staffMonthlyStats.filter((s) => s.user.id === selectedCertStaffId)
+                ).map((stats) => {
+                  const cert = aiCertResults[stats.user.id];
+                  const certId = `MAV-AI-${selectedMonth.replace('-', '')}-${(stats.user.name || 'STAFF').substring(0, 4).toUpperCase()}`;
+
+                  if (!cert) {
+                    return (
+                      <div key={stats.user.id} className="p-6 rounded-2xl border-2 border-dashed border-violet-200 bg-violet-50/50 text-center space-y-3">
+                        <Sparkles className="h-8 w-8 text-violet-400 mx-auto" />
+                        <p className="text-sm font-bold text-violet-700">{stats.user.name}</p>
+                        <p className="text-xs text-violet-500">AI evaluation not yet generated for this staff member.</p>
+                        <button
+                          type="button"
+                          onClick={() => generateAICertificates(stats.user.id)}
+                          disabled={aiCertLoading}
+                          className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors disabled:opacity-60"
+                        >
+                          {aiCertLoading ? 'Generating…' : 'Generate Now'}
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  const confidenceColor =
+                    cert.confidence === 'High' ? 'emerald' :
+                    cert.confidence === 'Medium' ? 'amber' : 'rose';
+
+                  return (
+                    <div
+                      key={stats.user.id}
+                      className="relative rounded-3xl bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border-2 border-violet-500/40 shadow-2xl overflow-hidden"
+                    >
+                      {/* Corner ornaments */}
+                      <div className="absolute top-3 left-3 w-10 h-10 border-t-2 border-l-2 border-violet-400/40 pointer-events-none" />
+                      <div className="absolute top-3 right-3 w-10 h-10 border-t-2 border-r-2 border-violet-400/40 pointer-events-none" />
+                      <div className="absolute bottom-3 left-3 w-10 h-10 border-b-2 border-l-2 border-violet-400/40 pointer-events-none" />
+                      <div className="absolute bottom-3 right-3 w-10 h-10 border-b-2 border-r-2 border-violet-400/40 pointer-events-none" />
+
+                      {/* Certificate Header */}
+                      <div className="text-center px-8 pt-10 pb-6 space-y-3 border-b border-white/10">
+                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-violet-500 via-indigo-500 to-purple-600 text-white shadow-lg mx-auto mb-2">
+                          <Sparkles className="h-8 w-8 text-white" />
+                        </div>
+                        <p className="text-[10px] font-bold text-violet-300 uppercase tracking-[0.25em]">
+                          Mount Ash Villa · Hospitality Group
+                        </p>
+                        <h2 className="font-serif text-xl sm:text-2xl font-black text-white uppercase tracking-wide">
+                          Monthly Certificate of Attendance,
+                          <br />
+                          <span className="text-violet-300">Conduct & Excellence</span>
+                        </h2>
+                        <div className="h-px w-32 bg-gradient-to-r from-transparent via-violet-400 to-transparent mx-auto" />
+                        <p className="text-[10px] text-white/50 uppercase tracking-wider">AI Remarks Analysis · Evidence-Based Evaluation</p>
+                      </div>
+
+                      {/* Recipient + Award */}
+                      <div className="px-8 py-6 space-y-4 text-center border-b border-white/10">
+                        <div className="inline-block bg-violet-500/20 border border-violet-400/40 text-violet-200 text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full">
+                          {cert.awardTitle}
+                        </div>
+                        <p className="text-xs text-white/50 uppercase tracking-widest">This certificate is proudly presented to</p>
+                        <h1 className="font-serif text-3xl sm:text-4xl font-black text-white tracking-wide">
+                          {stats.user.name}
+                        </h1>
+                        <p className="text-xs font-bold text-violet-300 capitalize tracking-wide">
+                          {stats.user.role} · {selectedMonth}
+                        </p>
+
+                        {/* Performance Grade & Score */}
+                        <div className="flex flex-wrap justify-center gap-3 pt-2">
+                          <div className="px-4 py-2 bg-white/10 rounded-2xl border border-white/20">
+                            <span className="text-[10px] text-white/50 block font-bold uppercase tracking-wider">Performance Grade</span>
+                            <span className="text-sm font-black text-amber-300">{cert.performanceGrade}</span>
+                          </div>
+                          <div className="px-4 py-2 bg-white/10 rounded-2xl border border-white/20">
+                            <span className="text-[10px] text-white/50 block font-bold uppercase tracking-wider">Overall Score</span>
+                            <span className="text-sm font-black text-emerald-300">{cert.score}/100</span>
+                          </div>
+                          <div className="px-4 py-2 bg-white/10 rounded-2xl border border-white/20">
+                            <span className="text-[10px] text-white/50 block font-bold uppercase tracking-wider">Classification</span>
+                            <span className="text-sm font-black text-white">{cert.overallClassification}</span>
+                          </div>
+                          <div className={`px-4 py-2 bg-${confidenceColor}-500/20 rounded-2xl border border-${confidenceColor}-400/40`}>
+                            <span className="text-[10px] text-white/50 block font-bold uppercase tracking-wider">AI Confidence</span>
+                            <span className={`text-sm font-black text-${confidenceColor}-300`}>{cert.confidence}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* AI Citation */}
+                      <div className="px-8 py-6 border-b border-white/10">
+                        <p className="text-[10px] font-bold text-violet-300 uppercase tracking-widest mb-3 flex items-center gap-2">
+                          <Sparkles className="h-3 w-3" /> AI-Generated Citation
+                        </p>
+                        <p className="text-sm text-white/85 leading-relaxed font-serif italic text-center">
+                          &ldquo;{cert.aiCitation}&rdquo;
+                        </p>
+                      </div>
+
+                      {/* Remarks Classification Grid */}
+                      <div className="px-8 py-6 border-b border-white/10">
+                        <p className="text-[10px] font-bold text-violet-300 uppercase tracking-widest mb-4">Remarks Classification</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {[
+                            { label: 'Attendance', value: cert.remarksClassification.attendance },
+                            { label: 'Approved Leave', value: cert.remarksClassification.approvedLeave },
+                            { label: 'Punctuality', value: cert.remarksClassification.punctuality },
+                            { label: 'Break Discipline', value: cert.remarksClassification.breakDiscipline },
+                            { label: 'Overtime', value: cert.remarksClassification.overtime },
+                            { label: 'Work Ethic', value: cert.remarksClassification.workEthic },
+                            { label: 'Conduct', value: cert.remarksClassification.conduct },
+                            { label: 'Overall Remarks', value: cert.remarksClassification.overallRemarks },
+                          ].map((item) => (
+                            <div key={item.label} className="p-2.5 bg-white/5 rounded-xl border border-white/10 text-center">
+                              <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1">{item.label}</span>
+                              <span className="text-[11px] font-bold text-white/90 leading-tight block">{item.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Conduct Assessment + Evidence */}
+                      <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-white/10 border-b border-white/10">
+                        {/* Conduct Assessment */}
+                        <div className="px-6 py-5">
+                          <p className="text-[10px] font-bold text-violet-300 uppercase tracking-widest mb-3">Conduct Assessment</p>
+                          <div className="space-y-2">
+                            {[
+                              { label: 'Punctuality', value: cert.conductAssessment.punctuality },
+                              { label: 'Break Discipline', value: cert.conductAssessment.breakDiscipline },
+                              { label: 'Reliability', value: cert.conductAssessment.reliability },
+                              { label: 'Work Ethic', value: cert.conductAssessment.workEthic },
+                              { label: 'Overtime', value: cert.conductAssessment.overtimeContribution },
+                            ].map((item) => (
+                              <div key={item.label} className="flex items-start justify-between gap-3">
+                                <span className="text-[10px] text-white/40 font-bold shrink-0">{item.label}:</span>
+                                <span className="text-[10px] text-white/80 font-semibold text-right">{item.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Evidence Summary */}
+                        <div className="px-6 py-5">
+                          <p className="text-[10px] font-bold text-violet-300 uppercase tracking-widest mb-3">Evidence Summary</p>
+                          <ul className="space-y-1.5">
+                            {cert.evidenceSummary.map((e, i) => (
+                              <li key={i} className="flex items-start gap-1.5 text-[10px] text-white/70">
+                                <span className="text-violet-400 mt-0.5 shrink-0">•</span>
+                                <span>{e}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+
+                      {/* Remarks Appraisal */}
+                      <div className="px-8 py-6 border-b border-white/10">
+                        <p className="text-[10px] font-bold text-violet-300 uppercase tracking-widest mb-3">Remarks Appraisal</p>
+                        <p className="text-xs text-white/75 leading-relaxed">{cert.remarksAppraisal}</p>
+                      </div>
+
+                      {/* Leave Analysis */}
+                      <div className="px-8 py-5 border-b border-white/10">
+                        <p className="text-[10px] font-bold text-violet-300 uppercase tracking-widest mb-2">Leave Analysis</p>
+                        <p className="text-xs text-white/75 leading-relaxed">{cert.leaveAnalysis}</p>
+                      </div>
+
+                      {/* Merits & Areas for Attention */}
+                      <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-white/10 border-b border-white/10">
+                        <div className="px-6 py-5">
+                          <p className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest mb-3">✦ Merits Recognised</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {cert.merits.map((m, i) => (
+                              <span key={i} className="px-2.5 py-1 bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 text-[10px] font-bold rounded-full">
+                                {m}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="px-6 py-5">
+                          <p className="text-[10px] font-bold text-amber-300 uppercase tracking-widest mb-3">◆ Areas for Attention</p>
+                          {cert.areasForAttention.length === 0 ? (
+                            <p className="text-[10px] text-white/40 italic">No areas requiring attention identified.</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5">
+                              {cert.areasForAttention.map((a, i) => (
+                                <span key={i} className="px-2.5 py-1 bg-amber-500/20 border border-amber-400/30 text-amber-200 text-[10px] font-bold rounded-full">
+                                  {a}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Footer: Seal + Manager Note */}
+                      <div className="px-8 py-8 flex flex-col sm:flex-row items-center justify-between gap-6">
+                        <div className="text-center sm:text-left space-y-1">
+                          <p className="text-xs text-white/70 leading-relaxed max-w-sm italic font-serif">&ldquo;{cert.managerClosingNote}&rdquo;</p>
+                          <div className="w-40 border-b border-white/30 pt-3 mx-auto sm:mx-0" />
+                          <p className="text-[9px] text-white/30 uppercase tracking-widest font-bold">General Manager · Mount Ash Villa</p>
+                        </div>
+
+                        {/* Digital Gold Seal */}
+                        <div className="flex flex-col items-center gap-2 shrink-0">
+                          <div className="w-20 h-20 rounded-full border-2 border-dashed border-violet-400/60 bg-violet-900/40 flex flex-col items-center justify-center text-violet-300 shadow-lg">
+                            <BadgeCheck className="h-7 w-7 text-violet-300" />
+                            <span className="text-[7px] font-black uppercase tracking-tighter text-violet-400">AI VERIFIED</span>
+                          </div>
+                          <p className="text-[9px] font-mono font-bold text-white/30">{certId}</p>
+                          <p className="text-[9px] text-white/20 uppercase tracking-wider">
+                            {new Date().toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Print Button */}
+                      <div className="px-8 pb-6 flex justify-center no-print">
+                        <button
+                          type="button"
+                          onClick={() => window.print()}
+                          className="px-6 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition-colors shadow-lg"
+                        >
+                          <Printer className="h-4 w-4" />
+                          Print / Save as PDF
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* TAB 1: LUXURY CERTIFICATE OF EXCELLENCE */}
             {certificateViewTab === 'certificate' && (
