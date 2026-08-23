@@ -74,8 +74,8 @@ export const Reports: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const { user: currentUser } = useAuth();
 
-  // Daily Cashbook & Monthly Closer Core States
-  const [activeTab, setActiveTab] = useState<'analytics' | 'cashbook' | 'closer'>('analytics');
+  // Daily Cashbook & Reports Core States
+  const [activeTab, setActiveTab] = useState<'analytics' | 'cashbook'>('analytics');
   const [expenses, setExpenses] = useState<any[]>([]);
   const [closedMonths, setClosedMonths] = useState<ClosedMonth[]>([]);
   const [cashbookMonth, setCashbookMonth] = useState<string>('all');
@@ -99,7 +99,7 @@ export const Reports: React.FC = () => {
   // Chart Interactive State Managers
   const [chartType, setChartType] = useState<'area' | 'bar'>('area');
   const [activeSeries, setActiveSeries] = useState<'revenue' | 'roomRevenue' | 'foodRevenue' | 'serviceCharge' | 'expenses' | 'netProfit' | 'all'>('revenue');
-  const [chartRange, setChartRange] = useState<number>(7);
+  const [chartRange, setChartRange] = useState<number>(30);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   // AI Settlement Intelligence State
@@ -700,12 +700,12 @@ export const Reports: React.FC = () => {
     1000
   );
 
-  const svgWidth = 720;
-  const svgHeight = 260;
-  const paddingLeft = 65;
-  const paddingRight = 24;
+  const svgWidth = 1000;
+  const svgHeight = 280;
+  const paddingLeft = 70;
+  const paddingRight = 30;
   const paddingTop = 28;
-  const paddingBottom = 44;
+  const paddingBottom = 46;
 
   const chartWidth = svgWidth - paddingLeft - paddingRight;
   const chartHeight = svgHeight - paddingTop - paddingBottom;
@@ -934,19 +934,6 @@ export const Reports: React.FC = () => {
             <BookOpen className="h-4 w-4" />
             Daily Cashbook Ledger
           </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('closer')}
-            className={`pb-3 px-5 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer border-x-0 border-t-0 bg-transparent ${
-              activeTab === 'closer'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Wallet className="h-4 w-4" />
-            Month-End Closer & Net Profit
-          </button>
         </div>
       )}
 
@@ -1000,8 +987,8 @@ export const Reports: React.FC = () => {
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
-          {/* DAILY CHART & DATA LISTING (Left 8 columns) */}
-          <div className="lg:col-span-8 bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-5">
+          {/* DAILY CHART & DATA LISTING (Full Width 12 columns) */}
+          <div className="lg:col-span-12 bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-5">
             
             {/* CARD TOP HEADER */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2 no-print">
@@ -1184,24 +1171,6 @@ export const Reports: React.FC = () => {
 
               {/* View options */}
               <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                {/* Range Selectors */}
-                <div className="flex bg-white rounded-lg border border-slate-200 p-0.5 shadow-2xs">
-                  {[7, 15, 30, 0].map((days) => (
-                    <button
-                      key={days}
-                      type="button"
-                      onClick={() => { setChartRange(days); setHoveredIdx(null); }}
-                      className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
-                        chartRange === days
-                          ? 'bg-slate-800 text-white'
-                          : 'text-slate-500 hover:bg-slate-50'
-                      }`}
-                    >
-                      {days === 0 ? 'Month' : `${days}D`}
-                    </button>
-                  ))}
-                </div>
-
                 {/* Type toggle */}
                 <div className="flex bg-white rounded-lg border border-slate-200 p-0.5 shadow-2xs">
                   <button
@@ -1760,48 +1729,7 @@ export const Reports: React.FC = () => {
             </div>
           )}
 
-          {/* MONTHLY SUMMARY CARD (Right 4 columns) */}
-          <div className="lg:col-span-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
-            
-            <div className="flex items-center justify-between pb-3 border-b border-slate-50 no-print">
-              <h3 className="font-display font-bold text-slate-800 flex items-center gap-1.5 text-base">
-                <Receipt className="h-4 w-4 text-indigo-500" />
-                Monthly Revenue Logs
-              </h3>
-              <button
-                onClick={exportMonthlyCSV}
-                className="text-xs text-indigo-600 font-bold hover:underline"
-              >
-                CSV
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {filteredMonthlyAnalytics.map((m, idx) => (
-                <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="font-mono text-xs font-bold text-slate-700">{m.month} (Settlements)</span>
-                    <span className="text-[10px] font-semibold text-indigo-600">{m.billsCount} settled</span>
-                  </div>
-                  <div className="flex justify-between text-xs pt-1 border-t border-slate-100 text-slate-500">
-                    <div className="space-y-0.5">
-                      <div>Room: Rs. {m.roomRevenue.toLocaleString()}</div>
-                      <div>Food: Rs. {m.foodRevenue.toLocaleString()}</div>
-                      <div>S.C.: Rs. {(m.serviceCharge || 0).toLocaleString()}</div>
-                    </div>
-                    <div className="text-right self-end font-semibold text-slate-800">
-                      Rs. {m.revenue.toLocaleString()}
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {filteredMonthlyAnalytics.length === 0 && (
-                <p className="text-center py-6 text-xs text-slate-400">No monthly aggregates available for {curMonthLabel}.</p>
-              )}
-            </div>
-
-          </div>
+         
 
           {/* COMPLETED BILLS DETAIL AUDIT REGISTER SECTION */}
           <div className="lg:col-span-12 bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
@@ -2096,304 +2024,6 @@ export const Reports: React.FC = () => {
               </div>
             </div>
           )}
-
-          {/* TAB 3: MONTH-END CLOSER & OWNER'S PROFIT DISTRIBUTION */}
-          {activeTab === 'closer' && (
-            <div className="space-y-6">
-              
-              
-
-              {/* Dynamic current closure variables */}
-              {(() => {
-                const isClosed = closedMonths.some(m => m.month === selectedMonth);
-                const currentCloserObj = closedMonths.find(m => m.month === selectedMonth);
-
-                return (
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                    
-                    {/* LEFT 7 COLS: MONTHLY METRICS AUDIT REPORT SHEET */}
-                    <div className="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-6">
-                      <div className="border-b border-slate-50 pb-3">
-                        <h4 className="font-bold text-slate-800 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-1.5">
-                          <Coins className="h-4 w-4 text-emerald-500" />
-                          Pre-Closure Audit Sheet: {selectedMonth}
-                        </h4>
-                      </div>
-
-                      {/* Live financial summaries indicators */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-100">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-sans">Gross Revenues</p>
-                          <p className="text-lg font-extrabold text-slate-850 mt-1.5 font-mono">
-                            Rs. {monthMetrics.totalRevenue.toLocaleString()}
-                          </p>
-                          <div className="text-[9px] text-slate-400 mt-1.5 space-y-0.5 font-sans">
-                            <div>Rooms: Rs. {monthMetrics.roomRevenue.toLocaleString()}</div>
-                            <div>Food & S.C: Rs. {(monthMetrics.foodRevenue + monthMetrics.serviceCharge).toLocaleString()}</div>
-                          </div>
-                        </div>
-
-                        <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-100">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Expenditures</p>
-                          <p className="text-lg font-extrabold text-rose-600 mt-1.5 font-mono">
-                            Rs. {monthMetrics.totalExpenses.toLocaleString()}
-                          </p>
-                          <span className="text-[9px] text-slate-400 mt-1.5 inline-block">
-                            {monthMetrics.filteredExpenses.length} corporate receipts registered
-                          </span>
-                        </div>
-
-                        <div className="bg-indigo-50/20 p-4 rounded-xl border border-indigo-100">
-                          <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">Net Operating Profit</p>
-                          <p className={`text-lg font-extrabold mt-1.5 font-mono ${monthMetrics.netProfit >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
-                            Rs. {monthMetrics.netProfit.toLocaleString()}
-                          </p>
-                          <span className="text-[9px] text-slate-400 mt-1.5 inline-block font-sans">
-                            {monthMetrics.filteredBills.length} guest checkouts concluded
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Side by side transaction sub-journals */}
-                      <div className="space-y-4 pt-2">
-                        <h5 className="text-[10px] font-extrabold text-slate-450 uppercase tracking-wide">Closing Checklist Journal</h5>
-                        
-                        <div className="divide-y divide-slate-50 max-h-72 overflow-y-auto border border-slate-100 rounded-xl px-3 bg-slate-50/10">
-                          {monthMetrics.filteredBills.length === 0 && monthMetrics.filteredExpenses.length === 0 ? (
-                            <p className="text-center py-10 text-xs text-slate-400 italic">No ledger transaction activities recorded in {selectedMonth}.</p>
-                          ) : (
-                            <>
-                              {monthMetrics.filteredBills.map((b: any) => (
-                                <div key={b.id} className="py-2.5 flex justify-between items-center text-xs">
-                                  <div className="flex items-center gap-2">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
-                                    <div>
-                                      <p className="font-bold text-slate-800">{b.guestDetails?.name || 'Walk-in Guest'}</p>
-                                      <p className="text-[9px] text-slate-400 font-mono">Receipt #{b.id} • checkout</p>
-                                    </div>
-                                  </div>
-                                  <span className="font-semibold text-emerald-600 font-mono">Rs. {b.totalAmount.toLocaleString()}</span>
-                                </div>
-                              ))}
-
-                              {monthMetrics.filteredExpenses.map((e: any) => (
-                                <div key={e.id} className="py-2.5 flex justify-between items-center text-xs">
-                                  <div className="flex items-center gap-2">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0" />
-                                    <div>
-                                      <p className="font-bold text-slate-800">{e.title}</p>
-                                      <p className="text-[9px] text-slate-400">Expense ({e.category}) • {e.paymentMethod}</p>
-                                    </div>
-                                  </div>
-                                  <span className="font-semibold text-rose-500 font-mono">-Rs. {e.amount.toLocaleString()}</span>
-                                </div>
-                              ))}
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* RIGHT 5 COLS: CLOSER ACTIONS PANEL */}
-                    <div className="lg:col-span-5 space-y-6">
-                      
-                      {isClosed && currentCloserObj ? (
-                        /* CLOSED STATE COMPLETED BOX VIEW */
-                        <div className="bg-emerald-50/20 border-2 border-emerald-500/25 p-5 rounded-2xl space-y-4">
-                          <div className="flex items-center gap-2 text-emerald-700">
-                            <Lock className="h-5 w-5 shrink-0" />
-                            <h4 className="font-bold text-sm uppercase tracking-wider">Verified Month Closed</h4>
-                          </div>
-
-                          <p className="text-xs text-slate-600 leading-relaxed">
-                            This month is archived. Ledger books are finalized, and owner takeaways have been committed. Reopening the month removes the closure register.
-                          </p>
-
-                          <div className="p-3 bg-white rounded-xl border border-slate-100 divide-y divide-slate-100 text-xs">
-                            <div className="py-2 flex justify-between">
-                              <span className="text-slate-400">Locked Profit Net:</span>
-                              <span className="font-bold text-slate-850 font-mono">Rs. {currentCloserObj.netProfit.toLocaleString()}</span>
-                            </div>
-                            <div className="py-2 flex justify-between">
-                              <span className="text-emerald-600 font-medium">Owner Profit Takeaway:</span>
-                              <span className="font-mono font-extrabold text-emerald-600">Rs. {currentCloserObj.ownerTakeaway.toLocaleString()}</span>
-                            </div>
-                            <div className="py-2 flex justify-between">
-                              <span className="text-slate-400">Retained Drawer Reserves:</span>
-                              <span className="font-bold text-slate-700 font-mono">Rs. {currentCloserObj.retainedEarnings.toLocaleString()}</span>
-                            </div>
-                            <div className="py-2 flex justify-between">
-                              <span className="text-slate-400">Locked At:</span>
-                              <span className="text-slate-500 font-mono">{new Date(currentCloserObj.closedAt).toLocaleDateString()}</span>
-                            </div>
-                            <div className="py-2 flex justify-between">
-                              <span className="text-slate-400">Audit Remarks:</span>
-                              <span className="text-slate-600 italic font-medium">{currentCloserObj.notes || 'No remarks recorded'}</span>
-                            </div>
-                          </div>
-
-                          <LoadingButton
-                            type="button"
-                            onClick={() => handleDeleteClosedMonth(currentCloserObj.id)}
-                            loading={deletingMonthId === currentCloserObj.id}
-                            loadingLabel="Reopening..."
-                            className="w-full py-2.5 px-4 bg-slate-850 hover:bg-slate-900 hover:text-red-400 text-white font-bold text-[10px] rounded-lg tracking-widest uppercase cursor-pointer transition-all border-0 shadow-xs flex items-center justify-center gap-1.5"
-                          >
-                            <Unlock className="h-4 w-4" />
-                            Reopen Accounts & Unseal Month
-                          </LoadingButton>
-                        </div>
-                      ) : (
-                        /* UNCLOSED MONTH CLOSURE FORM PANEL */
-                        <form onSubmit={handleCloseMonth} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs space-y-4">
-                          <fieldset disabled={closingLoading} className="space-y-4 border-0 p-0 m-0 min-w-0">
-                          <div className="flex items-center gap-2 text-slate-800">
-                            <Unlock className="h-5 w-5 text-indigo-500" />
-                            <h4 className="font-bold text-sm uppercase tracking-wider">Unsealed Month Balance</h4>
-                          </div>
-
-                          <p className="text-xs text-slate-400">
-                            Perform physical cash drawer balancing checks, count bank reserves, then finalize owner profit withdrawal details below.
-                          </p>
-
-                          {/* Live profit calculations */}
-                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 space-y-1 text-center">
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Calculated Net Operating Profit</span>
-                            <h3 className={`text-xl font-extrabold tracking-tight font-mono ${monthMetrics.netProfit >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>
-                              Rs. {monthMetrics.netProfit.toLocaleString()}
-                            </h3>
-                          </div>
-
-                          {/* Owner Takeaway Payout calculation input */}
-                          <div className="space-y-1.5">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">
-                              Owner Profit Takeaway (Payout):
-                            </span>
-                            <div className="relative">
-                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-xs text-slate-400 font-mono">Rs.</span>
-                              <input
-                                type="number"
-                                required
-                                min="0"
-                                max={Math.max(monthMetrics.netProfit, 0) || 10000000}
-                                value={ownerTakeaway}
-                                onChange={(e) => setOwnerTakeaway(Number(e.target.value))}
-                                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-slate-800"
-                              />
-                            </div>
-                            <span className="text-[10px] text-slate-400 mt-1 inline-block">
-                              How much net cash profit is being paid to/withdrawn by the hotel owner.
-                            </span>
-                          </div>
-
-                          {/* Retained dynamic earnings display */}
-                          <div className="p-3 bg-indigo-50/10 rounded-xl border border-indigo-100 text-xs flex justify-between items-center">
-                            <div>
-                              <p className="font-bold text-indigo-650">Retained Business Capital</p>
-                              <p className="text-[9px] text-slate-400">Kept for utility bills & startup drawer reserves.</p>
-                            </div>
-                            <span className="font-mono font-extrabold text-sm text-indigo-600">
-                              Rs. {(monthMetrics.netProfit - ownerTakeaway).toLocaleString()}
-                            </span>
-                          </div>
-
-                          {/* Remarks notes */}
-                          <div className="space-y-1.5">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">
-                              Closure Audit Remarks:
-                            </span>
-                            <textarea
-                              rows={3}
-                              value={closerNotes}
-                              onChange={(e) => setCloserNotes(e.target.value)}
-                              placeholder="e.g. Owner payout completed via cash drawer withdrawal. Excess cash kept to fund July electricity bills and room amenities reserves."
-                              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-sans"
-                            />
-                          </div>
-
-                          <LoadingButton
-                            type="submit"
-                            disabled={monthMetrics.netProfit <= 0 && ownerTakeaway <= 0}
-                            loading={closingLoading}
-                            loadingLabel="Closing and finalizing..."
-                            className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-[10px] rounded-lg tracking-widest uppercase cursor-pointer transition-all border-0 shadow-xs flex items-center justify-center gap-1"
-                          >
-                            <Lock className="h-4 w-4" />
-                            Seall Accounts & Lock Period
-                          </LoadingButton>
-                          </fieldset>
-                        </form>
-                      )}
-
-                    </div>
-
-                    {/* HISTORY LIST DIRECTORY CARD (Full width underneath) */}
-                    <div className="lg:col-span-12 bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
-                      <div className="border-b border-slate-50 pb-3 flex justify-between items-center">
-                        <h4 className="font-bold text-slate-800 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2">
-                          <Coins className="h-4 w-4 text-emerald-500" />
-                          Historically Sealed Monthly Registers
-                        </h4>
-                        <span className="bg-slate-50 border border-slate-100 text-slate-400 text-[10px] font-bold px-2.5 py-1 rounded">
-                          {closedMonths.length} cycles archived
-                        </span>
-                      </div>
-
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs text-slate-705">
-                          <thead>
-                            <tr className="bg-slate-50 border-b border-slate-100 text-[9px] font-semibold text-slate-400 uppercase tracking-wider">
-                              <th className="py-3 px-4">Calendar Month</th>
-                              <th className="py-3 px-4">Month Sealed On</th>
-                              <th className="py-3 px-4 font-bold text-slate-800">Total Revenue</th>
-                              <th className="py-3 px-4 font-bold text-slate-800">Company Expenses</th>
-                              <th className="py-3 px-4 font-bold text-slate-600">Operating Net Profit</th>
-                              <th className="py-3 px-4 font-extrabold text-indigo-650">Owner Takeaway</th>
-                              <th className="py-3 px-4 font-bold text-slate-500">Retained Ledger</th>
-                              <th className="py-3 px-4 text-center">Unseal Account</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-50 font-sans">
-                            {closedMonths.map((m) => (
-                              <tr key={m.id} className="hover:bg-slate-50/20 transition-colors">
-                                <td className="py-3.5 px-4 font-mono font-extrabold text-indigo-600">{m.month}</td>
-                                <td className="py-3.5 px-4 text-slate-500">{new Date(m.closedAt).toLocaleDateString()}</td>
-                                <td className="py-3.5 px-4 font-mono text-slate-650">Rs. {m.totalRevenue.toLocaleString()}</td>
-                                <td className="py-3.5 px-4 font-mono text-slate-650">Rs. {m.totalExpenses.toLocaleString()}</td>
-                                <td className="py-3.5 px-4 font-mono font-bold text-slate-850">Rs. {m.netProfit.toLocaleString()}</td>
-                                <td className="py-3.5 px-4 font-mono font-bold text-emerald-600 bg-emerald-50/10">Rs. {m.ownerTakeaway.toLocaleString()}</td>
-                                <td className="py-3.5 px-4 font-mono text-slate-500">Rs. {m.retainedEarnings.toLocaleString()}</td>
-                                <td className="py-3.5 px-4 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteClosedMonth(m.id)}
-                                    disabled={deletingMonthId === m.id}
-                                    className="p-1 px-2.5 bg-slate-105 rounded hover:bg-red-50 hover:text-red-500 text-slate-400 font-bold border-0 text-[10px] uppercase transition-colors tracking-wide cursor-pointer disabled:opacity-50 inline-flex items-center gap-1"
-                                  >
-                                    {deletingMonthId === m.id ? (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : null}
-                                    Reopen
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                            {closedMonths.length === 0 && (
-                              <tr>
-                                <td colSpan={8} className="py-12 text-center text-slate-400 italic">No business period closures finalized yet. Fill the closer details form above.</td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                  </div>
-                );
-              })()}
-            </div>
-          )}
-
         </div>
       )}
 
