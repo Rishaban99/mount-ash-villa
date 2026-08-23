@@ -342,26 +342,109 @@ export const Rooms: React.FC = () => {
                   <span className="text-xs text-slate-400 ml-1 font-sans">/ Night</span>
                 </div>
 
-                {activeBill && (
-                  <div className="mt-4 p-3 rounded-xl bg-slate-50/80 border border-slate-100 flex flex-col gap-2.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-slate-500">
-                        <UserIcon className="w-3.5 h-3.5" />
-                        <span className="text-[10px] uppercase font-bold tracking-wider">Occupant</span>
+                {/* ── Compiled Bill Summary Panel ── */}
+                {activeBill ? (
+                  <div className="mt-4 rounded-2xl border border-indigo-100 bg-gradient-to-b from-indigo-50/60 to-white overflow-hidden">
+                    {/* Bill Header */}
+                    <div className="flex items-center justify-between px-3.5 py-2.5 bg-indigo-600 text-white">
+                      <div className="flex items-center gap-1.5">
+                        <ReceiptText className="h-3.5 w-3.5" />
+                        <span className="text-[11px] font-black uppercase tracking-wider">Active Bill</span>
                       </div>
-                      <span className="text-xs font-bold text-slate-800 truncate max-w-[120px]" title={activeBill.guestDetails.name}>
-                        {activeBill.guestDetails.name}
+                      <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full">
+                        #{activeBill.id.substring(0, 8).toUpperCase()}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-slate-500">
-                        <ReceiptText className="w-3.5 h-3.5" />
-                        <span className="text-[10px] uppercase font-bold tracking-wider">Bill Total</span>
+
+                    {/* Guest Info */}
+                    <div className="px-3.5 py-2.5 border-b border-indigo-100 flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <UserIcon className="h-3 w-3 text-indigo-400" />
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Guest</span>
+                        </div>
+                        <p className="text-xs font-bold text-slate-800 leading-tight">{activeBill.guestDetails.name}</p>
+                        {activeBill.guestDetails.phone && (
+                          <p className="text-[10px] text-slate-400">{activeBill.guestDetails.phone}</p>
+                        )}
                       </div>
-                      <span className="text-xs font-bold text-indigo-600">
+                      <div className="text-right shrink-0">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Stay Period</div>
+                        <p className="text-[10px] font-semibold text-slate-700">
+                          {new Date(activeBill.guestDetails.checkInDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                          {' → '}
+                          {new Date(activeBill.guestDetails.checkOutDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                        </p>
+                        {(() => {
+                          const nights = activeBill.roomItems.reduce((s, ri) => s + ri.nights, 0);
+                          return <p className="text-[10px] text-indigo-500 font-bold">{nights} Night{nights !== 1 ? 's' : ''}</p>;
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* Itemised Charges */}
+                    <div className="px-3.5 py-2.5 space-y-1.5 border-b border-indigo-100">
+                      {/* Room Charges */}
+                      {activeBill.roomSubtotal > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-slate-500 font-semibold flex items-center gap-1">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                            Room Charges
+                          </span>
+                          <span className="text-[11px] font-bold text-slate-700">
+                            Rs. {activeBill.roomSubtotal.toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* F&B Charges */}
+                      {activeBill.foodSubtotal > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-slate-500 font-semibold flex items-center gap-1">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400" />
+                            Food & Beverage
+                            {activeBill.foodItems.length > 0 && (
+                              <span className="text-[9px] text-slate-400">({activeBill.foodItems.reduce((s, f) => s + f.quantity, 0)} items)</span>
+                            )}
+                          </span>
+                          <span className="text-[11px] font-bold text-slate-700">
+                            Rs. {activeBill.foodSubtotal.toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Service Charge */}
+                      {activeBill.serviceCharge > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-slate-500 font-semibold flex items-center gap-1">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            Service Charge
+                          </span>
+                          <span className="text-[11px] font-bold text-slate-700">
+                            Rs. {activeBill.serviceCharge.toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Grand Total */}
+                    <div className="flex items-center justify-between px-3.5 py-3 bg-indigo-600/5">
+                      <span className="text-xs font-black text-indigo-800 uppercase tracking-wide">Total Amount</span>
+                      <span className="text-sm font-black text-indigo-700">
                         Rs. {activeBill.totalAmount.toLocaleString()}
                       </span>
                     </div>
+                  </div>
+                ) : (
+                  /* No active bill — show a subtle placeholder */
+                  <div className="mt-4 px-3.5 py-3 rounded-2xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-slate-400">
+                      <ReceiptText className="h-4 w-4" />
+                      <span className="text-[11px] font-semibold">No active bill</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                      Room Available
+                    </span>
                   </div>
                 )}
               </div>
