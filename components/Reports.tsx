@@ -42,6 +42,12 @@ import {
   AlertTriangle,
   Lightbulb,
   Zap,
+  Bed,
+  Utensils,
+  Search,
+  Eye,
+  PieChart,
+  Tag,
 } from 'lucide-react';
 import { LoadingButton } from '@/components/loading-button';
 import { useAuth } from '@/components/auth-provider';
@@ -75,8 +81,9 @@ export const Reports: React.FC = () => {
   const { user: currentUser } = useAuth();
 
   // Daily Cashbook & Reports Core States
-  const [activeTab, setActiveTab] = useState<'analytics' | 'cashbook'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'rooms' | 'foods' | 'cashbook'>('analytics');
   const [expenses, setExpenses] = useState<any[]>([]);
+  const [foods, setFoods] = useState<any[]>([]);
   const [closedMonths, setClosedMonths] = useState<ClosedMonth[]>([]);
   const [cashbookMonth, setCashbookMonth] = useState<string>('all');
   const [settings, setSettings] = useState<any>(null);
@@ -108,13 +115,18 @@ export const Reports: React.FC = () => {
   const [aiInsights, setAiInsights] = useState<any>(null);
   const [aiError, setAiError] = useState<string | null>(null);
 
+  // Room & Food Sales Detailed Search & Sub-tabs
+  const [salesModalSearch, setSalesModalSearch] = useState<string>('');
+  const [salesModalSubTab, setSalesModalSubTab] = useState<'summary' | 'categories' | 'logs'>('summary');
+
   const fetchReports = async () => {
     try {
-      const [reportsRes, billsRes, expensesRes, closedRes] = await Promise.all([
+      const [reportsRes, billsRes, expensesRes, closedRes, foodsRes] = await Promise.all([
         fetch('/api/reports'),
         fetch('/api/bills'),
         fetch('/api/expenses'),
-        fetch('/api/closed-months')
+        fetch('/api/closed-months'),
+        fetch('/api/foods')
       ]);
 
       if (reportsRes.ok) {
@@ -136,6 +148,11 @@ export const Reports: React.FC = () => {
       if (closedRes && closedRes.ok) {
         const closedData = await closedRes.json();
         setClosedMonths(closedData);
+      }
+
+      if (foodsRes && foodsRes.ok) {
+        const foodsData = await foodsRes.json();
+        setFoods(foodsData);
       }
     } catch (e) {
       console.error('Failed to load report analytics:', e);
@@ -391,6 +408,237 @@ export const Reports: React.FC = () => {
     const dateStr = b.updatedAt || b.createdAt || '';
     return dateStr.startsWith(selectedMonth);
   });
+
+  // Detailed Room Sales Aggregation
+  const roomSalesAnalysis = React.useMemo(() => {
+    const roomMap: Record<string, {
+      roomId: string;
+      roomNumber: string;
+      roomType: string;
+      totalNights: number;
+      checkoutsCount: number;
+      grossRevenue: number;
+      totalDiscounts: number;
+      netRevenue: number;
+      bills: {
+        billId: string;
+        guestName: string;
+        phone?: string;
+        nights: number;
+        pricePerNight: number;
+        discount?: number;
+        totalRoomCost: number;
+        date: string;
+      }[];
+    }> = {};
+
+    let overallRoomRevenue = 0;
+    let overallRoomNights = 0;
+    let overallDiscounts = 0;
+    const allRoomLogs: {
+      billId: string;
+      guestName: string;
+      phone?: string;
+      roomNumber: string;
+      roomType: string;
+      nights: number;
+      pricePerNight: number;
+      discount?: number;
+      totalRoomCost: number;
+      date: string;
+    }[] = [];
+
+    filteredCompletedBills.forEach(bill => {
+      const billDate = bill.updatedAt || bill.createdAt || '';
+      const guestName = bill.guestDetails?.name || 'Walk-in Guest';
+      const guestPhone = bill.guestDetails?.phone || '';
+
+      (bill.roomItems || []).forEach((rm: any) => {
+        const key = rm.roomNumber ? `room_${rm.roomNumber}` : (rm.roomId || 'unknown_room');
+        const nights = Number(rm.nights) || 1;
+        const pricePerNight = Number(rm.pricePerNight) || 0;
+        const discount = Number(rm.discount) || 0;
+        const originalPrice = Number(rm.originalPricePerNight || (pricePerNight + discount));
+        const roomTotal = pricePerNight * nights;
+        const discountTotal = discount * nights;
+
+        if (!roomMap[key]) {
+          roomMap[key] = {
+            roomId: rm.roomId || key,
+            roomNumber: String(rm.roomNumber || 'N/A'),
+            roomType: rm.roomType || 'Standard',
+            totalNights: 0,
+            checkoutsCount: 0,
+            grossRevenue: 0,
+            totalDiscounts: 0,
+            netRevenue: 0,
+            bills: [],
+          };
+        }
+
+        roomMap[key].totalNights += nights;
+        roomMap[key].checkoutsCount += 1;
+        roomMap[key].grossRevenue += (originalPrice * nights);
+        roomMap[key].totalDiscounts += discountTotal;
+        roomMap[key].netRevenue += roomTotal;
+
+        const logEntry = {
+          billId: bill.id,
+          guestName,
+          phone: guestPhone,
+          roomNumber: String(rm.roomNumber || 'N/A'),
+          roomType: rm.roomType || 'Standard',
+          nights,
+          pricePerNight,
+          discount,
+          totalRoomCost: roomTotal,
+          date: billDate,
+        };
+
+        roomMap[key].bills.push(logEntry);
+        allRoomLogs.push(logEntry);
+
+        overallRoomRevenue += roomTotal;
+        overallRoomNights += nights;
+        overallDiscounts += discountTotal;
+      });
+    });
+
+    const roomsList = Object.values(roomMap).sort((a, b) => b.netRevenue - a.netRevenue);
+
+    return {
+      roomsList,
+      allRoomLogs: allRoomLogs.sort((a, b) => b.date.localeCompare(a.date)),
+      overallRoomRevenue,
+      overallRoomNights,
+      overallDiscounts,
+      totalBookings: allRoomLogs.length,
+      avgNightRate: overallRoomNights > 0 ? Math.round(overallRoomRevenue / overallRoomNights) : 0,
+    };
+  }, [filteredCompletedBills]);
+
+  // Detailed Food Sales Aggregation
+  const foodSalesAnalysis = React.useMemo(() => {
+    const foodLookup: Record<string, any> = {};
+    foods.forEach((f: any) => {
+      if (f.id) foodLookup[f.id] = f;
+      if (f.foodName) foodLookup[f.foodName.toLowerCase()] = f;
+    });
+
+    const itemMap: Record<string, {
+      foodId: string;
+      foodName: string;
+      category: string;
+      price: number;
+      totalQuantity: number;
+      totalRevenue: number;
+      billsCount: number;
+    }> = {};
+
+    const categoryMap: Record<string, {
+      category: string;
+      totalQuantity: number;
+      totalRevenue: number;
+    }> = {};
+
+    let overallFoodRevenue = 0;
+    let overallFoodQuantity = 0;
+    const allFoodLogs: {
+      billId: string;
+      guestName: string;
+      foodItemsSummary: string;
+      foodSubtotal: number;
+      serviceCharge: number;
+      date: string;
+      items: { name: string; quantity: number; price: number }[];
+    }[] = [];
+
+    filteredCompletedBills.forEach(bill => {
+      const billDate = bill.updatedAt || bill.createdAt || '';
+      const guestName = bill.guestDetails?.name || 'Walk-in Guest';
+      const foodItems = bill.foodItems || [];
+
+      if (foodItems.length > 0) {
+        const summaryArr: string[] = [];
+        let billFoodTotal = 0;
+
+        foodItems.forEach((fi: any) => {
+          const matchedFood = fi.foodId ? foodLookup[fi.foodId] : null;
+          const rawName = fi.foodName || fi.name || fi.foodTitle || fi.title || fi.itemName || (matchedFood?.foodName) || '';
+          const name = rawName.trim() || 'Menu Dish';
+          const category = fi.category || matchedFood?.category || (foodLookup[name.toLowerCase()]?.category) || 'General Menu';
+          const key = fi.foodId || name;
+          const price = Number(fi.price) || (matchedFood ? Number(matchedFood.price) : 0);
+          const quantity = Number(fi.quantity) || 1;
+          const itemRevenue = price * quantity;
+
+          summaryArr.push(`${quantity}x ${name}`);
+          billFoodTotal += itemRevenue;
+
+          if (!itemMap[key]) {
+            itemMap[key] = {
+              foodId: fi.foodId || key,
+              foodName: name,
+              category,
+              price,
+              totalQuantity: 0,
+              totalRevenue: 0,
+              billsCount: 0,
+            };
+          }
+
+          itemMap[key].totalQuantity += quantity;
+          itemMap[key].totalRevenue += itemRevenue;
+          itemMap[key].billsCount += 1;
+
+          if (!categoryMap[category]) {
+            categoryMap[category] = {
+              category,
+              totalQuantity: 0,
+              totalRevenue: 0,
+            };
+          }
+          categoryMap[category].totalQuantity += quantity;
+          categoryMap[category].totalRevenue += itemRevenue;
+
+          overallFoodRevenue += itemRevenue;
+          overallFoodQuantity += quantity;
+        });
+
+        allFoodLogs.push({
+          billId: bill.id,
+          guestName,
+          foodItemsSummary: summaryArr.join(', '),
+          foodSubtotal: bill.foodSubtotal || billFoodTotal,
+          serviceCharge: bill.serviceCharge || 0,
+          date: billDate,
+          items: foodItems.map((fi: any) => {
+            const matchedFood = fi.foodId ? foodLookup[fi.foodId] : null;
+            const rawName = fi.foodName || fi.name || fi.foodTitle || fi.title || fi.itemName || (matchedFood?.foodName) || '';
+            return {
+              name: rawName.trim() || 'Menu Dish',
+              quantity: Number(fi.quantity) || 1,
+              price: Number(fi.price) || 0,
+            };
+          }),
+        });
+      }
+    });
+
+    const itemsList = Object.values(itemMap).sort((a, b) => b.totalRevenue - a.totalRevenue);
+    const categoriesList = Object.values(categoryMap).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    return {
+      itemsList,
+      categoriesList,
+      allFoodLogs: allFoodLogs.sort((a, b) => b.date.localeCompare(a.date)),
+      overallFoodRevenue,
+      overallFoodQuantity,
+      totalFoodOrders: allFoodLogs.length,
+      distinctItemsCount: itemsList.length,
+      avgSpendPerOrder: allFoodLogs.length > 0 ? Math.round(overallFoodRevenue / allFoodLogs.length) : 0,
+    };
+  }, [filteredCompletedBills, foods]);
 
   const cashbookDaysFiltered = cashbookDays.filter(day => {
     if (cashbookMonth === 'all') return true;
@@ -863,77 +1111,99 @@ export const Reports: React.FC = () => {
       </div>
 
 
-      <div className="overflow-x-auto pb-2 no-print">
-        <div className="flex items-center justify-between gap-2 py-2 px-1 w-full">
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 min-w-[180px] h-10 px-3 py-1.5 bg-white rounded-2xl border border-slate-200 text-slate-700 font-bold text-xs shadow-sm transition-all hover:border-slate-300"
-          >
-            <Calendar className="h-4 w-4 text-indigo-500" />
-            {selectedMonth ? new Date(`${selectedMonth}-01`).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : 'Select Month'}
-          </button>
-
-          <div className="flex gap-2 overflow-x-auto">
-            {getAvailableMonths().map(m => {
-              const [year, month] = m.split('-');
-              const dateObj = new Date(Number(year), Number(month) - 1, 15);
-              const monthName = dateObj.toLocaleDateString(undefined, { month: 'short' });
-              const isSelected = selectedMonth === m;
-
-              return (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => {
-                    setSelectedMonth(m);
-                    setCashbookMonth(m);
-                  }}
-                  className={`relative min-w-[88px] h-10 px-3 py-1.5 bg-white rounded-2xl border transition-all text-left group cursor-pointer shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 ${
-                    isSelected
-                      ? 'border-indigo-500 bg-indigo-50/70 shadow-xs'
-                      : 'border-slate-200/60 hover:border-slate-300'
-                  }`}
-                >
-                  <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-wider leading-none">{year}</span>
-                  <span className="block text-[11px] font-bold text-slate-700 mt-0.5">{monthName}</span>
-                  <div className={`absolute bottom-0 left-3 right-3 h-[2px] rounded-t-full transition-all duration-300 ${
-                    isSelected ? 'bg-indigo-600 scale-x-100' : 'bg-transparent scale-x-0 group-hover:bg-slate-200 group-hover:scale-x-50'
-                  }`} />
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Tab Navigation */}
+      {/* UNIFIED NAVIGATION & MONTH CONTROLS BAR */}
       {!loading && (
-        <div className="flex flex-wrap border-b border-slate-200 gap-1 no-print">
-          <button
-            type="button"
-            onClick={() => setActiveTab('analytics')}
-            className={`pb-3 px-5 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer border-x-0 border-t-0 bg-transparent ${
-              activeTab === 'analytics'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <BarChart2 className="h-4 w-4" />
-            Revenue Analytics & Charts
-          </button>
+        <div className="bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-100 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 no-print">
+          {/* Main View Mode Segmented Pill Switcher */}
+          <div className="flex bg-slate-100/80 p-1 rounded-xl gap-1 shrink-0 self-start md:self-auto overflow-x-auto max-w-full">
+            <button
+              type="button"
+              onClick={() => setActiveTab('analytics')}
+              className={`px-3.5 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                activeTab === 'analytics'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              <BarChart2 className="h-4 w-4" />
+              <span>Revenue Analytics</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('cashbook')}
-            className={`pb-3 px-5 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer border-x-0 border-t-0 bg-transparent ${
-              activeTab === 'cashbook'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <BookOpen className="h-4 w-4" />
-            Daily Cashbook Ledger
-          </button>
+            <button
+              type="button"
+              onClick={() => { setActiveTab('rooms'); setSalesModalSubTab('summary'); setSalesModalSearch(''); }}
+              className={`px-3.5 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                activeTab === 'rooms'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              <Bed className="h-4 w-4" />
+              <span>Room Sales</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setActiveTab('foods'); setSalesModalSubTab('summary'); setSalesModalSearch(''); }}
+              className={`px-3.5 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                activeTab === 'foods'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              <Utensils className="h-4 w-4" />
+              <span>Food Sales</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('cashbook')}
+              className={`px-3.5 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                activeTab === 'cashbook'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              <BookOpen className="h-4 w-4" />
+              <span>Daily Cashbook</span>
+            </button>
+          </div>
+
+          {/* Integrated Horizontal Month Pills */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 bg-slate-50 rounded-lg border border-slate-100">
+              <Calendar className="h-3.5 w-3.5 text-indigo-500" />
+              <span>Period:</span>
+            </div>
+
+            <div className="flex gap-1.5 overflow-x-auto">
+              {getAvailableMonths().map(m => {
+                const [year, month] = m.split('-');
+                const dateObj = new Date(Number(year), Number(month) - 1, 15);
+                const monthName = dateObj.toLocaleDateString(undefined, { month: 'short' });
+                const isSelected = selectedMonth === m;
+
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => {
+                      setSelectedMonth(m);
+                      setCashbookMonth(m);
+                    }}
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                      isSelected
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>{monthName}</span>
+                    <span className={`text-[9px] font-mono ${isSelected ? 'text-slate-400' : 'text-slate-400'}`}>{year}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
@@ -948,25 +1218,62 @@ export const Reports: React.FC = () => {
               {/* Aggregate stats cards */}
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                 
-                <div className="bg-white p-5 rounded-2xl border border-indigo-200 bg-indigo-50/5 shadow-xs relative overflow-hidden">
+                <div 
+                  onClick={() => setActiveTab('analytics')}
+                  className="bg-white p-5 rounded-2xl border border-indigo-200 bg-indigo-50/5 shadow-xs relative overflow-hidden transition-all duration-200 cursor-pointer hover:shadow-md"
+                >
                   <div className="absolute top-0 left-0 h-1 w-full bg-indigo-500"></div>
                   <p className="text-[11px] font-bold text-indigo-650 uppercase tracking-widest font-sans font-semibold">This Month's Revenue</p>
                   <p className="text-2xl font-display font-bold text-slate-900 mt-2">Rs. {thisMonthRevenue.toLocaleString()}</p>
                   <div className="text-[10px] text-indigo-500 mt-1 font-medium">{curMonthLabel}</div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs relative overflow-hidden">
-                  <div className="absolute top-0 left-0 h-1 w-full bg-emerald-500"></div>
-                  <p className="text-[11px] font-bold text-emerald-650 uppercase tracking-widest font-sans font-semibold">Room Revenue</p>
-                  <p className="text-2xl font-display font-bold text-slate-800 mt-2">Rs. {thisMonthRoomRevenue.toLocaleString()}</p>
-                  <div className="text-[10px] text-slate-400 mt-1">This month's stay revenue</div>
+                {/* ROOM REVENUE CARD (Navigates to Room Sales View) */}
+                <div 
+                  onClick={() => { setActiveTab('rooms'); setSalesModalSubTab('summary'); setSalesModalSearch(''); }}
+                  className="bg-white p-5 rounded-2xl border border-slate-100 hover:border-emerald-300 hover:shadow-lg hover:scale-[1.015] shadow-xs relative overflow-hidden transition-all duration-200 cursor-pointer group"
+                  title="Click to view Room Sales page"
+                >
+                  <div className="absolute top-0 left-0 h-1 w-full bg-emerald-500 group-hover:h-1.5 transition-all"></div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-bold text-emerald-650 uppercase tracking-widest font-sans">Room Revenue</p>
+                    <span className="p-1 rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                      <Bed className="h-3.5 w-3.5" />
+                    </span>
+                  </div>
+                  <p className="text-2xl font-display font-bold text-slate-800 mt-2 group-hover:text-emerald-700 transition-colors">
+                    Rs. {thisMonthRoomRevenue.toLocaleString()}
+                  </p>
+                  <div className="flex items-center justify-between mt-1 text-[10px]">
+                    <span className="text-slate-400">This month's stay revenue</span>
+                    <span className="text-emerald-600 font-bold flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                      View Page ↗
+                    </span>
+                  </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs font-semibold relative overflow-hidden">
-                  <div className="absolute top-0 left-0 h-1 w-full bg-amber-500"></div>
-                  <p className="text-[11px] font-bold text-amber-650 uppercase tracking-widest font-sans font-semibold">Food Sales</p>
-                  <p className="text-2xl font-display font-bold text-slate-800 mt-2">Rs. {thisMonthFoodSales.toLocaleString()}</p>
-                  <div className="text-[10px] text-slate-400 mt-1">This month's dining/orders</div>
+                {/* FOOD SALES CARD (Navigates to Food Sales View) */}
+                <div 
+                  onClick={() => { setActiveTab('foods'); setSalesModalSubTab('summary'); setSalesModalSearch(''); }}
+                  className="bg-white p-5 rounded-2xl border border-slate-100 hover:border-amber-300 hover:shadow-lg hover:scale-[1.015] shadow-xs relative overflow-hidden transition-all duration-200 cursor-pointer group"
+                  title="Click to view Food & Beverage Sales page"
+                >
+                  <div className="absolute top-0 left-0 h-1 w-full bg-amber-500 group-hover:h-1.5 transition-all"></div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-bold text-amber-650 uppercase tracking-widest font-sans">Food Sales</p>
+                    <span className="p-1 rounded-lg bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white transition-all">
+                      <Utensils className="h-3.5 w-3.5" />
+                    </span>
+                  </div>
+                  <p className="text-2xl font-display font-bold text-slate-800 mt-2 group-hover:text-amber-700 transition-colors">
+                    Rs. {thisMonthFoodSales.toLocaleString()}
+                  </p>
+                  <div className="flex items-center justify-between mt-1 text-[10px]">
+                    <span className="text-slate-400">This month's dining/orders</span>
+                    <span className="text-amber-600 font-bold flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                      View Page ↗
+                    </span>
+                  </div>
                 </div>
 
                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs font-semibold font-sans relative overflow-hidden">
@@ -1729,9 +2036,7 @@ export const Reports: React.FC = () => {
             </div>
           )}
 
-         
-
-          {/* COMPLETED BILLS DETAIL AUDIT REGISTER SECTION */}
+          {/* Settled Bills Audit Register */}
           <div className="lg:col-span-12 bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-50 no-print">
               <h3 className="font-display font-bold text-slate-800 flex items-center gap-1.5 text-base">
@@ -1840,6 +2145,551 @@ export const Reports: React.FC = () => {
         </div>
       </>
     )}
+
+          {/* TAB 2: ROOM STAY & ACCOMMODATION SALES FULL SCREEN */}
+          {activeTab === 'rooms' && (
+            <div className="space-y-6">
+              {/* TOP BANNER */}
+              <div className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 p-6 rounded-2xl text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+                <div className="flex items-center gap-3.5">
+                  <div className="p-3 bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 rounded-2xl">
+                    <Bed className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2.5">
+                      <h2 className="text-xl font-display font-bold text-white">Room Stay & Accommodation Sales</h2>
+                      <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">
+                        {curMonthLabel}
+                      </span>
+                    </div>
+                    <p className="text-xs text-emerald-200/80 mt-1">
+                      Itemised room occupancy performance, stay nights booked, and guest stay registers
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('analytics')}
+                    className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <BarChart2 className="h-4 w-4" />
+                    <span>Back to Analytics</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* KPI STATS ROW */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs space-y-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Total Stay Revenue</span>
+                  <p className="text-2xl font-bold font-display text-emerald-600">
+                    Rs. {roomSalesAnalysis.overallRoomRevenue.toLocaleString()}
+                  </p>
+                  <span className="text-[10px] text-slate-400 block">{curMonthLabel} stay earnings</span>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs space-y-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Nights Occupied</span>
+                  <p className="text-2xl font-bold font-display text-slate-800">
+                    {roomSalesAnalysis.overallRoomNights} Nights
+                  </p>
+                  <span className="text-[10px] text-slate-400 block">Total nights booked across rooms</span>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs space-y-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Avg Daily Rate (ADR)</span>
+                  <p className="text-2xl font-bold font-mono text-indigo-600">
+                    Rs. {roomSalesAnalysis.avgNightRate.toLocaleString()}
+                  </p>
+                  <span className="text-[10px] text-slate-400 block">Yield per occupied night</span>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs space-y-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Guest Stays Concluded</span>
+                  <p className="text-2xl font-bold font-mono text-slate-800">
+                    {roomSalesAnalysis.totalBookings} Stays
+                  </p>
+                  <span className="text-[10px] text-slate-400 block">Checked out room bookings</span>
+                </div>
+              </div>
+
+              {/* CONTROLS & TABLE CARD */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                  {/* Subtabs */}
+                  <div className="flex bg-slate-100/80 p-1 rounded-xl gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setSalesModalSubTab('summary')}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        salesModalSubTab === 'summary'
+                          ? 'bg-white text-slate-800 shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      By Room Aggregation
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSalesModalSubTab('logs')}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        salesModalSubTab === 'logs'
+                          ? 'bg-white text-slate-800 shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      Guest Checkout Logs ({roomSalesAnalysis.allRoomLogs.length})
+                    </button>
+                  </div>
+
+                  {/* Search bar */}
+                  <div className="relative min-w-[240px]">
+                    <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search room number, guest, or invoice..."
+                      value={salesModalSearch}
+                      onChange={(e) => setSalesModalSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-sans"
+                    />
+                  </div>
+                </div>
+
+                {salesModalSubTab === 'summary' && (
+                  <div className="overflow-x-auto rounded-xl border border-slate-100">
+                    <table className="w-full text-left text-xs text-slate-700">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                          <th className="py-3.5 px-4">Room No.</th>
+                          <th className="py-3.5 px-4">Room Type</th>
+                          <th className="py-3.5 px-4 text-center">Stays</th>
+                          <th className="py-3.5 px-4 text-center">Total Nights</th>
+                          <th className="py-3.5 px-4 text-right">Discounts</th>
+                          <th className="py-3.5 px-4 text-right font-bold text-slate-800">Net Revenue</th>
+                          <th className="py-3.5 px-4 text-right">% Share</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50 font-sans">
+                        {roomSalesAnalysis.roomsList
+                          .filter(r => {
+                            if (!salesModalSearch.trim()) return true;
+                            const q = salesModalSearch.toLowerCase();
+                            return (
+                              r.roomNumber.toLowerCase().includes(q) ||
+                              r.roomType.toLowerCase().includes(q)
+                            );
+                          })
+                          .map((rm) => {
+                            const share = roomSalesAnalysis.overallRoomRevenue > 0
+                              ? Math.round((rm.netRevenue / roomSalesAnalysis.overallRoomRevenue) * 100)
+                              : 0;
+                            return (
+                              <tr key={rm.roomId} className="hover:bg-slate-50/60 transition-colors">
+                                <td className="py-3.5 px-4 font-bold text-slate-900 font-mono flex items-center gap-2">
+                                  <Bed className="h-4 w-4 text-emerald-500" />
+                                  Room {rm.roomNumber}
+                                </td>
+                                <td className="py-3.5 px-4 text-slate-600 font-medium">{rm.roomType}</td>
+                                <td className="py-3.5 px-4 text-center font-mono font-semibold">{rm.checkoutsCount}</td>
+                                <td className="py-3.5 px-4 text-center font-mono font-bold text-indigo-600 bg-indigo-50/20">
+                                  {rm.totalNights} {rm.totalNights === 1 ? 'night' : 'nights'}
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-mono text-rose-500">
+                                  {rm.totalDiscounts > 0 ? `-Rs. ${rm.totalDiscounts.toLocaleString()}` : '—'}
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-700">
+                                  Rs. {rm.netRevenue.toLocaleString()}
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-mono text-slate-500">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <div className="w-16 bg-slate-100 rounded-full h-2 overflow-hidden">
+                                      <div
+                                        className="bg-emerald-500 h-full rounded-full"
+                                        style={{ width: `${share}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-[10px] font-bold">{share}%</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+
+                        {roomSalesAnalysis.roomsList.length === 0 && (
+                          <tr>
+                            <td colSpan={7} className="py-16 text-center text-slate-400 italic">
+                              No room stay revenue recorded for {curMonthLabel}.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {salesModalSubTab === 'logs' && (
+                  <div className="overflow-x-auto rounded-xl border border-slate-100">
+                    <table className="w-full text-left text-xs text-slate-700">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                          <th className="py-3.5 px-4">Invoice ID</th>
+                          <th className="py-3.5 px-4">Guest Details</th>
+                          <th className="py-3.5 px-4">Room Stay</th>
+                          <th className="py-3.5 px-4 text-center">Nights</th>
+                          <th className="py-3.5 px-4 text-right">Rate / Night</th>
+                          <th className="py-3.5 px-4 text-right font-bold text-slate-800">Total Room Paid</th>
+                          <th className="py-3.5 px-4 text-right">Settled Date</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50 font-sans">
+                        {roomSalesAnalysis.allRoomLogs
+                          .filter(log => {
+                            if (!salesModalSearch.trim()) return true;
+                            const q = salesModalSearch.toLowerCase();
+                            return (
+                              log.billId.toLowerCase().includes(q) ||
+                              log.guestName.toLowerCase().includes(q) ||
+                              log.roomNumber.toLowerCase().includes(q) ||
+                              (log.phone && log.phone.includes(q))
+                            );
+                          })
+                          .map((log, idx) => (
+                            <tr key={`${log.billId}_${idx}`} className="hover:bg-slate-50/60 transition-colors">
+                              <td className="py-3.5 px-4 font-mono font-bold text-indigo-600">{log.billId}</td>
+                              <td className="py-3.5 px-4">
+                                <p className="font-bold text-slate-800">{log.guestName}</p>
+                                {log.phone && <p className="text-[10px] text-slate-400 font-mono">{log.phone}</p>}
+                              </td>
+                              <td className="py-3.5 px-4">
+                                <span className="font-semibold text-slate-800">Room {log.roomNumber}</span>
+                                <span className="text-[10px] text-slate-400 block">{log.roomType}</span>
+                              </td>
+                              <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-700">
+                                {log.nights}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono text-slate-600">
+                                Rs. {log.pricePerNight.toLocaleString()}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-700">
+                                Rs. {log.totalRoomCost.toLocaleString()}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono text-slate-400 text-[11px]">
+                                {log.date ? new Date(log.date).toLocaleDateString() : 'N/A'}
+                              </td>
+                            </tr>
+                          ))}
+
+                        {roomSalesAnalysis.allRoomLogs.length === 0 && (
+                          <tr>
+                            <td colSpan={7} className="py-16 text-center text-slate-400 italic">
+                              No guest room stay transactions recorded for {curMonthLabel}.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: FOOD & DINING SALES FULL SCREEN */}
+          {activeTab === 'foods' && (
+            <div className="space-y-6">
+              {/* TOP BANNER */}
+              <div className="bg-gradient-to-r from-slate-900 via-amber-950 to-slate-900 p-6 rounded-2xl text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+                <div className="flex items-center gap-3.5">
+                  <div className="p-3 bg-amber-500/20 border border-amber-400/30 text-amber-300 rounded-2xl">
+                    <Utensils className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2.5">
+                      <h2 className="text-xl font-display font-bold text-white">Food & Dining Sales Breakdown</h2>
+                      <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                        {curMonthLabel}
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-200/80 mt-1">
+                      Comprehensive dish performance, portion volume, and dining sales telemetry
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('analytics')}
+                    className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <BarChart2 className="h-4 w-4" />
+                    <span>Back to Analytics</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* KPI STATS ROW */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs space-y-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Total Dining Sales</span>
+                  <p className="text-2xl font-bold font-display text-amber-600">
+                    Rs. {foodSalesAnalysis.overallFoodRevenue.toLocaleString()}
+                  </p>
+                  <span className="text-[10px] text-slate-400 block">{curMonthLabel} F&B revenue</span>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs space-y-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Portions Served</span>
+                  <p className="text-2xl font-bold font-display text-slate-800">
+                    {foodSalesAnalysis.overallFoodQuantity} Items
+                  </p>
+                  <span className="text-[10px] text-slate-400 block">Total portions & drinks sold</span>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs space-y-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Avg Spend / Bill</span>
+                  <p className="text-2xl font-bold font-mono text-indigo-600">
+                    Rs. {foodSalesAnalysis.avgSpendPerOrder.toLocaleString()}
+                  </p>
+                  <span className="text-[10px] text-slate-400 block">Average dining ticket size</span>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs space-y-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Dining Orders</span>
+                  <p className="text-2xl font-bold font-mono text-slate-800">
+                    {foodSalesAnalysis.totalFoodOrders} Bills
+                  </p>
+                  <span className="text-[10px] text-slate-400 block">Settled dining receipts</span>
+                </div>
+              </div>
+
+              {/* CONTROLS & TABLE CARD */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                  {/* Subtabs */}
+                  <div className="flex bg-slate-100/80 p-1 rounded-xl gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setSalesModalSubTab('summary')}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        salesModalSubTab === 'summary'
+                          ? 'bg-white text-slate-800 shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      By Menu Items ({foodSalesAnalysis.itemsList.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSalesModalSubTab('categories')}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        salesModalSubTab === 'categories'
+                          ? 'bg-white text-slate-800 shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      By Category ({foodSalesAnalysis.categoriesList.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSalesModalSubTab('logs')}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        salesModalSubTab === 'logs'
+                          ? 'bg-white text-slate-800 shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      Dining Order Transactions ({foodSalesAnalysis.allFoodLogs.length})
+                    </button>
+                  </div>
+
+                  {/* Search bar */}
+                  <div className="relative min-w-[240px]">
+                    <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search dish, category, or guest..."
+                      value={salesModalSearch}
+                      onChange={(e) => setSalesModalSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-sans"
+                    />
+                  </div>
+                </div>
+
+                {salesModalSubTab === 'summary' && (
+                  <div className="overflow-x-auto rounded-xl border border-slate-100">
+                    <table className="w-full text-left text-xs text-slate-700">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                          <th className="py-3.5 px-4">Menu Item</th>
+                          <th className="py-3.5 px-4">Category</th>
+                          <th className="py-3.5 px-4 text-right">Unit Price</th>
+                          <th className="py-3.5 px-4 text-center font-bold text-slate-800">Quantity Sold</th>
+                          <th className="py-3.5 px-4 text-right font-bold text-slate-800">Total Sales</th>
+                          <th className="py-3.5 px-4 text-right">% F&B Share</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50 font-sans">
+                        {foodSalesAnalysis.itemsList
+                          .filter(item => {
+                            if (!salesModalSearch.trim()) return true;
+                            const q = salesModalSearch.toLowerCase();
+                            return (
+                              item.foodName.toLowerCase().includes(q) ||
+                              item.category.toLowerCase().includes(q)
+                            );
+                          })
+                          .map((item) => {
+                            const share = foodSalesAnalysis.overallFoodRevenue > 0
+                              ? Math.round((item.totalRevenue / foodSalesAnalysis.overallFoodRevenue) * 100)
+                              : 0;
+                            return (
+                              <tr key={item.foodId} className="hover:bg-slate-50/60 transition-colors">
+                                <td className="py-3.5 px-4 font-bold text-slate-900 flex items-center gap-2">
+                                  <Utensils className="h-4 w-4 text-amber-500" />
+                                  {item.foodName}
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-semibold">
+                                    {item.category}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-mono text-slate-600">
+                                  Rs. {item.price.toLocaleString()}
+                                </td>
+                                <td className="py-3.5 px-4 text-center font-mono font-extrabold text-amber-600 bg-amber-50/30">
+                                  {item.totalQuantity}x
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
+                                  Rs. {item.totalRevenue.toLocaleString()}
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-mono text-slate-500">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <div className="w-16 bg-slate-100 rounded-full h-2 overflow-hidden">
+                                      <div
+                                        className="bg-amber-500 h-full rounded-full"
+                                        style={{ width: `${share}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-[10px] font-bold">{share}%</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+
+                        {foodSalesAnalysis.itemsList.length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="py-16 text-center text-slate-400 italic">
+                              No food & dining items sold for {curMonthLabel}.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {salesModalSubTab === 'categories' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    {foodSalesAnalysis.categoriesList.map((cat) => {
+                      const share = foodSalesAnalysis.overallFoodRevenue > 0
+                        ? Math.round((cat.totalRevenue / foodSalesAnalysis.overallFoodRevenue) * 100)
+                        : 0;
+                      return (
+                        <div key={cat.category} className="p-5 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                              <Tag className="h-4 w-4 text-amber-500" />
+                              {cat.category}
+                            </span>
+                            <span className="text-[10px] font-extrabold text-amber-700 bg-amber-100/70 px-2.5 py-0.5 rounded-full font-mono">
+                              {cat.totalQuantity} items
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-baseline pt-1">
+                            <span className="text-lg font-extrabold font-mono text-slate-900">
+                              Rs. {cat.totalRevenue.toLocaleString()}
+                            </span>
+                            <span className="text-xs font-bold text-slate-400">{share}% share</span>
+                          </div>
+                          <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                            <div
+                              className="bg-amber-500 h-full rounded-full"
+                              style={{ width: `${share}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {foodSalesAnalysis.categoriesList.length === 0 && (
+                      <div className="col-span-full py-16 text-center text-slate-400 italic">
+                        No category sales recorded for {curMonthLabel}.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {salesModalSubTab === 'logs' && (
+                  <div className="overflow-x-auto rounded-xl border border-slate-100">
+                    <table className="w-full text-left text-xs text-slate-700">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                          <th className="py-3.5 px-4">Invoice ID</th>
+                          <th className="py-3.5 px-4">Guest Name</th>
+                          <th className="py-3.5 px-4">Dishes & Drinks Ordered</th>
+                          <th className="py-3.5 px-4 text-right font-bold text-slate-800">Food Total</th>
+                          <th className="py-3.5 px-4 text-right">Service Charge</th>
+                          <th className="py-3.5 px-4 text-right">Settled Date</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50 font-sans">
+                        {foodSalesAnalysis.allFoodLogs
+                          .filter(log => {
+                            if (!salesModalSearch.trim()) return true;
+                            const q = salesModalSearch.toLowerCase();
+                            return (
+                              log.billId.toLowerCase().includes(q) ||
+                              log.guestName.toLowerCase().includes(q) ||
+                              log.foodItemsSummary.toLowerCase().includes(q)
+                            );
+                          })
+                          .map((log, idx) => (
+                            <tr key={`${log.billId}_${idx}`} className="hover:bg-slate-50/60 transition-colors">
+                              <td className="py-3.5 px-4 font-mono font-bold text-indigo-600">{log.billId}</td>
+                              <td className="py-3.5 px-4 font-bold text-slate-800">{log.guestName}</td>
+                              <td className="py-3.5 px-4">
+                                <p className="text-slate-700 text-xs line-clamp-2">{log.foodItemsSummary}</p>
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono font-bold text-amber-700">
+                                Rs. {log.foodSubtotal.toLocaleString()}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono text-purple-600">
+                                Rs. {log.serviceCharge.toLocaleString()}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono text-slate-400 text-[11px]">
+                                {log.date ? new Date(log.date).toLocaleDateString() : 'N/A'}
+                              </td>
+                            </tr>
+                          ))}
+
+                        {foodSalesAnalysis.allFoodLogs.length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="py-16 text-center text-slate-400 italic">
+                              No guest dining orders recorded for {curMonthLabel}.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* TAB 2: DAILY CASHBOOK LEDGER (DYNAMIC RECONCILIATION) */}
           {activeTab === 'cashbook' && (
