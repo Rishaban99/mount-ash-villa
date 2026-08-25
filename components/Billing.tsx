@@ -36,6 +36,7 @@ import {
   TrendingUp,
   History,
   Handshake,
+  Eye,
 } from "lucide-react";
 import { Guests } from "@/components/Guests";
 import { LoadingButton } from "@/components/loading-button";
@@ -442,6 +443,50 @@ export const Billing: React.FC<BillingProps> = ({
       toastError(`Failed to auto-register guest profile. ${e.message}`);
       return null;
     }
+  };
+
+  const handlePreviewBill = () => {
+    const currentBill = terminalBillId
+      ? bills.find((b) => b.id === terminalBillId)
+      : null;
+    const guest: Guest = selectedGuest || {
+      id: currentBill?.guestDetails?.id || "preview_guest",
+      name:
+        newGuestName.trim() ||
+        currentBill?.guestDetails?.name ||
+        "Valued Guest",
+      phone: newGuestPhone || currentBill?.guestDetails?.phone || "",
+      nic: newGuestNic || currentBill?.guestDetails?.nic || "",
+      address:
+        newGuestAddress ||
+        currentBill?.guestDetails?.address ||
+        "Hotel Guest Address",
+      checkInDate:
+        newGuestCheckIn ||
+        currentBill?.guestDetails?.checkInDate ||
+        new Date().toISOString().split("T")[0],
+      checkOutDate:
+        newGuestCheckOut ||
+        currentBill?.guestDetails?.checkOutDate ||
+        new Date().toISOString().split("T")[0],
+    };
+
+    const previewBill: Bill = {
+      id: terminalBillId || "DRAFT_PREVIEW",
+      guestId: guest.id,
+      guestDetails: guest,
+      roomItems: selectedRooms,
+      foodItems: selectedFoods,
+      foodSubtotal,
+      serviceCharge,
+      roomSubtotal,
+      totalAmount: grandTotal,
+      status: (currentBill?.status || "Active") as BillStatus,
+      createdAt: currentBill?.createdAt || new Date().toISOString(),
+      updatedAt: currentBill?.updatedAt || new Date().toISOString(),
+    };
+
+    onShowReceipt(previewBill);
   };
 
   const handleSaveBill = async (status: BillStatus) => {
@@ -1763,10 +1808,23 @@ export const Billing: React.FC<BillingProps> = ({
 
             {/* COLUMN 3: RIGHT PANEL - ⚡ LIVE LEDGER TOTALS & CHECKOUT SCREEN (span 4) */}
             <div className="lg:col-span-4 space-y-4">
-                <h3 className="text-xs font-bold text-slate-450 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-slate-50">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="text-xs font-bold text-slate-600 uppercase tracking-widest flex items-center gap-2">
                   <Layers className="h-4 w-4 text-indigo-500" />
                   Terminal Live Totals Sheet
                 </h3>
+                {isDueLaterFolio && (
+                  <button
+                    type="button"
+                    onClick={handlePreviewBill}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs rounded-xl border border-amber-200/90 shadow-xs transition-all cursor-pointer"
+                    title="Preview printable Due Later bill invoice"
+                  >
+                    <Eye className="h-3.5 w-3.5 text-amber-600" />
+                    <span>Bill Preview</span>
+                  </button>
+                )}
+              </div>
 
                 {/* show BILL*/}
                 <div className="bg-slate-50/60 border border-slate-100 rounded-lg p-3.5 space-y-3.5">
