@@ -37,6 +37,7 @@ import {
   History,
   Handshake,
   Eye,
+  GitMerge,
 } from "lucide-react";
 import { Guests } from "@/components/Guests";
 import { LoadingButton } from "@/components/loading-button";
@@ -116,6 +117,15 @@ export const Billing: React.FC<BillingProps> = ({
   const { user: currentUser } = useAuth();
   const [settings, setSettings] = useState<SystemSettings | null>(null);
 
+  // Admin Bill Merge State
+  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
+  const [selectedMergeBillIds, setSelectedMergeBillIds] = useState<string[]>([]);
+  const [primaryMergeBillId, setPrimaryMergeBillId] = useState<string | null>(null);
+  const [mergeNotes, setMergeNotes] = useState("");
+  const [mergingBills, setMergingBills] = useState(false);
+  const [mergeSearchTerm, setMergeSearchTerm] = useState("");
+  const [mergeStatusFilter, setMergeStatusFilter] = useState<BillStatus | "All">("All");
+
   const canDeleteBill = !currentUser || currentUser.role !== 'receptionist' ||
     hasPermission(currentUser.role, 'allowReceptionistDelete', settings);
   const canApplyDiscount = !currentUser || currentUser.role !== 'receptionist' ||
@@ -129,6 +139,74 @@ export const Billing: React.FC<BillingProps> = ({
     : undefined;
   const isDueLaterFolio = currentTerminalBill?.status === "DueLater";
   const folioLocked = savingBill || isDueLaterFolio;
+
+  // Merge live calculations
+  const selectedMergeBills = useMemo(() => {
+    return bills.filter((b) => selectedMergeBillIds.includes(b.id));
+  }, [bills, selectedMergeBillIds]);
+
+  const targetMergeBill = useMemo(() => {
+    return bills.find((b) => b.id === primaryMergeBillId);
+  }, [bills, primaryMergeBillId]);
+
+  const sourceMergeBills = useMemo(() => {
+    return selectedMergeBills.filter((b) => b.id !== primaryMergeBillId);
+  }, [selectedMergeBills, primaryMergeBillId]);
+
+  const mergedPreview = useMemo(() => {
+    if (!targetMergeBill || sourceMergeBills.length === 0) return null;
+
+    // Combined Rooms
+    const combinedRooms: RoomItem[] = [...(targetMergeBill.roomItems || [])];
+    sourceMergeBills.forEach((sb) => {
+      if (Array.isArray(sb.roomItems)) {
+        combinedRooms.push(...sb.roomItems);
+      }
+    });
+
+    // Combined Foods
+    const foodMap: Record<string, FoodItem> = {};
+    const allFoods: FoodItem[] = [...(targetMergeBill.foodItems || [])];
+    sourceMergeBills.forEach((sb) => {
+      if (Array.isArray(sb.foodItems)) {
+        allFoods.push(...sb.foodItems);
+      }
+    });
+
+    allFoods.forEach((item) => {
+      const price = Number(item.price) || 0;
+      const qty = Number(item.quantity) || 1;
+      const key = `${item.foodId || item.foodName}_${price}`;
+
+      if (!foodMap[key]) {
+        foodMap[key] = {
+          foodId: item.foodId || '',
+          foodName: item.foodName,
+          price,
+          quantity: qty,
+        };
+      } else {
+        foodMap[key].quantity += qty;
+      }
+    });
+
+    const combinedFoods = Object.values(foodMap);
+    const foodSubtotal = combinedFoods.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    const roomSubtotal = combinedRooms.reduce((acc, item) => acc + item.pricePerNight * item.nights, 0);
+    const serviceChargePercent = settings?.serviceChargePercent ?? 10;
+    const hadServiceCharge = (targetMergeBill.serviceCharge || 0) > 0 || sourceMergeBills.some((sb) => (sb.serviceCharge || 0) > 0);
+    const serviceCharge = hadServiceCharge ? Math.round(foodSubtotal * (serviceChargePercent / 100)) : 0;
+    const totalAmount = foodSubtotal + serviceCharge + roomSubtotal;
+
+    return {
+      combinedRooms,
+      combinedFoods,
+      foodSubtotal,
+      roomSubtotal,
+      serviceCharge,
+      totalAmount,
+    };
+  }, [targetMergeBill, sourceMergeBills, settings]);
 
   useEffect(() => {
     fetchBills();
@@ -594,7 +672,48 @@ export const Billing: React.FC<BillingProps> = ({
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
       setSortField(field);
-      setSortOrder('desc');
+    }
+  };
+
+  const handleExecuteMerge = async () => {
+    if (!primaryMergeBillId || selectedMergeBillIds.length < 2) {
+      alert("Please select at least 2 bills and designate a primary destination bill to merge.");
+      return;
+    }
+
+    const sourceIds = selectedMergeBillIds.filter((id) => id !== primaryMergeBillId);
+    if (sourceIds.length === 0) {
+      alert("Please select at least one additional source bill to merge.");
+      return;
+    }
+
+    setMergingBills(true);
+    try {
+      const res = await fetch("/api/bills/merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetBillId: primaryMergeBillId,
+          sourceBillIds: sourceIds,
+          mergeNotes,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to merge bills.");
+      }
+
+      toastUpdated(`Master Bill ${primaryMergeBillId} (Consolidated ${sourceIds.length} bills)`);
+      setIsMergeModalOpen(false);
+      setSelectedMergeBillIds([]);
+      setPrimaryMergeBillId(null);
+      setMergeNotes("");
+      await fetchBills();
+    } catch (err: any) {
+      toastError(err.message || "Could not complete bill merge.");
+    } finally {
+      setMergingBills(false);
     }
   };
 
@@ -710,13 +829,34 @@ export const Billing: React.FC<BillingProps> = ({
               </p>
             </div>
 
-            <button
-              onClick={handleCreateNew}
-              className="flex items-center gap-2 py-2.5 px-5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-md shadow-indigo-100 transition-all text-sm border-0 cursor-pointer"
-            >
-              <Plus className="h-4.5 w-4.5" />
-              Create New Guest Bill
-            </button>
+            <div className="flex items-center gap-3">
+              {currentUser?.role === 'admin' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMergeModalOpen(true);
+                    setSelectedMergeBillIds([]);
+                    setPrimaryMergeBillId(null);
+                    setMergeNotes("");
+                    setMergeSearchTerm("");
+                    setMergeStatusFilter("All");
+                  }}
+                  className="flex items-center gap-2 py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl shadow-xs transition-all text-sm border-0 cursor-pointer"
+                  title="Merge multiple bills into a single master bill (Admin Only)"
+                >
+                  <GitMerge className="h-4.5 w-4.5 text-amber-400" />
+                  <span>Merge Bills</span>
+                </button>
+              )}
+
+              <button
+                onClick={handleCreateNew}
+                className="flex items-center gap-2 py-2.5 px-5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-md shadow-indigo-100 transition-all text-sm border-0 cursor-pointer"
+              >
+                <Plus className="h-4.5 w-4.5" />
+                Create New Guest Bill
+              </button>
+            </div>
           </div>
 
           {/* Quick Metrics KPI cards for operator convenience */}
@@ -2206,6 +2346,373 @@ export const Billing: React.FC<BillingProps> = ({
             </div>
           </div>
         )}
+
+      {/* ADMIN BILL MERGE STUDIO MODAL */}
+      {isMergeModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 z-50 animate-fade-in no-print">
+          <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh]">
+            
+            {/* Modal Header */}
+            <div className="p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-300">
+                  <GitMerge className="h-6 w-6 text-indigo-400" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-display font-bold text-lg text-white">
+                      Admin Bill Merge Studio
+                    </h3>
+                    <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 uppercase tracking-wide">
+                      Admin Privileged
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    Combine multiple guest folios into a single master bill with aggregated rooms, food items, and charges.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsMergeModalOpen(false)}
+                disabled={mergingBills}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer disabled:opacity-50"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto grow space-y-6">
+              
+              {/* Step 1: Select Bills to Merge */}
+              <div className="space-y-3">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">1</span>
+                      Select Bills to Merge ({selectedMergeBillIds.length} Selected)
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Choose at least 2 folios (Active, Due-Later, or Completed) to consolidate.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Status Pill Filters */}
+                    <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+                      {(["All", "Active", "DueLater", "Completed"] as const).map((st) => {
+                        const count = st === "All"
+                          ? bills.length
+                          : bills.filter((b) => b.status === st).length;
+                        return (
+                          <button
+                            key={st}
+                            type="button"
+                            onClick={() => setMergeStatusFilter(st)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all border-0 cursor-pointer flex items-center gap-1.5 ${
+                              mergeStatusFilter === st
+                                ? "bg-indigo-600 text-white shadow-xs"
+                                : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+                            }`}
+                          >
+                            <span>{st === "DueLater" ? "Due Later" : st}</span>
+                            <span className="text-[9px] opacity-75 font-mono">({count})</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Search Input */}
+                    <div className="relative min-w-[180px]">
+                      <Search className="h-3.5 w-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Search bill ID or guest..."
+                        value={mergeSearchTerm}
+                        onChange={(e) => setMergeSearchTerm(e.target.value)}
+                        className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-sans"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-[250px] overflow-y-auto divide-y divide-slate-100">
+                  {bills
+                    .filter((b) => {
+                      if (mergeStatusFilter !== "All" && b.status !== mergeStatusFilter) return false;
+                      return true;
+                    })
+                    .filter((b) => {
+                      if (!mergeSearchTerm.trim()) return true;
+                      const q = mergeSearchTerm.toLowerCase();
+                      return (
+                        b.id.toLowerCase().includes(q) ||
+                        b.guestDetails.name.toLowerCase().includes(q) ||
+                        (b.roomItems || []).some((r) => r.roomNumber.toLowerCase().includes(q))
+                      );
+                    })
+                    .map((b) => {
+                      const isSelected = selectedMergeBillIds.includes(b.id);
+                      const isPrimary = primaryMergeBillId === b.id;
+                      const roomNums = (b.roomItems || []).map((r) => `Room ${r.roomNumber}`).join(", ") || "No rooms";
+                      const foodCount = (b.foodItems || []).reduce((sum, f) => sum + (f.quantity || 1), 0);
+
+                      return (
+                        <div
+                          key={b.id}
+                          onClick={() => {
+                            if (isSelected) {
+                              const newSelected = selectedMergeBillIds.filter((id) => id !== b.id);
+                              setSelectedMergeBillIds(newSelected);
+                              if (primaryMergeBillId === b.id) {
+                                setPrimaryMergeBillId(newSelected[0] || null);
+                              }
+                            } else {
+                              const newSelected = [...selectedMergeBillIds, b.id];
+                              setSelectedMergeBillIds(newSelected);
+                              if (!primaryMergeBillId) {
+                                setPrimaryMergeBillId(b.id);
+                              }
+                            }
+                          }}
+                          className={`p-3.5 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
+                            isSelected ? "bg-indigo-50/50 hover:bg-indigo-50" : "hover:bg-slate-50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {}}
+                              className="h-4 w-4 text-indigo-600 rounded border-slate-300 pointer-events-none"
+                            />
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-xs text-indigo-700">{b.id}</span>
+                                <span className="font-bold text-slate-800 text-xs">{b.guestDetails.name}</span>
+                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
+                                  b.status === "Active"
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : b.status === "DueLater"
+                                      ? "bg-amber-100 text-amber-700"
+                                      : "bg-indigo-100 text-indigo-700"
+                                }`}>
+                                  {b.status === "DueLater" ? "Due Later" : b.status}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-0.5 font-sans">
+                                <span>🛏️ {roomNums}</span>
+                                <span>🍲 {foodCount} food item(s)</span>
+                                {b.guestDetails.phone && <span>📞 {b.guestDetails.phone}</span>}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <span className="font-mono font-bold text-sm text-slate-900 block">
+                              Rs. {b.totalAmount.toLocaleString()}
+                            </span>
+                            {isSelected && isPrimary && (
+                              <span className="text-[9px] font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-md uppercase tracking-wider inline-block mt-0.5">
+                                Master Destination
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  {bills.length === 0 && (
+                    <div className="p-8 text-center text-slate-400 text-xs italic">
+                      No bills available in the system.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Step 2: Select Primary Destination Bill */}
+              {selectedMergeBillIds.length >= 2 && (
+                <div className="space-y-3 pt-2">
+                  <div>
+                    <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">2</span>
+                      Choose Master Destination Bill (Primary Guest & Folio)
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      The chosen bill will retain its Invoice ID and Guest profile. All other selected bills will be merged into it and closed.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {selectedMergeBills.map((b) => {
+                      const isPrimary = primaryMergeBillId === b.id;
+                      return (
+                        <div
+                          key={b.id}
+                          onClick={() => setPrimaryMergeBillId(b.id)}
+                          className={`p-4 rounded-2xl border cursor-pointer transition-all ${
+                            isPrimary
+                              ? "border-indigo-600 bg-indigo-50/60 shadow-xs ring-2 ring-indigo-500/20"
+                              : "border-slate-200 hover:border-slate-300 bg-white"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name="primaryBill"
+                                checked={isPrimary}
+                                onChange={() => setPrimaryMergeBillId(b.id)}
+                                className="h-4 w-4 text-indigo-600 pointer-events-none"
+                              />
+                              <span className="font-mono font-bold text-xs text-indigo-700">{b.id}</span>
+                            </div>
+                            <span className="font-bold text-slate-900 text-xs font-mono">
+                              Rs. {b.totalAmount.toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="font-bold text-slate-800 text-sm mt-2">{b.guestDetails.name}</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            NIC: {b.guestDetails.nic || 'N/A'} | Phone: {b.guestDetails.phone || 'N/A'}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Live Consolidated Merge Preview */}
+              {mergedPreview && targetMergeBill && (
+                <div className="space-y-4 pt-2">
+                  <div>
+                    <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px]">3</span>
+                      Live Consolidated Bill Preview
+                    </h4>
+                  </div>
+
+                  <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Master Guest Folio</span>
+                        <p className="text-sm font-bold text-slate-800">
+                          {targetMergeBill.guestDetails.name} <span className="font-mono text-indigo-600">({targetMergeBill.id})</span>
+                        </p>
+                      </div>
+                      <div className="text-left sm:text-right">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Merged Total Balance</span>
+                        <p className="text-xl font-bold font-mono text-emerald-700">
+                          Rs. {mergedPreview.totalAmount.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Breakdown columns */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Combined Rooms */}
+                      <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block flex items-center gap-1.5">
+                          <Bed className="h-3.5 w-3.5 text-emerald-500" />
+                          Consolidated Room Stays ({mergedPreview.combinedRooms.length})
+                        </span>
+                        <div className="space-y-1.5 max-h-[140px] overflow-y-auto text-xs">
+                          {mergedPreview.combinedRooms.map((rm, idx) => (
+                            <div key={idx} className="flex items-center justify-between py-1 border-b border-slate-50 last:border-0">
+                              <div>
+                                <span className="font-bold text-slate-800">Room {rm.roomNumber}</span>
+                                <span className="text-[10px] text-slate-400 block">{rm.roomType} • {rm.nights} night(s)</span>
+                              </div>
+                              <span className="font-mono font-semibold text-slate-700">
+                                Rs. {(rm.pricePerNight * rm.nights).toLocaleString()}
+                              </span>
+                            </div>
+                          ))}
+                          {mergedPreview.combinedRooms.length === 0 && (
+                            <p className="text-[11px] text-slate-400 italic">No room stays</p>
+                          )}
+                        </div>
+                        <div className="pt-2 border-t border-slate-100 flex justify-between font-bold text-xs">
+                          <span>Room Subtotal:</span>
+                          <span className="font-mono text-slate-900">Rs. {mergedPreview.roomSubtotal.toLocaleString()}</span>
+                        </div>
+                      </div>
+
+                      {/* Combined Foods */}
+                      <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block flex items-center gap-1.5">
+                          <Coffee className="h-3.5 w-3.5 text-amber-500" />
+                          Consolidated Food & Beverages ({mergedPreview.combinedFoods.length})
+                        </span>
+                        <div className="space-y-1.5 max-h-[140px] overflow-y-auto text-xs">
+                          {mergedPreview.combinedFoods.map((fi, idx) => (
+                            <div key={idx} className="flex items-center justify-between py-1 border-b border-slate-50 last:border-0">
+                              <div>
+                                <span className="font-bold text-slate-800">{fi.foodName}</span>
+                                <span className="text-[10px] text-slate-400 block">{fi.quantity}x @ Rs. {fi.price}</span>
+                              </div>
+                              <span className="font-mono font-semibold text-slate-700">
+                                Rs. {(fi.price * fi.quantity).toLocaleString()}
+                              </span>
+                            </div>
+                          ))}
+                          {mergedPreview.combinedFoods.length === 0 && (
+                            <p className="text-[11px] text-slate-400 italic">No food items</p>
+                          )}
+                        </div>
+                        <div className="pt-2 border-t border-slate-100 flex justify-between font-bold text-xs">
+                          <span>Food Subtotal:</span>
+                          <span className="font-mono text-slate-900">Rs. {mergedPreview.foodSubtotal.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Merge notes input */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Admin Merge Remarks / Authorization Note (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Merged guest group per customer request at frontdesk"
+                        value={mergeNotes}
+                        onChange={(e) => setMergeNotes(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-sans"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setIsMergeModalOpen(false)}
+                disabled={mergingBills}
+                className="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExecuteMerge}
+                disabled={mergingBills || selectedMergeBillIds.length < 2 || !primaryMergeBillId}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-md shadow-indigo-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <GitMerge className="h-4 w-4" />
+                {mergingBills ? "Merging Bills..." : `Confirm & Merge ${selectedMergeBillIds.length} Bills`}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
       </div>
   );
 };
