@@ -10,7 +10,11 @@ let dbInitPromise: Promise<void> | undefined;
 
 export async function ensureDb(): Promise<void> {
   if (!dbInitPromise) {
-    dbInitPromise = initializeDatabase();
+    dbInitPromise = initializeDatabase().catch((error) => {
+      // Allow a later request to retry after a transient database outage.
+      dbInitPromise = undefined;
+      throw error;
+    });
   }
   await dbInitPromise;
 }

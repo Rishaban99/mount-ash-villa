@@ -76,6 +76,10 @@ export async function POST(request: Request) {
     if (existingBill?.status === 'Completed' && requestedStatus === 'DueLater') {
       return errorResponse('Cannot mark a settled bill as due later.', 400);
     }
+    // Completed bill edit restriction: Only Admin can edit an already completed/settled bill
+    if (existingBill?.status === 'Completed' && auth.session.role !== 'admin') {
+      return errorResponse('Access denied. Only system administrators are permitted to edit completed/settled bills.', 403);
+    }
     if (existingBill?.status === 'DueLater') {
       roomItems = existingBill.roomItems;
       foodItems = existingBill.foodItems;

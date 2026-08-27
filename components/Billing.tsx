@@ -38,6 +38,7 @@ import {
   Handshake,
   Eye,
   GitMerge,
+  Pencil,
 } from "lucide-react";
 import { Guests } from "@/components/Guests";
 import { LoadingButton } from "@/components/loading-button";
@@ -284,6 +285,10 @@ export const Billing: React.FC<BillingProps> = ({
 
   // Open billing terminal prefilled for resume
   const handleResumeBill = (bill: Bill) => {
+    if (bill.status === "Completed" && currentUser?.role !== "admin") {
+      toastError("Access denied. Only system administrators are permitted to edit completed/settled bills.");
+      return;
+    }
     setTerminalBillId(bill.id);
     setSelectedGuest(bill.guestDetails);
 
@@ -1131,13 +1136,25 @@ export const Billing: React.FC<BillingProps> = ({
                                       {isDueLater ? "Record Settlement" : "View / Settle"}
                                     </button>
                                   ) : (
-                                    <button
-                                      onClick={() => onShowReceipt(bill)}
-                                      className="py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 inline-flex border-0 cursor-pointer"
-                                    >
-                                      <Printer className="h-3.5 w-3.5 text-slate-500" />
-                                      Receipt Roll
-                                    </button>
+                                    <div className="flex items-center justify-end gap-2">
+                                      {currentUser?.role === 'admin' && (
+                                        <button
+                                          onClick={() => handleResumeBill(bill)}
+                                          className="py-1.5 px-2.5 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 border-0 cursor-pointer shadow-2xs"
+                                          title="Edit Completed Bill (Admin Only)"
+                                        >
+                                          <Pencil className="h-3.5 w-3.5" />
+                                          <span>Edit</span>
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={() => onShowReceipt(bill)}
+                                        className="py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 inline-flex border-0 cursor-pointer"
+                                      >
+                                        <Printer className="h-3.5 w-3.5 text-slate-500" />
+                                        print
+                                      </button>
+                                    </div>
                                   )}
                                 </td>
                               </tr>
@@ -1308,13 +1325,25 @@ export const Billing: React.FC<BillingProps> = ({
                                 {isDueLater ? "Record Settlement" : "View / Settle Bill"}
                               </button>
                             ) : (
-                              <button
-                                onClick={() => onShowReceipt(bill)}
-                                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all border-0 cursor-pointer flex items-center justify-center gap-1.5"
-                              >
-                                <Printer className="h-3.5 w-3.5 text-slate-500" />
-                                View Receipt Roll
-                              </button>
+                              <div className="w-full flex gap-1.5">
+                                {currentUser?.role === 'admin' && (
+                                  <button
+                                    onClick={() => handleResumeBill(bill)}
+                                    className="py-2 px-3 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white rounded-lg text-xs font-bold transition-all border-0 shadow-2xs cursor-pointer flex items-center justify-center gap-1"
+                                    title="Edit Completed Bill (Admin Only)"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                    <span>Edit</span>
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => onShowReceipt(bill)}
+                                  className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all border-0 cursor-pointer flex items-center justify-center gap-1.5"
+                                >
+                                  <Printer className="h-3.5 w-3.5 text-slate-500" />
+                                  View print
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -1538,6 +1567,15 @@ export const Billing: React.FC<BillingProps> = ({
                                 #{b.id.substring(0, 6).toUpperCase()}
                               </p>
                             </div>
+                            {currentUser?.role === 'admin' && (
+                              <button
+                                onClick={() => handleResumeBill(b)}
+                                className="p-1.5 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white rounded-md border border-amber-200 font-bold transition-all cursor-pointer flex items-center justify-center text-[10px]"
+                                title="Edit Completed Bill (Admin Only)"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                             <button
                               onClick={() => onShowReceipt(b)}
                               className="p-1.5 bg-white hover:bg-slate-100 text-slate-500 hover:text-indigo-600 rounded-md border border-slate-200 font-bold transition-all cursor-pointer flex items-center justify-center"
@@ -1616,6 +1654,18 @@ export const Billing: React.FC<BillingProps> = ({
               </div>
             </div>
           </div>
+
+          {currentTerminalBill?.status === 'Completed' && (
+            <div className="bg-amber-500 text-slate-950 px-4 py-3 rounded-2xl flex items-center justify-between font-bold text-xs shadow-md border border-amber-400">
+              <div className="flex items-center gap-2.5">
+                <Pencil className="h-4 w-4 text-slate-950" />
+                <span>ADMIN EDIT MODE: You are editing a Settled/Completed Bill ({currentTerminalBill.id})</span>
+              </div>
+              <span className="bg-slate-950 text-amber-300 text-[10px] uppercase font-extrabold px-2.5 py-1 rounded-lg">
+                Admin Privileged
+              </span>
+            </div>
+          )}
 
           {/* SPLIT HIGH SPEED CORES: LEFT FORM + MIDDLE SUMMARY COLUMN + RIGHT TAPLAUNCHER */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
@@ -2279,6 +2329,23 @@ export const Billing: React.FC<BillingProps> = ({
                         >
                           <Printer className="h-4 w-4" />
                           Record Settlement & Print
+                        </LoadingButton>
+                      </>
+                    ) : currentTerminalBill?.status === 'Completed' ? (
+                      <>
+                        <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-900 font-semibold flex items-center gap-2">
+                          <Pencil className="h-4 w-4 text-amber-600 shrink-0" />
+                          <span>Admin Edit Mode: Save changes to update this completed bill.</span>
+                        </div>
+                        <LoadingButton
+                          type="button"
+                          onClick={() => handleSaveBill("Completed")}
+                          loading={savingBill}
+                          loadingLabel="Saving Updates..."
+                          className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] rounded-lg uppercase tracking-widest flex items-center justify-center gap-2 transition-all cursor-pointer border-0 shadow-md"
+                        >
+                          <Save className="h-4 w-4" />
+                          Save Admin Edits & Print Bill
                         </LoadingButton>
                       </>
                     ) : (

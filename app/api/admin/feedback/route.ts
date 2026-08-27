@@ -9,7 +9,10 @@ export async function GET() {
     return NextResponse.json(feedbacks);
   } catch (error) {
     console.error('Error fetching feedbacks:', error);
-    return NextResponse.json({ error: 'Failed to fetch feedbacks' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Database unavailable. Please try again shortly.' },
+      { status: 503 }
+    );
   }
 }
 

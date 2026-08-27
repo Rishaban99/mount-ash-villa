@@ -742,10 +742,9 @@ export async function getGuestFeedbacks(): Promise<GuestFeedback[]> {
       orderBy: { createdAt: 'desc' },
     });
   } catch (err) {
-    // Prisma connectivity error — log and return empty list to avoid crashing endpoints
     // eslint-disable-next-line no-console
     console.error('prisma.guestFeedback.findMany failed', err);
-    return [];
+    throw err;
   }
 }
 
