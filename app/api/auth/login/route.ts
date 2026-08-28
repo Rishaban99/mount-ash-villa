@@ -17,12 +17,18 @@ export async function POST(request: Request) {
       return errorResponse('Username and password are required', 400);
     }
 
+    const cleanUsername = String(username || '').trim();
+    const cleanPassword = String(password || '').trim();
+
     const users = await getUsers();
     const user = users.find(
-      (u) => u.username.toLowerCase() === username.toLowerCase() && u.password === password
+      (u) =>
+        u.username.trim().toLowerCase() === cleanUsername.toLowerCase() &&
+        (u.password || '').trim() === cleanPassword
     );
 
     if (!user) {
+      console.warn(`[AUTH] Failed login attempt for username: "${cleanUsername}"`);
       return errorResponse('Invalid username or password', 401);
     }
 

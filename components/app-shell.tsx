@@ -44,6 +44,7 @@ const viewTitles: Record<string, string> = {
   expenses: 'Operating Outflows Ledger',
   settings: 'System Configurations & Privileges',
   logs: 'System Audit Logs',
+  profile: 'Operator Account & Security Settings',
 };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -191,12 +192,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="w-full px-2 pt-3 border-t border-slate-800 shrink-0 space-y-3">
-            <div
-              className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700/60 flex items-center justify-center mx-auto text-xs font-bold text-indigo-400"
-              title={`Active operator: ${currentUser.name}`}
+            <Link
+              href="/profile"
+              className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700/60 hover:border-indigo-500 hover:bg-slate-750 flex items-center justify-center mx-auto text-xs font-bold text-indigo-400 transition-all hover:scale-105 shadow-md cursor-pointer"
+              title={`Operator Profile Settings: ${currentUser.name}`}
             >
               {currentUser.name.substring(0, 2).toUpperCase()}
-            </div>
+            </Link>
             <button
               onClick={logout}
               title="Sign Out Session"
@@ -214,9 +216,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 {viewTitles[activeTab] || 'Hotel Terminal Console'}
               </h1>
               <div className="flex items-center gap-2 shrink-0">
-                <span className="hidden sm:inline-flex px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded uppercase tracking-wider border border-emerald-100">
+                <Link
+                  href="/profile"
+                  className="hidden sm:inline-flex px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-[10px] font-bold rounded uppercase tracking-wider border border-emerald-100 transition-colors"
+                  title="Profile Settings"
+                >
                   role :- {currentUser.role}
-                </span>
+                </Link>
               </div>
             </div>
 
