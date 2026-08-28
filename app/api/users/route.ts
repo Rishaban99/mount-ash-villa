@@ -15,7 +15,7 @@ import { checkSessionPermission, requirePermission, requireSession } from '@/lib
 export async function GET(request: Request) {
   try {
     await ensureDb();
-    const auth = await requirePermission(request, 'allowManagerUserEdit');
+    const auth = await requireSession(request);
     if (!auth.ok) return auth.response;
     const users = await getUsers();
     const safeUsers = users.map(({ password, ...u }) => u);

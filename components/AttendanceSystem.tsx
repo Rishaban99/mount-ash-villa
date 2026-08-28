@@ -150,7 +150,7 @@ export const AttendanceSystem: React.FC = () => {
 
   const isAdmin = currentUser.role === 'admin';
   const isManager = currentUser.role === 'manager';
-  const canUsePunch = isAdmin || isManager;
+  const canUsePunch = true;
   const canAddRemarks = isAdmin || isManager;
   const canEditDeleteRemarks = isAdmin;
 
@@ -816,14 +816,14 @@ export const AttendanceSystem: React.FC = () => {
               <TrendingUp className="h-3.5 w-3.5" /> Monthly Matrix
             </button>
 
-            {canUsePunch && (
+            
               <button
                 onClick={() => router.push('/attendance/punch')}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 text-slate-600 hover:text-slate-900"
               >
                 <Clock className="h-3.5 w-3.5 text-indigo-500 animate-pulse" /> Punch Terminal
               </button>
-            )}
+          
           </div>
 
           {isAdmin && (

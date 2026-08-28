@@ -99,11 +99,15 @@ export const AttendancePunchPage: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          setStaff(
-            data.filter(
-              (u: User) => u.role !== 'admin' && (!u.leftDate || u.leftDate >= today)
-            )
+          const list = data.filter(
+            (u: User) => u.role !== 'admin' && (!u.leftDate || u.leftDate >= today)
           );
+          setStaff(list);
+          if (currentUser?.id && list.some(u => u.id === currentUser.id)) {
+            setSelectedUserId(currentUser.id);
+          } else if (list.length > 0) {
+            setSelectedUserId(list[0].id);
+          }
         }
       } else {
         toastError('Could not load staff list');
@@ -113,7 +117,7 @@ export const AttendancePunchPage: React.FC = () => {
     } finally {
       setLoadingStaff(false);
     }
-  }, [today]);
+  }, [today, currentUser?.id]);
 
   const fetchAttendanceForUser = useCallback(
     async (userId: string) => {
@@ -141,8 +145,7 @@ export const AttendancePunchPage: React.FC = () => {
     [today]
   );
 
-  const canUsePunch =
-    currentUser?.role === 'admin' || currentUser?.role === 'manager';
+  const canUsePunch = !!currentUser;
 
   useEffect(() => {
     if (canUsePunch) {
@@ -158,9 +161,19 @@ export const AttendancePunchPage: React.FC = () => {
     }
   }, [selectedUserId, fetchAttendanceForUser]);
 
+  const isAdmin = currentUser?.role === 'admin';
+
+  useEffect(() => {
+    if (currentUser?.id && !selectedUserId) {
+      setSelectedUserId(currentUser.id);
+    }
+  }, [currentUser?.id, selectedUserId]);
+
   const selectedUser = useMemo(
-    () => staff.find((u) => u.id === selectedUserId) || null,
-    [staff, selectedUserId]
+    () =>
+      staff.find((u) => u.id === selectedUserId) ||
+      (selectedUserId === currentUser?.id ? (currentUser as User) : null),
+    [staff, selectedUserId, currentUser]
   );
 
   const punchState = resolvePunchState(attendance);
@@ -326,27 +339,46 @@ export const AttendancePunchPage: React.FC = () => {
         </div>
 
         <div className="p-4 space-y-3">
-          <div className="space-y-1.5">
-            <label htmlFor="punch-employee" className="block text-sm font-bold text-slate-800">
-              Who is punching?
-            </label>
-            <select
-              id="punch-employee"
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              disabled={loadingStaff || saving}
-              className="w-full text-sm font-semibold px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-indigo-500 disabled:opacity-60"
-            >
-              <option value="">
-                {loadingStaff ? 'Loading staff…' : '— Select employee —'}
-              </option>
-              {staff.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name} ({u.role})
+          {isAdmin ? (
+            <div className="space-y-1.5">
+              <label htmlFor="punch-employee" className="block text-sm font-bold text-slate-800">
+                Who is punching?
+              </label>
+              <select
+                id="punch-employee"
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+                disabled={loadingStaff || saving}
+                className="w-full text-sm font-semibold px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+              >
+                <option value="">
+                  {loadingStaff ? 'Loading staff…' : '— Select employee —'}
                 </option>
-              ))}
-            </select>
-          </div>
+                {staff.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-indigo-600 text-white font-extrabold flex items-center justify-center text-sm shadow-xs">
+                  {currentUser.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-extrabold text-slate-900 text-sm">{currentUser.name}</p>
+                  <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mt-0.5">
+                    {currentUser.role}
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100/80 border border-emerald-200/80 px-2.5 py-1 rounded-full uppercase">
+                Operator Verified
+              </span>
+            </div>
+          )}
 
           {selectedUser && (
             <>

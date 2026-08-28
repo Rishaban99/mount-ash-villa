@@ -39,6 +39,7 @@ import {
   Eye,
   GitMerge,
   Pencil,
+  FileText,
 } from "lucide-react";
 import { Guests } from "@/components/Guests";
 import { LoadingButton } from "@/components/loading-button";
@@ -996,52 +997,52 @@ export const Billing: React.FC<BillingProps> = ({
               ) : (
                 <div className="space-y-4">
                   {/* Desktop Tabular View (Visible on Medium and larger screens) */}
-                  <div className="hidden md:block bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-xs">
-                    <div className="overflow-x-auto font-sans">
-                      <table className="w-full text-left text-sm whitespace-nowrap">
-                        <thead>
-                          <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider select-none">
+                  <div className="hidden md:block bg-white rounded-2xl border border-slate-100 overflow-x-auto shadow-xs">
+                    <div className="w-full font-sans">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-800 text-slate-100 text-[10px] font-bold uppercase tracking-wider select-none border-b border-slate-700">
+                          <tr>
                             <th 
-                              className="py-4 px-4 cursor-pointer hover:text-slate-600 transition-colors"
+                              className="py-3.5 px-3 text-center cursor-pointer hover:bg-slate-700 transition-colors"
                               onClick={() => handleSort('date')}
                             >
-                              <div className="flex items-center gap-1.5">
-                                <span>ID / Created Date</span>
+                              <div className="flex items-center justify-center gap-1">
+                                <span>ID / Date</span>
                                 {sortField === 'date' && (sortOrder === 'asc' ? '▲' : '▼')}
                               </div>
                             </th>
                             <th 
-                              className="py-4 px-4 cursor-pointer hover:text-slate-600 transition-colors"
+                              className="py-3.5 px-3 text-center cursor-pointer hover:bg-slate-700 transition-colors"
                               onClick={() => handleSort('name')}
                             >
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center justify-center gap-1">
                                 <span>Guest Profile</span>
                                 {sortField === 'name' && (sortOrder === 'asc' ? '▲' : '▼')}
                               </div>
                             </th>
-                            <th className="py-4 px-4">Room Details</th>
+                            <th className="py-3.5 px-3 text-center">Room Details</th>
                             <th 
-                              className="py-4 px-4 cursor-pointer hover:text-slate-600 transition-colors"
+                              className="py-3.5 px-3 text-center cursor-pointer hover:bg-slate-700 transition-colors"
                               onClick={() => handleSort('amount')}
                             >
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center justify-center gap-1">
                                 <span>Ledger Balance</span>
                                 {sortField === 'amount' && (sortOrder === 'asc' ? '▲' : '▼')}
                               </div>
                             </th>
                             <th 
-                              className="py-4 px-4 cursor-pointer hover:text-slate-600 transition-colors"
+                              className="py-3.5 px-3 text-center cursor-pointer hover:bg-slate-700 transition-colors"
                               onClick={() => handleSort('status')}
                             >
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center justify-center gap-1">
                                 <span>Status</span>
                                 {sortField === 'status' && (sortOrder === 'asc' ? '▲' : '▼')}
                               </div>
                             </th>
-                            <th className="py-4 px-4">Actions</th>
+                            <th className="py-3.5 px-3 text-center">Actions</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50 text-slate-700">
+                        <tbody className="divide-y divide-slate-100 text-slate-700">
                           {paginatedBills.map((bill) => {
                             const isCompleted = bill.status === "Completed";
                             const isDueLater = bill.status === "DueLater";
@@ -1052,19 +1053,34 @@ export const Billing: React.FC<BillingProps> = ({
                                   isDueLater ? "bg-amber-50/20" : !isCompleted ? "bg-emerald-50/5" : ""
                                 }`}
                               >
-                                <td className="py-4 px-4">
-                                  <span className="font-mono text-xs text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md">
-                                    #{bill.id.substring(0, 12).toUpperCase()}
-                                  </span>
-                                  <div className="text-[10px] text-slate-400 mt-1.5 flex items-center gap-1">
-                                    <Clock className="h-3 w-3 text-slate-300" />
-                                    {new Date(bill.createdAt).toLocaleDateString()}
+                                <td className="py-3 px-3 text-center">
+                                  <div className="flex flex-col gap-0.5 items-center justify-center">
+                                    <span className="inline-flex items-center gap-1 font-mono text-[10px] text-indigo-700 font-extrabold bg-indigo-50/80 border border-indigo-100/80 px-2 py-0.5 rounded-md shadow-2xs">
+                                      <FileText className="h-3 w-3 text-indigo-500" />
+                                      #{bill.id.substring(0, 12).toUpperCase()}
+                                    </span>
+                                    <div className="text-[10px] font-medium text-slate-400 mt-0.5 flex items-center justify-center gap-1 font-sans">
+                                      <Clock className="h-2.5 w-2.5 text-slate-350" />
+                                      <span>
+                                        {new Date(bill.createdAt).toLocaleDateString("en-GB", {
+                                          day: "2-digit",
+                                          month: "short",
+                                        })}
+                                      </span>
+                                      <span className="text-slate-300">·</span>
+                                      <span className="text-slate-400 font-mono text-[9px]">
+                                        {new Date(bill.createdAt).toLocaleTimeString([], {
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                        })}
+                                      </span>
+                                    </div>
                                   </div>
                                 </td>
 
-                                <td className="py-4 px-4">
-                                  <div className="flex items-center gap-3">
-                                    <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                                <td className="py-3 px-3 text-center">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <div className={`h-7 w-7 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 ${
                                       isDueLater
                                         ? "bg-amber-100 text-amber-800"
                                         : isCompleted
@@ -1073,30 +1089,30 @@ export const Billing: React.FC<BillingProps> = ({
                                     }`}>
                                       {getGuestInitials(bill.guestDetails.name)}
                                     </div>
-                                    <div>
-                                      <div className="font-semibold text-slate-800">
+                                    <div className="min-w-0 text-left">
+                                      <div className="font-bold text-slate-800 text-xs truncate max-w-[130px]">
                                         {bill.guestDetails.name}
                                       </div>
-                                      <div className="text-xs text-slate-400 mt-0.5">
+                                      <div className="text-[10px] text-slate-400 font-mono">
                                         NIC: {bill.guestDetails.nic}
                                       </div>
                                     </div>
                                   </div>
                                 </td>
 
-                                <td className="py-4 px-4 text-xs text-slate-500">
-                                  <div className="flex flex-wrap gap-1 max-w-xs">
+                                <td className="py-3 px-3 text-center text-xs text-slate-500">
+                                  <div className="flex flex-wrap items-center justify-center gap-1 max-w-[130px] mx-auto">
                                     {bill.roomItems.length === 0 ? (
-                                      <span className="text-slate-400 italic">
-                                        No rooms allocated
+                                      <span className="text-slate-400 italic text-[10px]">
+                                        None
                                       </span>
                                     ) : (
                                       bill.roomItems.map((r, itemIdx) => (
                                         <span
                                           key={itemIdx}
-                                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50/70 text-blue-700 border border-blue-100 rounded-md text-[11px] font-semibold"
+                                          className="inline-flex items-center gap-0.5 px-1.5 py-0.2 bg-blue-50/70 text-blue-700 border border-blue-100 rounded-md text-[10px] font-semibold"
                                         >
-                                          <Bed className="h-3 w-3 text-blue-500" />
+                                          <Bed className="h-2.5 w-2.5 text-blue-500" />
                                           Rm {r.roomNumber}
                                         </span>
                                       ))
@@ -1104,55 +1120,55 @@ export const Billing: React.FC<BillingProps> = ({
                                   </div>
                                 </td>
 
-                                <td className="py-4 px-4 font-extrabold text-slate-900 text-sm">
+                                <td className="py-3 px-3 text-center font-extrabold text-slate-900 text-xs font-mono">
                                   Rs. {bill.totalAmount.toLocaleString()}
                                 </td>
 
-                                <td className="py-4 px-4">
+                                <td className="py-3 px-3 text-center">
                                   {isDueLater ? (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold gap-1 bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold gap-1 bg-amber-50 text-amber-800 border border-amber-200">
                                       <Handshake className="h-3 w-3 text-amber-600" />
                                       DUE LATER
                                     </span>
                                   ) : !isCompleted ? (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200">
                                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                       LIVE STAY
                                     </span>
                                   ) : (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold gap-1 bg-slate-100 text-slate-600 border border-slate-200">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold gap-1 bg-slate-100 text-slate-600 border border-slate-200">
                                       <CheckCircle className="h-3 w-3 text-slate-400" />
                                       CONCLUDED
                                     </span>
                                   )}
                                 </td>
 
-                                <td className="py-4 px-4 text-right">
+                                <td className="py-3 px-3 text-center">
                                   {!isCompleted ? (
                                     <button
                                       onClick={() => handleResumeBill(bill)}
-                                      className="py-1.5 px-3 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-lg text-xs font-bold transition-all shadow-2xs border-0 cursor-pointer"
+                                      className="py-1 px-3 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-lg text-xs font-bold transition-all shadow-2xs border-0 cursor-pointer"
                                     >
                                       {isDueLater ? "Record Settlement" : "View / Settle"}
                                     </button>
                                   ) : (
-                                    <div className="flex items-center justify-end gap-2">
+                                    <div className="flex items-center justify-center gap-1.5">
                                       {currentUser?.role === 'admin' && (
                                         <button
                                           onClick={() => handleResumeBill(bill)}
-                                          className="py-1.5 px-2.5 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 border-0 cursor-pointer shadow-2xs"
+                                          className="py-1 px-2.5 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 border-0 cursor-pointer shadow-2xs"
                                           title="Edit Completed Bill (Admin Only)"
                                         >
-                                          <Pencil className="h-3.5 w-3.5" />
+                                          <Pencil className="h-3 w-3" />
                                           <span>Edit</span>
                                         </button>
                                       )}
                                       <button
                                         onClick={() => onShowReceipt(bill)}
-                                        className="py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 inline-flex border-0 cursor-pointer"
+                                        className="py-1 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 inline-flex border-0 cursor-pointer"
                                       >
-                                        <Printer className="h-3.5 w-3.5 text-slate-500" />
-                                        print
+                                        <Printer className="h-3 w-3 text-slate-500" />
+                                        Print
                                       </button>
                                     </div>
                                   )}
@@ -1249,7 +1265,8 @@ export const Billing: React.FC<BillingProps> = ({
                           }`}
                         >
                           <div className="flex items-center justify-between">
-                            <span className="font-mono text-xs text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md">
+                            <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-indigo-700 font-extrabold bg-indigo-50/80 border border-indigo-100/80 px-2.5 py-1 rounded-lg shadow-2xs">
+                              <FileText className="h-3 w-3 text-indigo-500" />
                               #{bill.id.substring(0, 12).toUpperCase()}
                             </span>
                             {isDueLater ? (
