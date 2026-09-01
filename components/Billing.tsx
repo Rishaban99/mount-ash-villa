@@ -43,6 +43,7 @@ import {
   Hotel,
   Calendar,
   Coins,
+  Utensils,
 } from "lucide-react";
 import { Guests } from "@/components/Guests";
 import { LoadingButton } from "@/components/loading-button";
@@ -103,7 +104,10 @@ export const Billing: React.FC<BillingProps> = ({
   const [addRoomDiscount, setAddRoomDiscount] = useState(0);
 
   // Quick taps category state
-  const [quickTapsTab, setQuickTapsTab] = useState<"rooms" | "food">("rooms");
+  const [quickTapsTab, setQuickTapsTab] = useState<"rooms" | "food" | "packages">("rooms");
+  const [customVillaPriceInput, setCustomVillaPriceInput] = useState<string>("");
+  const [customKitchenFeeInput, setCustomKitchenFeeInput] = useState<string>("5000");
+  const [packageNoServiceCharge, setPackageNoServiceCharge] = useState<boolean>(false);
   const [selectedFoodCategory, setSelectedFoodCategory] = useState<string>("All");
   const [savingBill, setSavingBill] = useState(false);
   const [foodSearchQuery, setFoodSearchQuery] = useState("");
@@ -376,7 +380,7 @@ export const Billing: React.FC<BillingProps> = ({
     return Boolean(matchingBill || (targetDate === new Date().toISOString().split("T")[0] && room.status === "Occupied"));
   };
 
-  const handleSelectFullVilla = () => {
+  const handleSelectFullVilla = (customTotalAmount?: number, removeServiceCharge?: boolean) => {
     if (isDueLaterFolio) return;
     const targetDate = selectedGuest?.checkInDate || newGuestCheckIn || new Date().toISOString().split("T")[0];
     const availableRooms = displayRooms.filter(
@@ -388,23 +392,63 @@ export const Billing: React.FC<BillingProps> = ({
       return;
     }
 
+    let perRoomPrice = 0;
+    if (customTotalAmount && customTotalAmount > 0) {
+      perRoomPrice = Math.round(customTotalAmount / availableRooms.length);
+    }
+
     const newRooms = availableRooms.map((room) => {
       const existing = selectedRooms.find(
         (sr) => sr.roomId === room.id || sr.roomNumber === room.roomNumber
       );
+      const finalPrice = perRoomPrice > 0 ? perRoomPrice : room.price;
+      const discountVal = Math.max(0, room.price - finalPrice);
+
       return {
         roomId: room.id,
         roomNumber: room.roomNumber,
         roomType: room.roomType,
-        pricePerNight: room.price,
+        pricePerNight: finalPrice,
         nights: existing ? existing.nights : 1,
         originalPricePerNight: room.price,
-        discount: existing ? existing.discount : 0,
+        discount: discountVal,
       } as any;
     });
 
     setSelectedRooms(newRooms);
-    toastCreated(`Full Villa Booking (${newRooms.length} Rooms Allocated for ${targetDate})`);
+    setApplyServiceCharge(false);
+    toastCreated(
+      customTotalAmount && customTotalAmount > 0
+        ? `Full Villa Package Allocated (Rs. ${customTotalAmount.toLocaleString()} - No Service Charge)`
+        : `Full Villa Booking (${newRooms.length} Rooms Allocated for ${targetDate})`
+    );
+  };
+
+  const handleAddKitchenFee = (feeAmount: number) => {
+    if (isDueLaterFolio || feeAmount <= 0) return;
+
+    const kitchenFoodId = "kitchen_facility_fee_item";
+    const existingIndex = selectedFoods.findIndex((f) => f.foodId === kitchenFoodId);
+
+    if (existingIndex > -1) {
+      const updated = [...selectedFoods];
+      updated[existingIndex].price = feeAmount;
+      setSelectedFoods(updated);
+      toastUpdated(`Kitchen Facility Fee updated to Rs. ${feeAmount.toLocaleString()}`);
+    } else {
+      setSelectedFoods([
+        ...selectedFoods,
+        {
+          foodId: kitchenFoodId,
+          foodName: "🍳 Kitchen & Self-Cooking Facility Fee",
+          price: feeAmount,
+          quantity: 1,
+        },
+      ]);
+      toastCreated(`Kitchen Facility Fee added (Rs. ${feeAmount.toLocaleString()})`);
+    }
+
+    setApplyServiceCharge(false);
   };
 
   const handleQuickTapFood = (food: Food) => {
@@ -2012,6 +2056,18 @@ export const Billing: React.FC<BillingProps> = ({
                       >
                         Cuisine (Meals)
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => setQuickTapsTab("packages")}
+                        disabled={folioLocked}
+                        className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all border-0 cursor-pointer disabled:opacity-50 ${
+                          quickTapsTab === "packages"
+                            ? "bg-amber-600 text-white font-extrabold shadow-xs"
+                            : "text-amber-400 hover:text-amber-200"
+                        }`}
+                      >
+                        🏰 Villa & Kitchen
+                      </button>
                     </div>
                   </div>
 
@@ -2031,16 +2087,6 @@ export const Billing: React.FC<BillingProps> = ({
                                   Booking Date: {targetBookingDate}
                                 </span>
                               </p>
-                              <button
-                                type="button"
-                                onClick={handleSelectFullVilla}
-                                disabled={folioLocked}
-                                className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 border-0 cursor-pointer shadow-md shadow-amber-950/30 hover:scale-[1.02] active:scale-95 disabled:opacity-50"
-                                title={`Allocate all available rooms in the villa for ${targetBookingDate}`}
-                              >
-                                <Hotel className="h-3.5 w-3.5 text-slate-950" />
-                                <span>Full Villa Booking (Select All Rooms)</span>
-                              </button>
                             </div>
                             <div className="grid grid-cols-4 gap-2">
                               {displayRooms.map((r) => {
@@ -2091,13 +2137,12 @@ export const Billing: React.FC<BillingProps> = ({
                         );
                       })()}
                     </div>
-                  ) : (
+                  ) : quickTapsTab === "food" ? (
                     <div className="p-4 space-y-2 max-h-[380px] overflow-y-auto">
                       <p className="text-[10px] text-slate-300 uppercase tracking-widest font-bold mb-2">
                         Tap Cuisine item to Append Meal
                       </p>
 
-                      {/* Search Cuisine by Name or Category */}
                       <div className="mb-3">
                         <input
                           type="text"
@@ -2107,22 +2152,20 @@ export const Billing: React.FC<BillingProps> = ({
                           disabled={folioLocked}
                           className="w-full px-3 py-2 text-xs bg-slate-50/50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500 font-mono"
                         />
+                      </div>
 
-
-                      </div>  
-
-                      {/* Dynamic Cuisine Category Filter */}
-                      <div className="flex flex-wrap gap-1.5 pb-2 border-b border-slate-850/60 mb-3">
+                      {/* Food Category Quick Filter Pills */}
+                      <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-thin">
                         {["All", ...Array.from(new Set(foods.map((f) => f.category).filter(Boolean)))].map((cat) => (
                           <button
                             key={cat}
                             type="button"
                             onClick={() => setSelectedFoodCategory(cat)}
                             disabled={folioLocked}
-                            className={`px-3 py-1 text-[9.5px] uppercase font-bold tracking-wider rounded-lg transition-all border-0 cursor-pointer disabled:opacity-50 ${
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap cursor-pointer disabled:opacity-50 ${
                               selectedFoodCategory === cat
-                                ? "bg-amber-600 text-white shadow-xs font-extrabold"
-                                : "bg-slate-800 text-slate-200 hover:text-white hover:bg-slate-750"
+                                ? "bg-amber-600 text-white border-amber-500 shadow-2xs"
+                                : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700"
                             }`}
                           >
                             {cat}
@@ -2130,7 +2173,7 @@ export const Billing: React.FC<BillingProps> = ({
                         ))}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-3 gap-2">
                         {foods
                           .filter((f) => selectedFoodCategory === "All" || f.category === selectedFoodCategory)
                           .filter((f) => {
@@ -2179,15 +2222,143 @@ export const Billing: React.FC<BillingProps> = ({
                           })}
                       </div>
                     </div>
+                  ) : (
+                    /* PACKAGES & KITCHEN CONSOLE */
+                    <div className="p-4 space-y-4 max-h-[380px] overflow-y-auto">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] text-amber-400 uppercase tracking-widest font-black flex items-center gap-1.5">
+                          <Hotel className="h-3.5 w-3.5 text-amber-400" />
+                          <span>Villa Packages & Self-Cooking Add-ons</span>
+                        </p>
+                      </div>
+
+                      {/* PACKAGE CARD 1: FULL VILLA BOOKING WITH CUSTOM AMOUNT */}
+                      <div className="p-3.5 bg-slate-850 border border-slate-700/80 rounded-xl space-y-2.5 shadow-md">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                              <Hotel className="h-4 w-4 text-amber-400" />
+                              Full Villa Package Booking
+                            </h4>
+                            <p className="text-[9.5px] text-slate-400">Allocate all available rooms at once with custom rate option</p>
+                          </div>
+                          <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-2 py-0.5 rounded">
+                            {displayRooms.filter(r => !checkRoomBookedOnDate(r, selectedGuest?.checkInDate || newGuestCheckIn || new Date().toISOString().split("T")[0])).length} Rooms Free
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1">
+                          <div className="relative flex-1">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400">Rs.</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="500"
+                              value={customVillaPriceInput}
+                              onChange={(e) => setCustomVillaPriceInput(e.target.value)}
+                              placeholder="Custom Villa Amount (e.g. 30000)"
+                              disabled={folioLocked}
+                              className="w-full pl-8 pr-2 py-1.5 text-xs font-mono font-bold bg-slate-900 text-amber-200 border border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const amount = Number(customVillaPriceInput) || 0;
+                              handleSelectFullVilla(amount);
+                            }}
+                            disabled={folioLocked}
+                            className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] uppercase tracking-wider rounded-lg border-0 cursor-pointer shadow-md transition-all shrink-0"
+                          >
+                            Allocate Full Villa
+                          </button>
+                        </div>
+
+                        {/* Preset Quick Buttons */}
+                        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                          <span className="text-[9px] font-bold text-slate-400 uppercase">Presets:</span>
+                          {[20000, 25000, 30000, 35000, 40000].map((presetAmt) => (
+                            <button
+                              key={presetAmt}
+                              type="button"
+                              onClick={() => {
+                                setCustomVillaPriceInput(presetAmt.toString());
+                                handleSelectFullVilla(presetAmt);
+                              }}
+                              disabled={folioLocked}
+                              className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[9.5px] font-mono font-bold cursor-pointer"
+                            >
+                              Rs. {presetAmt.toLocaleString()}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* PACKAGE CARD 2: KITCHEN & SELF-COOKING FACILITY ADD-ON */}
+                      <div className="p-3.5 bg-slate-850 border border-slate-700/80 rounded-xl space-y-2.5 shadow-md">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-xs font-black text-emerald-300 flex items-center gap-1.5">
+                              <Utensils className="h-4 w-4 text-emerald-400" />
+                              Kitchen & Self-Cooking Facility Fee
+                            </h4>
+                            <p className="text-[9.5px] text-slate-400">Add kitchen usage fee with customizable amount option</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1">
+                          <div className="relative flex-1">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400">Rs.</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="500"
+                              value={customKitchenFeeInput}
+                              onChange={(e) => setCustomKitchenFeeInput(e.target.value)}
+                              placeholder="Kitchen Amount (e.g. 5000)"
+                              disabled={folioLocked}
+                              className="w-full pl-8 pr-2 py-1.5 text-xs font-mono font-bold bg-slate-900 text-emerald-200 border border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const amount = Number(customKitchenFeeInput) || 5000;
+                              handleAddKitchenFee(amount);
+                            }}
+                            disabled={folioLocked}
+                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] uppercase tracking-wider rounded-lg border-0 cursor-pointer shadow-md transition-all shrink-0"
+                          >
+                            + Add Kitchen Fee
+                          </button>
+                        </div>
+
+                        {/* Preset Quick Buttons for Kitchen */}
+                        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                          <span className="text-[9px] font-bold text-slate-400 uppercase">Presets:</span>
+                          {[2500, 5000, 7500, 10000].map((presetAmt) => (
+                            <button
+                              key={presetAmt}
+                              type="button"
+                              onClick={() => {
+                                setCustomKitchenFeeInput(presetAmt.toString());
+                                handleAddKitchenFee(presetAmt);
+                              }}
+                              disabled={folioLocked}
+                              className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[9.5px] font-mono font-bold cursor-pointer"
+                            >
+                              Rs. {presetAmt.toLocaleString()}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   )}
                   <div className="mt-auto px-4 py-2.5 bg-slate-950 border-t border-slate-850 text-[10px] text-slate-500 text-center italic">
                     
                     Quick touch action appends items in half a second!
                   </div>
                 </div>
-
-                
-
               </div>
             </div>
 
