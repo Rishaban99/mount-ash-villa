@@ -496,12 +496,19 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
 
               <div className="border-b border-dashed border-slate-400 my-3" />
 
-              {isDueLater && (
+              {isDueLater ? (
                 <div className="text-center mb-2">
                   <p className="text-sm font-black uppercase tracking-widest">Balance Due</p>
                   <p className="text-[9px] text-slate-600">To be settled later — not a paid receipt</p>
                 </div>
-              )}
+              ) : bill.status === 'PreBooked' ? (
+                <div className="text-center mb-2 p-1.5 bg-purple-50 border border-purple-200 rounded-lg">
+                  <p className="text-xs font-black uppercase tracking-widest text-purple-900">Pre-Booking Advance Receipt</p>
+                  <p className="text-[9px] text-purple-700 font-bold">
+                    Check-in Date: {bill.guestDetails?.checkInDate ? new Date(bill.guestDetails.checkInDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Advance Booking"}
+                  </p>
+                </div>
+              ) : null}
 
               {/* Billing Metadata */}
               <div className="space-y-0.5 text-[10px] leading-relaxed">
@@ -638,10 +645,23 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
                 
 
                 <div className="border-t border-dotted border-slate-400 pt-1.5 flex justify-between text-[20px] font-bold text-slate-950 mt-1.5">
-                  <span className="tracking-tight">{isDueLater ? 'AMOUNT DUE' : 'TOTAL'}</span>
+                  <span className="tracking-tight">{isDueLater ? 'AMOUNT DUE' : bill.status === 'PreBooked' ? 'RESERVATION TOTAL' : 'TOTAL'}</span>
                   <span className="font-black">{activeCurrency} {bill.totalAmount.toLocaleString()}</span>
                 </div>
               </div>
+
+              {Boolean(bill.advancePaidAmount && bill.advancePaidAmount > 0) && (
+                <div className="mt-3 pt-2 border-t border-dashed border-slate-400 space-y-1 text-[11px] font-mono">
+                  <div className="flex justify-between font-bold text-emerald-800 bg-emerald-50 p-1 rounded">
+                    <span>Advance Deposit Paid:</span>
+                    <span>{activeCurrency} {bill.advancePaidAmount?.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between font-extrabold text-purple-900 bg-purple-50 p-1 rounded">
+                    <span>Balance Due at Check-In:</span>
+                    <span>{activeCurrency} {Math.max(0, bill.totalAmount - (bill.advancePaidAmount || 0)).toLocaleString()}</span>
+                  </div>
+                </div>
+              )}
 
               {isDueLater && bill.dueLaterNote && (
                 <div className="mt-2 text-[9px] text-slate-700">

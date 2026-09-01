@@ -40,6 +40,9 @@ import {
   GitMerge,
   Pencil,
   FileText,
+  Hotel,
+  Calendar,
+  Coins,
 } from "lucide-react";
 import { Guests } from "@/components/Guests";
 import { LoadingButton } from "@/components/loading-button";
@@ -106,6 +109,7 @@ export const Billing: React.FC<BillingProps> = ({
   const [foodSearchQuery, setFoodSearchQuery] = useState("");
   const [applyServiceCharge, setApplyServiceCharge] = useState(true);
   const [dueLaterNote, setDueLaterNote] = useState("");
+  const [advanceDepositPaid, setAdvanceDepositPaid] = useState<number>(0);
 
   // Sorting State
   const [sortField, setSortField] = useState<'default' | 'date' | 'name' | 'amount' | 'status'>('default');
@@ -280,6 +284,7 @@ export const Billing: React.FC<BillingProps> = ({
     );
     setCustomerInputMode("new");
     setDueLaterNote("");
+    setAdvanceDepositPaid(0);
 
     setIsTerminalActive(true);
   };
@@ -318,6 +323,7 @@ export const Billing: React.FC<BillingProps> = ({
     setCustomerInputMode("existing");
     setApplyServiceCharge(bill.foodSubtotal > 0 ? bill.serviceCharge > 0 : true);
     setDueLaterNote(bill.dueLaterNote || "");
+    setAdvanceDepositPaid(bill.advancePaidAmount || 0);
     setIsTerminalActive(true);
   };
 
@@ -345,6 +351,60 @@ export const Billing: React.FC<BillingProps> = ({
         } as any,
       ]);
     }
+  };
+
+  const checkRoomBookedOnDate = (room: Room, targetDate: string) => {
+    if (!targetDate) return room.status === "Occupied";
+
+    const matchingBill = bills.find((b) => {
+      if (b.id === terminalBillId) return false;
+      if (b.status !== "Active" && b.status !== "PreBooked") return false;
+
+      const holdsRoom = b.roomItems.some(
+        (ri) => ri.roomId === room.id || ri.roomNumber === room.roomNumber
+      );
+      if (!holdsRoom) return false;
+
+      const bStart = b.guestDetails?.checkInDate;
+      const bEnd = b.guestDetails?.checkOutDate || bStart;
+
+      if (!bStart) return true;
+
+      return targetDate >= bStart && (bEnd ? targetDate <= bEnd : targetDate === bStart);
+    });
+
+    return Boolean(matchingBill || (targetDate === new Date().toISOString().split("T")[0] && room.status === "Occupied"));
+  };
+
+  const handleSelectFullVilla = () => {
+    if (isDueLaterFolio) return;
+    const targetDate = selectedGuest?.checkInDate || newGuestCheckIn || new Date().toISOString().split("T")[0];
+    const availableRooms = displayRooms.filter(
+      (r) => !checkRoomBookedOnDate(r, targetDate) || selectedRooms.some((sr) => sr.roomId === r.id || sr.roomNumber === r.roomNumber)
+    );
+
+    if (availableRooms.length === 0) {
+      toastError(`No available rooms found for Full Villa Booking on ${targetDate}.`);
+      return;
+    }
+
+    const newRooms = availableRooms.map((room) => {
+      const existing = selectedRooms.find(
+        (sr) => sr.roomId === room.id || sr.roomNumber === room.roomNumber
+      );
+      return {
+        roomId: room.id,
+        roomNumber: room.roomNumber,
+        roomType: room.roomType,
+        pricePerNight: room.price,
+        nights: existing ? existing.nights : 1,
+        originalPricePerNight: room.price,
+        discount: existing ? existing.discount : 0,
+      } as any;
+    });
+
+    setSelectedRooms(newRooms);
+    toastCreated(`Full Villa Booking (${newRooms.length} Rooms Allocated for ${targetDate})`);
   };
 
   const handleQuickTapFood = (food: Food) => {
@@ -566,6 +626,7 @@ export const Billing: React.FC<BillingProps> = ({
       roomSubtotal,
       totalAmount: grandTotal,
       status: (currentBill?.status || "Active") as BillStatus,
+      advancePaidAmount: Number(advanceDepositPaid) || 0,
       createdAt: currentBill?.createdAt || new Date().toISOString(),
       updatedAt: currentBill?.updatedAt || new Date().toISOString(),
     };
@@ -590,6 +651,7 @@ export const Billing: React.FC<BillingProps> = ({
         applyServiceCharge,
         status,
         dueLaterNote: dueLaterNote.trim() || undefined,
+        advancePaidAmount: Number(advanceDepositPaid) || 0,
       };
 
       const res = await apiFetch("/api/bills", {
@@ -625,6 +687,34 @@ export const Billing: React.FC<BillingProps> = ({
     }
   };
 
+  const handleCheckInPreBooked = async (bill: Bill) => {
+    try {
+      const res = await apiFetch("/api/bills", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...bill,
+          status: "Active",
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to check in pre-booked guest.");
+      }
+
+      toastUpdated("Guest Checked-In (Live Stay)");
+      await fetchBills();
+      await fetchRooms();
+    } catch (e: any) {
+      toastError(e.message || "Failed to check in guest.");
+    }
+  };
+
+  const totalActiveBills = useMemo(() => bills.filter((b) => b.status === "Active").length, [bills]);
+  const totalPreBookedBills = useMemo(() => bills.filter((b) => b.status === "PreBooked").length, [bills]);
+  const totalDueLaterBills = useMemo(() => bills.filter((b) => b.status === "DueLater").length, [bills]);
+  const totalCompletedBills = useMemo(() => bills.filter((b) => b.status === "Completed").length, [bills]);
+
   const sortedBills = useMemo(() => {
     return bills
       .filter((b) => {
@@ -638,7 +728,7 @@ export const Billing: React.FC<BillingProps> = ({
         if (sortField === 'default') {
           if (a.status !== b.status) {
             const rank = (s: BillStatus) =>
-              s === "Active" ? 0 : s === "DueLater" ? 1 : 2;
+              s === "Active" ? 0 : s === "PreBooked" ? 1 : s === "DueLater" ? 2 : 3;
             return rank(a.status) - rank(b.status);
           }
           const timeA = new Date(a.updatedAt || a.createdAt).getTime();
@@ -724,9 +814,6 @@ export const Billing: React.FC<BillingProps> = ({
   };
 
   // Calculate live statistics for top indicators
-  const totalActiveBills = bills.filter((b) => b.status === "Active").length;
-  const totalDueLaterBills = bills.filter((b) => b.status === "DueLater").length;
-  const totalCompletedBills = bills.filter((b) => b.status === "Completed").length;
   
   const totalOutstandingLedger = bills
     .filter((b) => b.status === "Active" || b.status === "DueLater")
@@ -935,7 +1022,7 @@ export const Billing: React.FC<BillingProps> = ({
                         : "bg-slate-50 hover:bg-slate-100 text-slate-650"
                     }`}
                   >
-                    <span>All Transactions</span>
+                    <span>All</span>
                     <span className="bg-black/10 text-[9px] px-1.5 py-0.5 rounded-full font-mono">
                       {bills.length}
                     </span>
@@ -950,9 +1037,24 @@ export const Billing: React.FC<BillingProps> = ({
                     }`}
                   >
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    <span>Active Ledger</span>
+                    <span>Active</span>
                     <span className="bg-black/10 text-[9px] px-1.5 py-0.5 rounded-full font-mono">
                       {totalActiveBills}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setListStatus("PreBooked")}
+                    className={`py-1.5 px-3.5 rounded-lg text-xs font-semibold tracking-wide transition-all border-0 cursor-pointer flex items-center gap-1.5 ${
+                      listStatus === "PreBooked"
+                        ? "bg-purple-600 text-white shadow-xs"
+                        : "bg-slate-50 hover:bg-slate-100 text-slate-650"
+                    }`}
+                  >
+                    <Calendar className="h-3 w-3" />
+                    <span>Booked</span>
+                    <span className="bg-black/10 text-[9px] px-1.5 py-0.5 rounded-full font-mono">
+                      {totalPreBookedBills}
                     </span>
                   </button>
 
@@ -1046,14 +1148,15 @@ export const Billing: React.FC<BillingProps> = ({
                           {paginatedBills.map((bill) => {
                             const isCompleted = bill.status === "Completed";
                             const isDueLater = bill.status === "DueLater";
+                            const isPreBooked = bill.status === "PreBooked";
                             return (
                               <tr
                                 key={bill.id}
                                 className={`hover:bg-slate-50/50 transition-colors ${
-                                  isDueLater ? "bg-amber-50/20" : !isCompleted ? "bg-emerald-50/5" : ""
+                                  isDueLater ? "bg-amber-50/20" : isPreBooked ? "bg-purple-50/20" : !isCompleted ? "bg-emerald-50/5" : ""
                                 }`}
                               >
-                                <td className="py-3 px-3 text-center">
+                                <td className="py-3 px-3 text-center align-middle">
                                   <div className="flex flex-col gap-0.5 items-center justify-center">
                                     <span className="inline-flex items-center gap-1 font-mono text-[10px] text-indigo-700 font-extrabold bg-indigo-50/80 border border-indigo-100/80 px-2 py-0.5 rounded-md shadow-2xs">
                                       <FileText className="h-3 w-3 text-indigo-500" />
@@ -1078,14 +1181,16 @@ export const Billing: React.FC<BillingProps> = ({
                                   </div>
                                 </td>
 
-                                <td className="py-3 px-3 text-center">
+                                <td className="py-3 px-3 text-center align-middle">
                                   <div className="flex items-center justify-center gap-2">
                                     <div className={`h-7 w-7 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 ${
                                       isDueLater
                                         ? "bg-amber-100 text-amber-800"
-                                        : isCompleted
-                                          ? "bg-slate-100 text-slate-600"
-                                          : "bg-emerald-100 text-emerald-800"
+                                        : isPreBooked
+                                          ? "bg-purple-100 text-purple-800"
+                                          : isCompleted
+                                            ? "bg-slate-100 text-slate-600"
+                                            : "bg-emerald-100 text-emerald-800"
                                     }`}>
                                       {getGuestInitials(bill.guestDetails.name)}
                                     </div>
@@ -1100,8 +1205,8 @@ export const Billing: React.FC<BillingProps> = ({
                                   </div>
                                 </td>
 
-                                <td className="py-3 px-3 text-center text-xs text-slate-500">
-                                  <div className="flex flex-wrap items-center justify-center gap-1 max-w-[130px] mx-auto">
+                                <td className="py-3 px-3 text-center align-middle text-xs text-slate-500">
+                                  <div className="flex flex-wrap items-center justify-center gap-1 max-w-[220px] mx-auto">
                                     {bill.roomItems.length === 0 ? (
                                       <span className="text-slate-400 italic text-[10px]">
                                         None
@@ -1110,47 +1215,84 @@ export const Billing: React.FC<BillingProps> = ({
                                       bill.roomItems.map((r, itemIdx) => (
                                         <span
                                           key={itemIdx}
-                                          className="inline-flex items-center gap-0.5 px-1.5 py-0.2 bg-blue-50/70 text-blue-700 border border-blue-100 rounded-md text-[10px] font-semibold"
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-md text-[10px] font-bold shadow-2xs"
                                         >
-                                          <Bed className="h-2.5 w-2.5 text-blue-500" />
-                                          Rm {r.roomNumber}
+                                          <Bed className="h-3 w-3 text-blue-500 shrink-0" />
+                                          <span>Rm {r.roomNumber}</span>
                                         </span>
                                       ))
                                     )}
                                   </div>
                                 </td>
 
-                                <td className="py-3 px-3 text-center font-extrabold text-slate-900 text-xs font-mono">
-                                  Rs. {bill.totalAmount.toLocaleString()}
+                                <td className="py-3 px-3 text-center align-middle font-mono">
+                                  <div className="flex flex-col items-center justify-center gap-0.5">
+                                    <span className="text-xs font-black text-slate-900">
+                                      Rs. {bill.totalAmount.toLocaleString()}
+                                    </span>
+                                    {Boolean(bill.advancePaidAmount && bill.advancePaidAmount > 0) && (
+                                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-purple-800 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200 shadow-2xs">
+                                        <Coins className="h-2.5 w-2.5 text-purple-600" />
+                                        Adv:{bill.advancePaidAmount?.toLocaleString()}
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
 
-                                <td className="py-3 px-3 text-center">
+                                <td className="py-3 px-3 text-center align-middle">
                                   {isDueLater ? (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold gap-1 bg-amber-50 text-amber-800 border border-amber-200">
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[9.5px] font-extrabold gap-1 bg-amber-50 text-amber-800 border border-amber-200/90 shadow-2xs">
                                       <Handshake className="h-3 w-3 text-amber-600" />
                                       DUE LATER
                                     </span>
+                                  ) : isPreBooked ? (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[9.5px] font-extrabold gap-1 bg-purple-50 text-purple-800 border border-purple-200/90 shadow-2xs">
+                                      <Calendar className="h-3 w-3 text-purple-600" />
+                                      BOOKED
+                                    </span>
                                   ) : !isCompleted ? (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[9.5px] font-extrabold gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200/90 shadow-2xs">
                                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                       LIVE STAY
                                     </span>
                                   ) : (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold gap-1 bg-slate-100 text-slate-600 border border-slate-200">
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[9.5px] font-extrabold gap-1 bg-slate-100 text-slate-600 border border-slate-200/90 shadow-2xs">
                                       <CheckCircle className="h-3 w-3 text-slate-400" />
                                       CONCLUDED
                                     </span>
                                   )}
                                 </td>
 
-                                <td className="py-3 px-3 text-center">
+                                <td className="py-3 px-3 text-center align-middle">
                                   {!isCompleted ? (
-                                    <button
-                                      onClick={() => handleResumeBill(bill)}
-                                      className="py-1 px-3 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-lg text-xs font-bold transition-all shadow-2xs border-0 cursor-pointer"
-                                    >
-                                      {isDueLater ? "Record Settlement" : "View / Settle"}
-                                    </button>
+                                    <div className="flex items-center justify-center gap-1.5 flex-wrap max-w-[280px] mx-auto">
+                                      {isPreBooked && (
+                                        <>
+                                          <button
+                                            onClick={() => handleCheckInPreBooked(bill)}
+                                            className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-extrabold transition-all shadow-xs border-0 cursor-pointer flex items-center gap-1.5 shrink-0"
+                                            title="Check In Pre-Booked Guest Now"
+                                          >
+                                            <Clock className="h-3.5 w-3.5" />
+                                            <span>Check In Now</span>
+                                          </button>
+                                          <button
+                                            onClick={() => onShowReceipt(bill)}
+                                            className="py-1.5 px-3 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 border border-purple-200/80 cursor-pointer shadow-2xs shrink-0"
+                                            title="Print Advance Reservation Deposit Receipt"
+                                          >
+                                            <Printer className="h-3.5 w-3.5 text-purple-600" />
+                                            <span>Advance Receipt</span>
+                                          </button>
+                                        </>
+                                      )}
+                                      <button
+                                        onClick={() => handleResumeBill(bill)}
+                                        className="py-1.5 px-3 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-xl text-[11px] font-bold transition-all shadow-2xs border border-indigo-100 cursor-pointer shrink-0"
+                                      >
+                                        {isDueLater ? "Record Settlement" : isPreBooked ? "View / Edit" : "View / Settle"}
+                                      </button>
+                                    </div>
                                   ) : (
                                     <div className="flex items-center justify-center gap-1.5">
                                       {currentUser?.role === 'admin' && (
@@ -1875,43 +2017,79 @@ export const Billing: React.FC<BillingProps> = ({
 
                   {quickTapsTab === "rooms" ? (
                     <div className="p-4 space-y-2 max-h-[380px] overflow-y-auto">
-                      <p className="text-[10px] text-slate-300 uppercase tracking-widest font-bold mb-2">
-                        Tap Available Room to Allocate (1 Night)
-                      </p>
-                      <div className="grid grid-cols-4 gap-2">
-                        {displayRooms.map((r) => {
-                          const isOccupied = r.status === "Occupied";
-                          const isAllocated = selectedRooms.some(
-                            (sr) => sr.roomId === r.id || sr.roomNumber === r.roomNumber,
-                          );
-                          return (
-                            <button
-                              key={r.id}
-                              type="button"
-                              onClick={() => handleQuickTapRoom(r)}
-                              className={`h-12 rounded-xl flex flex-col items-center justify-center transition-all relative border border-transparent cursor-pointer ${
-                                isAllocated
-                                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-950/50 scale-[1.02]"
-                                  : isOccupied
-                                    ? "bg-slate-850/50 text-slate-600 line-through opacity-30 cursor-not-allowed"
-                                    : "bg-slate-800 hover:bg-slate-755 text-emerald-400 border border-emerald-950/20"
-                              }`}
-                              disabled={folioLocked || (isOccupied && !isAllocated)}
-                            >
-                              <span className={`text-xs font-black block ${
-                                isAllocated ? "text-white" : "text-emerald-300"
-                              }`}>
-                                {r.roomNumber}
-                              </span>
-                              <span className={`text-[8.5px] font-bold uppercase mt-0.5 tracking-wider ${
-                                isAllocated ? "text-indigo-100" : "text-slate-200"
-                              }`}>
-                                {r.roomType.substring(0, 3)}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
+                      {(() => {
+                        const targetBookingDate =
+                          selectedGuest?.checkInDate ||
+                          newGuestCheckIn ||
+                          new Date().toISOString().split("T")[0];
+                        return (
+                          <>
+                            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                              <p className="text-[10px] text-slate-300 uppercase tracking-widest font-bold flex items-center gap-1.5">
+                                <span>Tap Room to Allocate (1 Night)</span>
+                                <span className="bg-indigo-900/80 text-indigo-200 border border-indigo-700/60 px-2 py-0.5 rounded-md text-[9px] font-mono font-extrabold">
+                                  Booking Date: {targetBookingDate}
+                                </span>
+                              </p>
+                              <button
+                                type="button"
+                                onClick={handleSelectFullVilla}
+                                disabled={folioLocked}
+                                className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 border-0 cursor-pointer shadow-md shadow-amber-950/30 hover:scale-[1.02] active:scale-95 disabled:opacity-50"
+                                title={`Allocate all available rooms in the villa for ${targetBookingDate}`}
+                              >
+                                <Hotel className="h-3.5 w-3.5 text-slate-950" />
+                                <span>Full Villa Booking (Select All Rooms)</span>
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-4 gap-2">
+                              {displayRooms.map((r) => {
+                                const isBookedOnDate = checkRoomBookedOnDate(r, targetBookingDate);
+                                const isAllocated = selectedRooms.some(
+                                  (sr) => sr.roomId === r.id || sr.roomNumber === r.roomNumber,
+                                );
+                                return (
+                                  <button
+                                    key={r.id}
+                                    type="button"
+                                    onClick={() => handleQuickTapRoom(r)}
+                                    title={
+                                      isAllocated
+                                        ? `Room ${r.roomNumber} allocated to current cart`
+                                        : isBookedOnDate
+                                          ? `Room ${r.roomNumber} is already booked/occupied for ${targetBookingDate}`
+                                          : `Room ${r.roomNumber} is available for ${targetBookingDate}`
+                                    }
+                                    className={`h-12 rounded-xl flex flex-col items-center justify-center transition-all relative border border-transparent cursor-pointer ${
+                                      isAllocated
+                                        ? "bg-indigo-600 text-white shadow-md shadow-indigo-950/50 scale-[1.02]"
+                                        : isBookedOnDate
+                                          ? "bg-slate-850/60 text-slate-500 line-through opacity-40 cursor-not-allowed border border-rose-900/30"
+                                          : "bg-slate-800 hover:bg-slate-755 text-emerald-400 border border-emerald-950/20"
+                                    }`}
+                                    disabled={folioLocked || (isBookedOnDate && !isAllocated)}
+                                  >
+                                    <span className={`text-xs font-black block ${
+                                      isAllocated ? "text-white" : isBookedOnDate ? "text-slate-500" : "text-emerald-300"
+                                    }`}>
+                                      {r.roomNumber}
+                                    </span>
+                                    <span className={`text-[8.5px] font-bold uppercase mt-0.5 tracking-wider ${
+                                      isAllocated
+                                        ? "text-indigo-100"
+                                        : isBookedOnDate
+                                          ? "text-rose-400/80"
+                                          : "text-slate-200"
+                                    }`}>
+                                      {isBookedOnDate && !isAllocated ? "BOOKED" : r.roomType.substring(0, 3)}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   ) : (
                     <div className="p-4 space-y-2 max-h-[380px] overflow-y-auto">
@@ -2315,6 +2493,32 @@ export const Billing: React.FC<BillingProps> = ({
                       Rs. {grandTotal.toLocaleString()}
                     </span>
                   </div>
+
+                  {/* ADVANCE DEPOSIT PAID SECTION */}
+                  <div className="pt-2 space-y-1.5 border-t border-slate-100">
+                    <div className="flex items-center justify-between text-xs font-bold text-purple-900">
+                      <span className="flex items-center gap-1.5">
+                        <Coins className="h-3.5 w-3.5 text-purple-600" />
+                        Advance Deposit Paid (Rs.)
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        max={grandTotal}
+                        value={advanceDepositPaid || ""}
+                        onChange={(e) => setAdvanceDepositPaid(Math.max(0, Number(e.target.value) || 0))}
+                        disabled={savingBill || isDueLaterFolio}
+                        placeholder="0"
+                        className="w-28 px-2.5 py-1 text-right text-xs font-mono font-extrabold bg-purple-50 text-purple-900 border border-purple-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+                    {advanceDepositPaid > 0 && (
+                      <div className="flex justify-between text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100 font-mono">
+                        <span>Balance Due at Check-In:</span>
+                        <span>Rs. {Math.max(0, grandTotal - advanceDepositPaid).toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* SAVE BUTTON MATRIX */}
@@ -2376,6 +2580,17 @@ export const Billing: React.FC<BillingProps> = ({
                         >
                           <Clock className="h-4 w-4" />
                           Make Active Check-Stay
+                        </LoadingButton>
+
+                        <LoadingButton
+                          type="button"
+                          onClick={() => handleSaveBill("PreBooked")}
+                          loading={savingBill}
+                          loadingLabel="Saving Pre-Booking..."
+                          className="w-full py-2.5 px-4 bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] rounded-lg uppercase tracking-widest flex items-center justify-center gap-2 transition-all cursor-pointer border-0 shadow-xs"
+                        >
+                          <Calendar className="h-4 w-4" />
+                          Save Pre-Booking (Advance Reservation)
                         </LoadingButton>
 
                         <LoadingButton

@@ -28,6 +28,7 @@ enum BillStatus {
   Active
   DueLater
   Completed
+  PreBooked
 }
 
 enum MemoType {
@@ -128,10 +129,11 @@ model Bill {
   serviceCharge Float
   roomSubtotal  Float
   totalAmount   Float
-  status        BillStatus
-  dueLaterNote  String?
-  dueLaterAt    String?
-  createdAt     String
+  status             BillStatus
+  dueLaterNote       String?
+  dueLaterAt         String?
+  advancePaidAmount  Float?
+  createdAt          String
   updatedAt     String
 
   @@map("bills")

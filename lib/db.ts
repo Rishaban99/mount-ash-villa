@@ -355,12 +355,13 @@ export async function saveBill(bill: Bill): Promise<Bill> {
       serviceCharge: newBill.serviceCharge,
       roomSubtotal: newBill.roomSubtotal,
       totalAmount: newBill.totalAmount,
-      status: newBill.status,
+      status: newBill.status as any,
       dueLaterNote: newBill.dueLaterNote,
       dueLaterAt: newBill.dueLaterAt,
+      advancePaidAmount: newBill.advancePaidAmount ?? 0,
       createdAt: newBill.createdAt,
       updatedAt: newBill.updatedAt,
-    },
+    } as any,
     update: {
       guestId: newBill.guestId,
       guestDetails: newBill.guestDetails,
@@ -370,11 +371,12 @@ export async function saveBill(bill: Bill): Promise<Bill> {
       serviceCharge: newBill.serviceCharge,
       roomSubtotal: newBill.roomSubtotal,
       totalAmount: newBill.totalAmount,
-      status: newBill.status,
+      status: newBill.status as any,
       dueLaterNote: newBill.dueLaterNote,
       dueLaterAt: newBill.dueLaterAt,
+      advancePaidAmount: newBill.advancePaidAmount ?? 0,
       updatedAt: newBill.updatedAt,
-    },
+    } as any,
   })) as Bill;
 
   await dedupeRoomsInDb();

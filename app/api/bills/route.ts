@@ -115,6 +115,9 @@ export async function POST(request: Request) {
     const dueLaterAt = requestedStatus === 'DueLater'
       ? (existingBill?.dueLaterAt || new Date().toISOString())
       : existingBill?.dueLaterAt;
+    const advancePaidAmount = typeof billData.advancePaidAmount === 'number'
+      ? Math.max(0, billData.advancePaidAmount)
+      : (existingBill?.advancePaidAmount || 0);
 
     const fullBill: Bill = {
       id: billData.id || '',
@@ -129,6 +132,7 @@ export async function POST(request: Request) {
       status: requestedStatus,
       dueLaterNote: dueLaterNote || undefined,
       dueLaterAt,
+      advancePaidAmount,
       createdAt: billData.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -150,7 +154,7 @@ export async function POST(request: Request) {
         ? buildUpdateDetails(
             existingBill as unknown as Record<string, unknown>,
             saved as unknown as Record<string, unknown>,
-            ['status', 'totalAmount', 'foodSubtotal', 'roomSubtotal', 'serviceCharge', 'dueLaterNote']
+            ['status', 'totalAmount', 'foodSubtotal', 'roomSubtotal', 'serviceCharge', 'dueLaterNote', 'advancePaidAmount']
           )
         : undefined,
     });

@@ -66,7 +66,7 @@ export interface FoodItem {
   quantity: number;
 }
 
-export type BillStatus = 'Active' | 'DueLater' | 'Completed';
+export type BillStatus = 'Active' | 'DueLater' | 'Completed' | 'PreBooked';
 
 export interface Bill {
   id: string;
@@ -81,6 +81,7 @@ export interface Bill {
   status: BillStatus;
   dueLaterNote?: string;
   dueLaterAt?: string;
+  advancePaidAmount?: number;
   createdAt: string;
   updatedAt: string;
 }
