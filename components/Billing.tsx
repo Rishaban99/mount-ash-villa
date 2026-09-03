@@ -1307,54 +1307,54 @@ export const Billing: React.FC<BillingProps> = ({
                                   )}
                                 </td>
 
-                                <td className="py-3 px-3 text-center align-middle">
+                                <td className="py-3 px-3 text-right align-middle">
                                   {!isCompleted ? (
-                                    <div className="flex items-center justify-center gap-1.5 flex-wrap max-w-[280px] mx-auto">
+                                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                                       {isPreBooked && (
                                         <>
                                           <button
                                             onClick={() => handleCheckInPreBooked(bill)}
-                                            className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-extrabold transition-all shadow-xs border-0 cursor-pointer flex items-center gap-1.5 shrink-0"
+                                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-2xs border-0 cursor-pointer flex items-center gap-1 shrink-0"
                                             title="Check In Pre-Booked Guest Now"
                                           >
                                             <Clock className="h-3.5 w-3.5" />
-                                            <span>Check In Now</span>
+                                            <span>Check In</span>
                                           </button>
                                           <button
                                             onClick={() => onShowReceipt(bill)}
-                                            className="py-1.5 px-3 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 border border-purple-200/80 cursor-pointer shadow-2xs shrink-0"
-                                            title="Print Advance Reservation Deposit Receipt"
+                                            className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border border-purple-200 cursor-pointer shadow-2xs shrink-0"
+                                            title="Print Advance Deposit Receipt"
                                           >
                                             <Printer className="h-3.5 w-3.5 text-purple-600" />
-                                            <span>Advance Receipt</span>
+                                            <span>print</span>
                                           </button>
                                         </>
                                       )}
                                       <button
                                         onClick={() => handleResumeBill(bill)}
-                                        className="py-1.5 px-3 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-xl text-[11px] font-bold transition-all shadow-2xs border border-indigo-100 cursor-pointer shrink-0"
+                                        className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-lg text-xs font-bold transition-all shadow-2xs border border-indigo-100 cursor-pointer shrink-0"
                                       >
-                                        {isDueLater ? "Record Settlement" : isPreBooked ? "View / Edit" : "View / Settle"}
+                                        {isDueLater ? "Record Settlement" : isPreBooked ? "Edit" : " Settle"}
                                       </button>
                                     </div>
                                   ) : (
-                                    <div className="flex items-center justify-center gap-1.5">
+                                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                                       {currentUser?.role === 'admin' && (
                                         <button
                                           onClick={() => handleResumeBill(bill)}
-                                          className="py-1 px-2.5 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 border-0 cursor-pointer shadow-2xs"
+                                          className="px-2 py-1 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 border-0 cursor-pointer shadow-2xs"
                                           title="Edit Completed Bill (Admin Only)"
                                         >
-                                          <Pencil className="h-3 w-3" />
+                                          <Pencil className="h-3.5 w-3.5" />
                                           <span>Edit</span>
                                         </button>
                                       )}
                                       <button
                                         onClick={() => onShowReceipt(bill)}
-                                        className="py-1 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 inline-flex border-0 cursor-pointer"
+                                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border-0 cursor-pointer"
                                       >
-                                        <Printer className="h-3 w-3 text-slate-500" />
-                                        Print
+                                        <Printer className="h-3.5 w-3.5 text-slate-500" />
+                                        <span>Print</span>
                                       </button>
                                     </div>
                                   )}
