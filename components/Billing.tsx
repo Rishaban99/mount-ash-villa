@@ -1439,15 +1439,18 @@ export const Billing: React.FC<BillingProps> = ({
                     {paginatedBills.map((bill) => {
                       const isCompleted = bill.status === "Completed";
                       const isDueLater = bill.status === "DueLater";
+                      const isPreBooked = bill.status === "PreBooked";
                       return (
                         <div
                           key={bill.id}
                           className={`bg-white p-4 rounded-xl border shadow-2xs space-y-3 transition-colors ${
                             isDueLater
                               ? "border-amber-100 bg-amber-50/10"
-                              : !isCompleted
-                                ? "border-emerald-100 bg-emerald-50/5"
-                                : "border-slate-150"
+                              : isPreBooked
+                                ? "border-purple-200 bg-purple-50/15"
+                                : !isCompleted
+                                  ? "border-emerald-100 bg-emerald-50/5"
+                                  : "border-slate-150"
                           }`}
                         >
                           <div className="flex items-center justify-between">
@@ -1459,6 +1462,11 @@ export const Billing: React.FC<BillingProps> = ({
                               <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold gap-1 bg-amber-50 text-amber-800 border border-amber-200">
                                 <Handshake className="h-3 w-3 text-amber-600" />
                                 DUE LATER
+                              </span>
+                            ) : isPreBooked ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold gap-1 bg-purple-50 text-purple-800 border border-purple-200">
+                                <Calendar className="h-3 w-3 text-purple-600" />
+                                BOOKED
                               </span>
                             ) : !isCompleted ? (
                               <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold gap-1 bg-emerald-50 text-emerald-750 border border-emerald-200">
@@ -1477,9 +1485,11 @@ export const Billing: React.FC<BillingProps> = ({
                             <div className={`h-9 w-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
                               isDueLater
                                 ? "bg-amber-100 text-amber-800"
-                                : isCompleted
-                                  ? "bg-slate-100 text-slate-600"
-                                  : "bg-emerald-100 text-emerald-805"
+                                : isPreBooked
+                                  ? "bg-purple-100 text-purple-800"
+                                  : isCompleted
+                                    ? "bg-slate-100 text-slate-600"
+                                    : "bg-emerald-100 text-emerald-805"
                             }`}>
                               {getGuestInitials(bill.guestDetails.name)}
                             </div>
@@ -1513,20 +1523,53 @@ export const Billing: React.FC<BillingProps> = ({
                             </div>
                             <div className="text-right">
                               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Ledger Balance</p>
-                              <p className="font-extrabold text-slate-900 mt-1 font-mono">
+                              <p className="font-extrabold text-slate-900 mt-0.5 font-mono">
                                 Rs. {bill.totalAmount.toLocaleString()}
                               </p>
+                              {Boolean(bill.advancePaidAmount && bill.advancePaidAmount > 0) && (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-purple-800 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200 mt-1">
+                                  <Coins className="h-2.5 w-2.5 text-purple-600" />
+                                  Adv: Rs.{bill.advancePaidAmount?.toLocaleString()}
+                                </span>
+                              )}
                             </div>
                           </div>
 
                           <div className="pt-2 border-t border-slate-50 flex gap-2">
                             {!isCompleted ? (
-                              <button
-                                onClick={() => handleResumeBill(bill)}
-                                className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all border-0 shadow-2xs cursor-pointer flex items-center justify-center"
-                              >
-                                {isDueLater ? "Record Settlement" : "View / Settle Bill"}
-                              </button>
+                              isPreBooked ? (
+                                <div className="w-full flex items-center gap-1.5">
+                                  <button
+                                    onClick={() => handleCheckInPreBooked(bill)}
+                                    className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-2xs border-0 cursor-pointer flex items-center justify-center gap-1"
+                                    title="Check In Pre-Booked Guest Now"
+                                  >
+                                    <Clock className="h-3.5 w-3.5" />
+                                    <span>Check In</span>
+                                  </button>
+                                  <button
+                                    onClick={() => onShowReceipt(bill)}
+                                    className="py-2 px-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border border-purple-200 cursor-pointer shadow-2xs"
+                                    title="Print Advance Deposit Receipt"
+                                  >
+                                    <Printer className="h-3.5 w-3.5 text-purple-600" />
+                                    <span>Receipt</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleResumeBill(bill)}
+                                    className="py-2 px-2.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-lg text-xs font-bold transition-all shadow-2xs border border-indigo-100 cursor-pointer"
+                                  >
+                                    <span>View / Edit</span>
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => handleResumeBill(bill)}
+                                  className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all border-0 shadow-2xs cursor-pointer flex items-center justify-center"
+                                >
+                                  {isDueLater ? "Record Settlement" : "View / Settle Bill"}
+                                </button>
+                              )
                             ) : (
                               <div className="w-full flex gap-1.5">
                                 {currentUser?.role === 'admin' && (
