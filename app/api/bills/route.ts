@@ -119,10 +119,25 @@ export async function POST(request: Request) {
       ? Math.max(0, billData.advancePaidAmount)
       : (existingBill?.advancePaidAmount || 0);
 
+    let finalGuestDetails = billData.guestDetails;
+    if (finalGuestDetails && finalGuestDetails.checkInDate) {
+      const maxNights = roomItems && roomItems.length > 0
+        ? Math.max(...roomItems.map((item: any) => Number(item.nights) || 1))
+        : 1;
+      const d = new Date(finalGuestDetails.checkInDate);
+      if (!isNaN(d.getTime())) {
+        d.setDate(d.getDate() + maxNights);
+        finalGuestDetails = {
+          ...finalGuestDetails,
+          checkOutDate: d.toISOString().split("T")[0],
+        };
+      }
+    }
+
     const fullBill: Bill = {
       id: billData.id || '',
       guestId: billData.guestId,
-      guestDetails: billData.guestDetails,
+      guestDetails: finalGuestDetails,
       roomItems,
       foodItems,
       foodSubtotal,

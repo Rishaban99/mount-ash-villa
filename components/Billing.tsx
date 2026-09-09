@@ -152,6 +152,21 @@ export const Billing: React.FC<BillingProps> = ({
   const isDueLaterFolio = currentTerminalBill?.status === "DueLater";
   const folioLocked = savingBill || isDueLaterFolio;
 
+  // Auto-sync checkOutDate from checkInDate + maxNights
+  useEffect(() => {
+    const maxNights = selectedRooms.length > 0
+      ? Math.max(...selectedRooms.map((r) => r.nights || 1))
+      : villaNightsInput || 1;
+    
+    if (newGuestCheckIn) {
+      const d = new Date(newGuestCheckIn);
+      if (!isNaN(d.getTime())) {
+        d.setDate(d.getDate() + maxNights);
+        setNewGuestCheckOut(d.toISOString().split("T")[0]);
+      }
+    }
+  }, [newGuestCheckIn, selectedRooms, villaNightsInput]);
+
   // Merge live calculations
   const selectedMergeBills = useMemo(() => {
     return bills.filter((b) => selectedMergeBillIds.includes(b.id));
