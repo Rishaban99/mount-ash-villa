@@ -44,6 +44,7 @@ import {
   Calendar,
   Coins,
   Utensils,
+  Moon,
 } from "lucide-react";
 import { Guests } from "@/components/Guests";
 import { LoadingButton } from "@/components/loading-button";
@@ -106,6 +107,7 @@ export const Billing: React.FC<BillingProps> = ({
   // Quick taps category state
   const [quickTapsTab, setQuickTapsTab] = useState<"rooms" | "food" | "packages">("rooms");
   const [customVillaPriceInput, setCustomVillaPriceInput] = useState<string>("");
+  const [villaNightsInput, setVillaNightsInput] = useState<number>(1);
   const [customKitchenFeeInput, setCustomKitchenFeeInput] = useState<string>("5000");
   const [packageNoServiceCharge, setPackageNoServiceCharge] = useState<boolean>(false);
   const [selectedFoodCategory, setSelectedFoodCategory] = useState<string>("All");
@@ -380,8 +382,9 @@ export const Billing: React.FC<BillingProps> = ({
     return Boolean(matchingBill || (targetDate === new Date().toISOString().split("T")[0] && room.status === "Occupied"));
   };
 
-  const handleSelectFullVilla = (customTotalAmount?: number, removeServiceCharge?: boolean) => {
+  const handleSelectFullVilla = (customTotalAmount?: number, nightsCount?: number) => {
     if (isDueLaterFolio) return;
+    const finalNights = nightsCount || villaNightsInput || 1;
     const targetDate = selectedGuest?.checkInDate || newGuestCheckIn || new Date().toISOString().split("T")[0];
     const availableRooms = displayRooms.filter(
       (r) => !checkRoomBookedOnDate(r, targetDate) || selectedRooms.some((sr) => sr.roomId === r.id || sr.roomNumber === r.roomNumber)
@@ -409,7 +412,7 @@ export const Billing: React.FC<BillingProps> = ({
         roomNumber: room.roomNumber,
         roomType: room.roomType,
         pricePerNight: finalPrice,
-        nights: existing ? existing.nights : 1,
+        nights: finalNights,
         originalPricePerNight: room.price,
         discount: discountVal,
       } as any;
@@ -417,10 +420,24 @@ export const Billing: React.FC<BillingProps> = ({
 
     setSelectedRooms(newRooms);
     setApplyServiceCharge(false);
+
+    // Automatically calculate checkout date based on checkInDate + finalNights
+    if (targetDate) {
+      const checkInObj = new Date(targetDate);
+      checkInObj.setDate(checkInObj.getDate() + finalNights);
+      const calculatedCheckOut = checkInObj.toISOString().split("T")[0];
+      if (selectedGuest) {
+        setSelectedGuest({
+          ...selectedGuest,
+          checkOutDate: calculatedCheckOut,
+        });
+      }
+    }
+
     toastCreated(
       customTotalAmount && customTotalAmount > 0
-        ? `Full Villa Package Allocated (Rs. ${customTotalAmount.toLocaleString()} - No Service Charge)`
-        : `Full Villa Booking (${newRooms.length} Rooms Allocated for ${targetDate})`
+        ? `Full Villa Package Allocated (Rs. ${customTotalAmount.toLocaleString()} for ${finalNights} ${finalNights === 1 ? 'Night' : 'Nights'})`
+        : `Full Villa Booking (${newRooms.length} Rooms Allocated for ${finalNights} ${finalNights === 1 ? 'Night' : 'Nights'})`
     );
   };
 
@@ -2290,6 +2307,43 @@ export const Billing: React.FC<BillingProps> = ({
                           </span>
                         </div>
 
+                        {/* STAY DURATION NIGHTS SELECTOR */}
+                        <div className="flex flex-wrap items-center justify-between gap-1.5 bg-slate-900/90 p-2 rounded-lg border border-slate-700/60">
+                          <span className="text-[10px] font-extrabold uppercase text-slate-300 flex items-center gap-1">
+                            <Moon className="h-3.5 w-3.5 text-indigo-400" />
+                            <span>Stay Duration (Nights):</span>
+                          </span>
+                          <div className="flex items-center gap-1">
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <button
+                                key={n}
+                                type="button"
+                                onClick={() => setVillaNightsInput(n)}
+                                disabled={folioLocked}
+                                className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-all border cursor-pointer ${
+                                  villaNightsInput === n
+                                    ? "bg-indigo-600 text-white border-indigo-400 shadow-xs font-black"
+                                    : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700"
+                                }`}
+                              >
+                                {n} {n === 1 ? "Night" : "Nights"}
+                              </button>
+                            ))}
+                            <div className="flex items-center gap-1 ml-1 pl-1 border-l border-slate-700">
+                              <span className="text-[9px] font-bold text-slate-400">Custom:</span>
+                              <input
+                                type="number"
+                                min="1"
+                                max="30"
+                                value={villaNightsInput}
+                                onChange={(e) => setVillaNightsInput(Math.max(1, parseInt(e.target.value) || 1))}
+                                disabled={folioLocked}
+                                className="w-11 px-1 py-0.5 text-[10px] font-mono font-bold bg-slate-950 text-indigo-200 border border-slate-700 rounded text-center focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
                         <div className="flex items-center gap-2 pt-1">
                           <div className="relative flex-1">
                             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400">Rs.</span>
@@ -2516,6 +2570,42 @@ export const Billing: React.FC<BillingProps> = ({
                             </div>
 
                             <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1.5 border-t border-blue-200">
+                              {/* Inline Room Stay Nights Setting */}
+                              <div className="flex items-center gap-1 bg-white border border-blue-200 p-0.5 rounded-lg">
+                                <span className="text-[8px] uppercase font-extrabold text-slate-500 px-1">
+                                  Nights
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (folioLocked || (rm.nights || 1) <= 1) return;
+                                    const updated = selectedRooms.map((sr: any) =>
+                                      sr.roomId === rm.roomId ? { ...sr, nights: Math.max(1, (sr.nights || 1) - 1) } : sr
+                                    );
+                                    setSelectedRooms(updated);
+                                  }}
+                                  disabled={folioLocked || (rm.nights || 1) <= 1}
+                                  className="h-4 w-4 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[10px] flex items-center justify-center border-0 cursor-pointer disabled:opacity-30"
+                                >
+                                  -
+                                </button>
+                                <span className="text-[10px] font-mono font-bold text-slate-900 px-1">{rm.nights || 1}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (folioLocked) return;
+                                    const updated = selectedRooms.map((sr: any) =>
+                                      sr.roomId === rm.roomId ? { ...sr, nights: (sr.nights || 1) + 1 } : sr
+                                    );
+                                    setSelectedRooms(updated);
+                                  }}
+                                  disabled={folioLocked}
+                                  className="h-4 w-4 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[10px] flex items-center justify-center border-0 cursor-pointer disabled:opacity-30"
+                                >
+                                  +
+                                </button>
+                              </div>
+
                               {/* Inline Room Discount Amount Setting */}
                               <div className="flex items-center gap-1 bg-white border border-blue-200 p-1 rounded-lg">
                                 <span className="text-[8px] uppercase font-extrabold text-slate-500 px-1">
