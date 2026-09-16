@@ -20,6 +20,14 @@ export async function GET(
 ) {
   const { roomId } = await params;
 
+  if (roomId.toLowerCase() === 'reception') {
+    const origin = new URL(request.url).origin;
+    const redirectUrl = `${origin}/roomQRCode/Reception`;
+    const response = NextResponse.redirect(redirectUrl, { status: 302 });
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    return response;
+  }
+
   // Purge any already-expired sessions for this room (housekeeping)
   const now = new Date().toISOString();
   await prisma.scanSession.deleteMany({

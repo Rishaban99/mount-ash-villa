@@ -385,7 +385,7 @@ interface FoodMenuItem {
   price: number;
 }
 
-function FoodMenuModal({
+export function FoodMenuModal({
   hotelName,
   currency = 'LKR',
   onClose,
@@ -575,6 +575,8 @@ function BillPage({ data }: { data: ApiResponse }) {
   const { room, bill, settings } = data;
   const currency = settings.currency || 'LKR';
 
+  const isReception = room.roomNumber.toLowerCase() === 'reception';
+
   if (!bill || room.status !== 'Occupied') {
     return (
       <div className={`bill-page ${visible ? 'bill-in' : ''}`}>
@@ -585,11 +587,14 @@ function BillPage({ data }: { data: ApiResponse }) {
         />
         <div className="no-bill-wrap">
           <div className="no-bill-icon"><IconBuilding size={36} /></div>
-          <p className="no-bill-eyebrow">Guest Folio</p>
-          <h2 className="no-bill-title">No Active Stay</h2>
+          <p className="no-bill-eyebrow">{isReception ? 'Welcome' : 'Guest Folio'}</p>
+          <h2 className="no-bill-title">
+            {isReception ? `Welcome to ${settings.hotelName}` : 'No Active Stay'}
+          </h2>
           <p className="no-bill-sub">
-            This room has no open billing session right now.
-            Our front desk will be glad to assist you.
+            {isReception
+              ? 'We are delighted to have you with us. Explore our food & beverage menu, contact our front desk, or share your feedback below.'
+              : 'This room has no open billing session right now. Our front desk will be glad to assist you.'}
           </p>
           <div className="cta-stack">
             <button
@@ -954,6 +959,8 @@ export default function RoomQRCodePage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [appState, setAppState] = useState<AppState>('loading');
   const [timeLeft, setTimeLeft] = useState<number>(300); // seconds
+  const [showFoodMenuError, setShowFoodMenuError] = useState(false);
+  const [showFeedbackError, setShowFeedbackError] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Session Expiry Handler ──────────────────────────────────────────────
@@ -966,6 +973,7 @@ export default function RoomQRCodePage() {
   // ── Token Gate: redirect to scan API if no token in URL ────────────────
   useEffect(() => {
     if (!roomNumber) return;
+    if (roomNumber.toLowerCase() === 'reception') return;
     if (!token) {
       setAppState('redirecting');
       router.replace(`/api/guest/scan/${encodeURIComponent(roomNumber)}`);
@@ -974,9 +982,15 @@ export default function RoomQRCodePage() {
 
   // ── Fetch Bill Data ─────────────────────────────────────────────────────
   useEffect(() => {
-    if (!roomNumber || !token) return;
+    if (!roomNumber) return;
+    const isReception = roomNumber.toLowerCase() === 'reception';
+    if (!isReception && !token) return;
 
-    fetch(`/api/guest/room/${encodeURIComponent(roomNumber)}?token=${encodeURIComponent(token)}`, {
+    const url = isReception
+      ? `/api/guest/room/${encodeURIComponent(roomNumber)}`
+      : `/api/guest/room/${encodeURIComponent(roomNumber)}?token=${encodeURIComponent(token)}`;
+
+    fetch(url, {
       cache: 'no-store',
     })
       .then(async (r) => {
@@ -1001,7 +1015,7 @@ export default function RoomQRCodePage() {
         );
         setTimeLeft(secondsLeft);
 
-        if (secondsLeft === 0) {
+        if (secondsLeft === 0 && !isReception) {
           handleExpiry();
           return;
         }
@@ -1058,7 +1072,7 @@ export default function RoomQRCodePage() {
   `;
 
   // ── Redirecting ───────────────────────────────────────────────────────
-  if (appState === 'redirecting' || (!token && appState === 'loading')) {
+  if (appState === 'redirecting' || (!token && appState === 'loading' && roomNumber?.toLowerCase() !== 'reception')) {
     return (
       <div className="full-center gradient-bg">
         <GuestAmbientBackground themeId={activeThemeId} />
@@ -1109,7 +1123,7 @@ export default function RoomQRCodePage() {
     return (
       <div className="full-center gradient-bg">
         <GuestAmbientBackground themeId={activeThemeId} />
-        <div className="guest-foreground">
+        <div className="guest-foreground flex flex-col items-center justify-center p-6 text-center">
           <div className="error-icon" aria-hidden>
             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
@@ -1118,7 +1132,46 @@ export default function RoomQRCodePage() {
           </div>
           <p className="error-title">Unable to load</p>
           <p className="error-msg">{fetchError ?? 'This room folio could not be opened.'}</p>
-          <p className="error-hint">Please visit the front desk for assistance.</p>
+          <p className="error-hint">Our front desk will be glad to assist you.</p>
+
+          <div className="cta-stack" style={{ marginTop: '24px', width: '100%', maxWidth: '320px' }}>
+            <button
+              type="button"
+              className="cta-btn cta-menu-btn"
+              onClick={() => setShowFoodMenuError(true)}
+            >
+              <IconUtensils />
+              <span>Food Menu</span>
+            </button>
+            <a href={`tel:${data?.settings?.phone || '077-7210369'}`} className="cta-btn cta-call-btn">
+              <IconPhone />
+              <span>Call Front Desk</span>
+            </a>
+            <button
+              type="button"
+              className="cta-btn cta-feedback-btn"
+              onClick={() => setShowFeedbackError(true)}
+            >
+              <IconMessage />
+              <span>Share Feedback</span>
+            </button>
+          </div>
+
+          {showFoodMenuError && (
+            <FoodMenuModal
+              hotelName={data?.settings?.hotelName || 'Mount Ash Villa Hatton'}
+              currency={data?.settings?.currency || 'LKR'}
+              onClose={() => setShowFoodMenuError(false)}
+            />
+          )}
+
+          {showFeedbackError && (
+            <FeedbackModal
+              hotelName={data?.settings?.hotelName || 'Mount Ash Villa Hatton'}
+              roomNumber={typeof roomNumber === 'string' ? roomNumber : 'Reception'}
+              onClose={() => setShowFeedbackError(false)}
+            />
+          )}
         </div>
         <style>{BASE_CSS}</style>
         <style>{dynamicThemeCss}</style>
@@ -1134,8 +1187,8 @@ export default function RoomQRCodePage() {
       <meta httpEquiv="Pragma" content="no-cache" />
       <GuestAmbientBackground themeId={activeThemeId} />
       <div className="guest-foreground">
-        {/* Session Timer Bar — always visible when viewing folio */}
-        {(appState === 'bill' || appState === 'welcome') && (
+        {/* Session Timer Bar — hidden for Reception desk */}
+        {(appState === 'bill' || appState === 'welcome') && roomNumber?.toLowerCase() !== 'reception' && (
           <div className={`session-timer-bar ${timerUrgent ? 'session-timer-urgent' : ''}`}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <circle cx="12" cy="12" r="10" />

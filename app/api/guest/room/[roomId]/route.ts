@@ -20,6 +20,36 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
 
+    // ── Special handling for Reception Desk ───────────────────────────────────
+    if (roomId.toLowerCase() === 'reception') {
+      const settings = await getSettings();
+      const payload = {
+        room: {
+          id: 'reception',
+          roomNumber: 'Reception',
+          roomType: 'Front Desk',
+          price: 0,
+          status: 'Available',
+        },
+        bill: null,
+        settings: {
+          hotelName: settings.hotelName,
+          phone: settings.phone,
+          address: settings.address,
+          currency: settings.currency,
+          serviceChargePercent: settings.serviceChargePercent,
+          checkInTime: settings.checkInTime,
+          checkOutTime: settings.checkOutTime,
+          uiTheme: settings.uiTheme,
+        },
+        sessionExpiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      };
+
+      const response = jsonResponse(payload);
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+      return response;
+    }
+
     // ── Token presence check ────────────────────────────────────────────────
     if (!token) {
       return errorResponse('Missing session token. Please scan the QR code again.', 401);
