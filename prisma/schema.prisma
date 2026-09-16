@@ -111,10 +111,11 @@ model Guest {
 }
 
 model Food {
-  id       String @id @map("_id")
-  foodName String
-  category String
-  price    Float
+  id          String   @id @map("_id")
+  foodName    String
+  category    String
+  price       Float
+  isAvailable Boolean? @default(true)
 
   @@map("foods")
 }

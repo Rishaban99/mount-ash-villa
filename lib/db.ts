@@ -261,6 +261,8 @@ export async function saveFood(food: Food): Promise<Food> {
     newFood.id = 'food_' + Math.random().toString(36).substr(2, 9);
   }
 
+  const isAvailable = newFood.isAvailable !== undefined ? newFood.isAvailable : true;
+
   return prisma.food.upsert({
     where: { id: newFood.id },
     create: {
@@ -268,13 +270,15 @@ export async function saveFood(food: Food): Promise<Food> {
       foodName: newFood.foodName,
       category: newFood.category,
       price: newFood.price,
+      isAvailable,
     },
     update: {
       foodName: newFood.foodName,
       category: newFood.category,
       price: newFood.price,
+      isAvailable,
     },
-  });
+  }) as Promise<Food>;
 }
 
 export async function deleteFood(id: string): Promise<boolean> {

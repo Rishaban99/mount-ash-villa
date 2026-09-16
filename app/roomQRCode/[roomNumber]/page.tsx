@@ -141,6 +141,19 @@ function IconMessage({ size = 18 }: { size?: number }) {
   );
 }
 
+function IconUtensils({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M18 2v6a3 3 0 01-3 3 3 3 0 01-3-3V2" />
+      <path d="M15 2v12" />
+      <path d="M15 14v8" />
+      <path d="M9 2v6a3 3 0 01-3 3 3 3 0 01-3-3V2" />
+      <path d="M6 2v12" />
+      <path d="M6 14v8" />
+    </svg>
+  );
+}
+
 // ─── Welcome Screen ───────────────────────────────────────────────────────────
 
 function WelcomeScreen({
@@ -363,6 +376,157 @@ function FeedbackModal({
   );
 }
 
+// ─── Food Menu Modal ──────────────────────────────────────────────────────────
+
+interface FoodMenuItem {
+  id: string;
+  foodName: string;
+  category: string;
+  price: number;
+}
+
+function FoodMenuModal({
+  hotelName,
+  currency = 'LKR',
+  onClose,
+}: {
+  hotelName: string;
+  currency?: string;
+  onClose: () => void;
+}) {
+  const [foods, setFoods] = useState<FoodMenuItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    async function loadMenu() {
+      try {
+        const res = await fetch('/api/guest/foods');
+        if (!res.ok) throw new Error('Failed to load menu');
+        const data = await res.json();
+        setFoods(data);
+      } catch (err) {
+        setError('Unable to load food menu at this time.');
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadMenu();
+
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  if (!mounted) return null;
+
+  const categories = ['All', ...Array.from(new Set(foods.map((f) => f.category)))];
+
+  const filteredFoods = foods.filter((food) => {
+    const matchesCategory = selectedCategory === 'All' || food.category === selectedCategory;
+    const matchesSearch = food.foodName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          food.category.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
+  return createPortal(
+    <div className="fb-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="fb-modal fm-modal" role="dialog" aria-modal="true" aria-labelledby="fm-title">
+        <button className="fb-close" onClick={onClose} aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+
+        <div className="fb-header">
+          <div className="fb-header-icon"><IconUtensils size={20} /></div>
+          <div>
+            <h3 className="fb-title" id="fm-title">Food &amp; Beverage Menu</h3>
+            <p className="fb-subtitle">{hotelName} · Room Service Menu</p>
+          </div>
+        </div>
+
+        {/* Search Input */}
+        <div className="fm-search-wrap">
+          <svg className="fm-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="M21 21l-4.35-4.35"/>
+          </svg>
+          <input
+            type="text"
+            className="fm-search-input"
+            placeholder="Search food or drinks..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button className="fm-search-clear" onClick={() => setSearchQuery('')}>×</button>
+          )}
+        </div>
+
+        {/* Category Pills */}
+        {!loading && !error && categories.length > 1 && (
+          <div className="fb-chips fm-categories">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                className={`fb-chip ${selectedCategory === cat ? 'fb-chip-on' : ''}`}
+                onClick={() => setSelectedCategory(cat)}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Content */}
+        {loading ? (
+          <div className="fm-loading">
+            <span className="fb-spinner" />
+            <p>Loading food menu...</p>
+          </div>
+        ) : error ? (
+          <div className="fm-empty">
+            <p>{error}</p>
+          </div>
+        ) : filteredFoods.length === 0 ? (
+          <div className="fm-empty">
+            <p>No food items found matching your search.</p>
+          </div>
+        ) : (
+          <div className="fm-list">
+            {filteredFoods.map((item) => (
+              <div key={item.id} className="fm-item">
+                <div className="fm-item-left">
+                  <div className="fm-item-icon">
+                    <IconUtensils size={18} />
+                  </div>
+                  <div className="fm-item-details">
+                    <h4 className="fm-item-name">{item.foodName}</h4>
+                    <span className="fm-item-cat">{item.category}</span>
+                  </div>
+                </div>
+                <div className="fm-item-price-tag">
+                  <span className="fm-price-cur">{currency}</span>
+                  <span className="fm-price-val">{item.price.toLocaleString()}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 // ─── Bill Header ──────────────────────────────────────────────────────────────
 
 function BillHeader({
@@ -401,6 +565,7 @@ function BillHeader({
 function BillPage({ data }: { data: ApiResponse }) {
   const [visible, setVisible] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showFoodMenu, setShowFoodMenu] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 60);
@@ -427,6 +592,14 @@ function BillPage({ data }: { data: ApiResponse }) {
             Our front desk will be glad to assist you.
           </p>
           <div className="cta-stack">
+            <button
+              type="button"
+              className="cta-btn cta-menu-btn"
+              onClick={() => setShowFoodMenu(true)}
+            >
+              <IconUtensils />
+              <span>Food Menu</span>
+            </button>
             {settings.phone && (
               <a href={`tel:${settings.phone}`} className="cta-btn cta-call-btn">
                 <IconPhone />
@@ -442,6 +615,13 @@ function BillPage({ data }: { data: ApiResponse }) {
               <span>Share Feedback</span>
             </button>
           </div>
+          {showFoodMenu && (
+            <FoodMenuModal
+              hotelName={settings.hotelName}
+              currency={currency}
+              onClose={() => setShowFoodMenu(false)}
+            />
+          )}
           {showFeedback && (
             <FeedbackModal
               hotelName={settings.hotelName}
@@ -561,6 +741,14 @@ function BillPage({ data }: { data: ApiResponse }) {
         </div>
 
         <div className="cta-stack cta-stack-bill">
+          <button
+            type="button"
+            className="cta-btn cta-menu-btn"
+            onClick={() => setShowFoodMenu(true)}
+          >
+            <IconUtensils />
+            <span>Food Menu</span>
+          </button>
           {settings.phone && (
             <a href={`tel:${settings.phone}`} className="cta-btn cta-call-btn">
               <IconPhone />
@@ -572,6 +760,15 @@ function BillPage({ data }: { data: ApiResponse }) {
             <span>Share Feedback</span>
           </button>
         </div>
+
+        {/* ── Food Menu Modal ── */}
+        {showFoodMenu && (
+          <FoodMenuModal
+            hotelName={settings.hotelName}
+            currency={currency}
+            onClose={() => setShowFoodMenu(false)}
+          />
+        )}
 
         {/* ── Feedback Modal ── */}
         {showFeedback && (
@@ -652,6 +849,7 @@ function SessionExpiredScreen({
 }) {
   const [visible, setVisible] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showFoodMenu, setShowFoodMenu] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 60);
@@ -694,8 +892,16 @@ function SessionExpiredScreen({
           <span>Scan QR Code Again</span>
         </div>
 
-        {/* ── Call Front Desk & Share Feedback Action Buttons ── */}
+        {/* ── Action Buttons ── */}
         <div className="cta-stack" style={{ marginTop: '24px', width: '100%', maxWidth: '340px' }}>
+          <button
+            type="button"
+            className="cta-btn cta-menu-btn"
+            onClick={() => setShowFoodMenu(true)}
+          >
+            <IconUtensils />
+            <span>Food Menu</span>
+          </button>
           {phone && (
             <a href={`tel:${phone}`} className="cta-btn cta-call-btn">
               <IconPhone />
@@ -711,6 +917,15 @@ function SessionExpiredScreen({
             <span>Share Feedback</span>
           </button>
         </div>
+
+        {/* ── Food Menu Modal ── */}
+        {showFoodMenu && (
+          <FoodMenuModal
+            hotelName={hotelName}
+            currency={settings?.currency}
+            onClose={() => setShowFoodMenu(false)}
+          />
+        )}
 
         {/* ── Feedback Modal ── */}
         {showFeedback && (
@@ -1693,12 +1908,23 @@ const BASE_CSS = `
   }
   .cta-btn:active { transform: scale(0.985); }
 
-  .cta-call-btn {
+  .cta-menu-btn {
     background: var(--champagne);
     color: var(--ink);
     box-shadow: 0 6px 20px rgba(196, 163, 90, 0.2);
   }
-  .cta-call-btn:hover { background: #d4b56a; }
+  .cta-menu-btn:hover { background: #d4b56a; }
+
+  .cta-call-btn {
+    background: rgba(243, 239, 230, 0.08);
+    color: var(--linen);
+    border: 1px solid rgba(196, 163, 90, 0.3);
+  }
+  .cta-call-btn:hover {
+    border-color: var(--champagne);
+    color: var(--champagne);
+    background: rgba(196, 163, 90, 0.12);
+  }
 
   .cta-feedback-btn {
     background: rgba(243, 239, 230, 0.04);
@@ -1709,6 +1935,168 @@ const BASE_CSS = `
     border-color: var(--champagne-line);
     color: var(--champagne);
     background: rgba(196, 163, 90, 0.08);
+  }
+
+  /* ══════════════════════════════════════
+     FOOD MENU MODAL
+  ══════════════════════════════════════ */
+  .fm-modal {
+    max-height: 85dvh;
+    display: flex;
+    flex-direction: column;
+  }
+  .fm-search-wrap {
+    position: relative;
+    margin-bottom: 12px;
+  }
+  .fm-search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+  .fm-search-input {
+    width: 100%;
+    background: rgba(243, 239, 230, 0.05);
+    border: 1px solid rgba(196, 163, 90, 0.2);
+    border-radius: 12px;
+    padding: 10px 36px;
+    color: var(--linen);
+    font-size: 13px;
+    font-family: var(--font-body);
+    outline: none;
+    transition: border-color 0.15s var(--ease);
+  }
+  .fm-search-input:focus {
+    border-color: var(--champagne);
+    background: rgba(243, 239, 230, 0.08);
+  }
+  .fm-search-clear {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 18px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .fm-categories {
+    margin-bottom: 14px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    flex-shrink: 0;
+  }
+  .fm-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    padding-right: 4px;
+    flex: 1;
+  }
+  .fm-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+    border: 1px solid rgba(196, 163, 90, 0.16);
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+    transition: transform 0.2s var(--ease), background 0.2s var(--ease), border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+  }
+  .fm-item:hover {
+    background: linear-gradient(135deg, rgba(196, 163, 90, 0.09) 0%, rgba(255, 255, 255, 0.03) 100%);
+    border-color: rgba(196, 163, 90, 0.38);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  }
+  .fm-item-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  .fm-item-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: rgba(196, 163, 90, 0.1);
+    border: 1px solid rgba(196, 163, 90, 0.22);
+    color: var(--champagne);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+  .fm-item-details {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+  .fm-item-name {
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--linen);
+    line-height: 1.35;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .fm-item-cat {
+    font-size: 9.5px;
+    font-weight: 700;
+    color: var(--champagne);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    display: inline-block;
+  }
+  .fm-item-price-tag {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    flex-shrink: 0;
+    background: rgba(196, 163, 90, 0.09);
+    border: 1px solid rgba(196, 163, 90, 0.24);
+    padding: 6px 12px;
+    border-radius: 10px;
+  }
+  .fm-price-cur {
+    font-size: 9.5px;
+    font-weight: 700;
+    color: rgba(196, 163, 90, 0.85);
+    letter-spacing: 0.06em;
+    line-height: 1;
+    margin-bottom: 2px;
+  }
+  .fm-price-val {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--champagne);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .fm-loading,
+  .fm-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 16px;
+    color: var(--text-muted);
+    font-size: 13px;
+    gap: 12px;
+    text-align: center;
   }
 
   /* ══════════════════════════════════════

@@ -47,6 +47,7 @@ export interface Food {
   foodName: string;
   category: string;
   price: number;
+  isAvailable?: boolean;
 }
 
 export interface RoomItem {

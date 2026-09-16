@@ -30,8 +30,8 @@ export async function POST(request: Request) {
     const auth = await requireSession(request);
     if (!auth.ok) return auth.response;
 
-    const { id, foodName, category, price } = await request.json();
-    if (!foodName || !category || !price) {
+    const { id, foodName, category, price, isAvailable } = await request.json();
+    if (!foodName || !category || price === undefined || price === null) {
       return errorResponse('All food fields are required', 400);
     }
 
@@ -47,6 +47,7 @@ export async function POST(request: Request) {
       foodName,
       category,
       price: Number(price),
+      isAvailable: isAvailable !== undefined ? Boolean(isAvailable) : true,
     });
     await recordAudit({
       request,

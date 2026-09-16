@@ -935,6 +935,12 @@ export const Settings: React.FC = () => {
                         color: theme.id === 'sunrise' || theme.id === 'cloudmist' ? '#0f172a' : '#04140b',
                       }}
                     >
+                      🍽️ FOOD MENU
+                    </div>
+                    <div
+                      className="w-full py-2 rounded-xl text-xs font-semibold border border-white/20 flex items-center justify-center gap-1.5"
+                      style={{ backgroundColor: theme.cssVariables['--card'] }}
+                    >
                       📞 CALL FRONT DESK
                     </div>
                     <div

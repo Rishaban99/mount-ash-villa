@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Food, User } from '@/lib/types';
-import { Plus, Search, Edit2, Trash2, Utensils, Filter, DollarSign, Command, Loader2 } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Utensils, Filter, DollarSign, Command, Loader2, Eye, EyeOff } from 'lucide-react';
 import { LoadingButton } from '@/components/loading-button';
 import { apiFetch } from '@/lib/api';
 import { toastCreated, toastUpdated, toastDeleted, toastError } from '@/lib/crud-toast';
@@ -28,9 +28,11 @@ export const Foods: React.FC = () => {
   const [foodName, setFoodName] = useState('');
   const [category, setCategory] = useState('');
   const [price, setPrice] = useState('');
+  const [isAvailable, setIsAvailable] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const fetchFoods = async () => {
     try {
@@ -89,6 +91,7 @@ export const Foods: React.FC = () => {
     setFoodName('');
     setCategory('Main Course');
     setPrice('');
+    setIsAvailable(true);
     setError(null);
     setIsModalOpen(true);
   };
@@ -98,8 +101,38 @@ export const Foods: React.FC = () => {
     setFoodName(food.foodName);
     setCategory(food.category);
     setPrice(food.price.toString());
+    setIsAvailable(food.isAvailable !== false);
     setError(null);
     setIsModalOpen(true);
+  };
+
+  const handleToggleAvailable = async (food: Food) => {
+    if (!canEditFood || togglingId === food.id) return;
+    setTogglingId(food.id);
+    const newStatus = !(food.isAvailable !== false);
+    try {
+      const res = await apiFetch('/api/foods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: food.id,
+          foodName: food.foodName,
+          category: food.category,
+          price: food.price,
+          isAvailable: newStatus,
+        }),
+      });
+      if (res.ok) {
+        toastUpdated(`"${food.foodName}" is now ${newStatus ? 'shown' : 'hidden'} on Guest Menu.`);
+        await fetchFoods();
+      } else {
+        toastError('Failed to update food menu status.');
+      }
+    } catch (e) {
+      toastError('Failed to update food menu status.');
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -117,6 +150,7 @@ export const Foods: React.FC = () => {
       foodName,
       category,
       price: Number(price),
+      isAvailable,
     };
 
     try {
@@ -185,10 +219,10 @@ export const Foods: React.FC = () => {
         <div>
           <h1 className="text-2xl font-display font-bold text-slate-900 flex items-center gap-2">
             <Utensils className="h-6 w-6 text-indigo-600" />
-            Kitchen Food Menu
+            Kitchen Food Menu Control
           </h1>
           <p className="text-sm text-slate-500">
-            {isAdmin ? 'Add, edit, or configure room-service restaurant dishes' : 'Search and view restaurant selection'}
+            {isAdmin ? 'Manage food menu items & control which items are visible on the guest QR menu' : 'Search and view restaurant selection'}
           </p>
         </div>
         {canAddFood && (
@@ -247,7 +281,9 @@ export const Foods: React.FC = () => {
           {filteredFoods.map((food) => (
             <div
               key={food.id}
-              className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs hover:shadow-md hover:border-slate-200/80 transition-all flex flex-col justify-between"
+              className={`bg-white p-5 rounded-2xl border shadow-xs hover:shadow-md transition-all flex flex-col justify-between ${
+                food.isAvailable === false ? 'border-amber-200/80 bg-slate-50/40 opacity-90' : 'border-slate-100 hover:border-slate-200/80'
+              }`}
             >
               <div className="space-y-3">
                 <div className="flex items-start justify-between">
@@ -260,6 +296,47 @@ export const Foods: React.FC = () => {
                 </div>
 
                 <h3 className="font-display font-semibold text-slate-800 text-base">{food.foodName}</h3>
+
+                {/* Guest Menu Visibility Badge & Switch (Admin Control) */}
+                <div className="flex items-center justify-between pt-1">
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                      food.isAvailable !== false
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                        : 'bg-amber-50 text-amber-700 border border-amber-200/60'
+                    }`}
+                  >
+                    {food.isAvailable !== false ? (
+                      <>
+                        <Eye className="h-3.5 w-3.5 text-emerald-600" />
+                        Shown on Guest Menu
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff className="h-3.5 w-3.5 text-amber-600" />
+                        Hidden from Guest Menu
+                      </>
+                    )}
+                  </span>
+
+                  {canEditFood && (
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAvailable(food)}
+                      disabled={togglingId === food.id}
+                      title={food.isAvailable !== false ? 'Hide from Guest Menu' : 'Show on Guest Menu'}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        food.isAvailable !== false ? 'bg-emerald-500' : 'bg-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                          food.isAvailable !== false ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Action Buttons for Authorized Operators */}
@@ -322,7 +399,7 @@ export const Foods: React.FC = () => {
                   value={foodName}
                   onChange={(e) => setFoodName(e.target.value)}
                   placeholder="e.g. Club Sandwich with Fries"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition-all"
+                  className="w-full px-4 py-2.5 bg-slate-55 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition-all"
                 />
               </div>
 
@@ -338,7 +415,7 @@ export const Foods: React.FC = () => {
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   placeholder="e.g. Snacks, Beverages, Main Course"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition-all font-sans"
+                  className="w-full px-4 py-2.5 bg-slate-55 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition-all font-sans"
                 />
                 <datalist id="categories-list">
                   {categories.filter((cat) => cat !== 'All')
@@ -361,9 +438,35 @@ export const Foods: React.FC = () => {
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     placeholder="e.g. 750"
-                    className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition-all font-sans"
+                    className="w-full pl-11 pr-4 py-2.5 bg-slate-55 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition-all font-sans"
                   />
                 </div>
+              </div>
+
+              {/* Show in Guest Menu Toggle */}
+              <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                <div>
+                  <label className="text-xs font-semibold text-slate-800 block">
+                    Show in Guest Menu
+                  </label>
+                  <span className="text-[11px] text-slate-500 block">
+                    When enabled, guests can see this item in the room QR food menu.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAvailable(!isAvailable)}
+                  disabled={loading}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    isAvailable ? 'bg-indigo-600' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                      isAvailable ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
               </div>
 
               <div className="flex items-center gap-3 pt-4 border-t border-slate-50">
