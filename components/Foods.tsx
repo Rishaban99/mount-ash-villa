@@ -84,7 +84,8 @@ export const Foods: React.FC = () => {
   const isAdmin = canAddFood || canEditFood || canDeleteFood;
 
   // Extract unique categories for filter
-  const categories = ['All', ...Array.from(new Set(foods.map((f) => f.category)))];
+  const rawCategories = foods.map((f) => f.category).filter((c) => c && c.trim().toLowerCase() !== 'all');
+  const categories = ['All', ...Array.from(new Set(rawCategories))];
 
   const handleOpenAdd = () => {
     setEditingId(null);

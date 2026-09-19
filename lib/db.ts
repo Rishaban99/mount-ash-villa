@@ -5,7 +5,7 @@
 
 import { prisma } from './prisma';
 import { DEFAULT_SETTINGS } from '../prisma/defaults';
-import { User, Room, Guest, Food, Bill, Expense, SystemSettings, FrontdeskMemo, ClosedMonth, AuditLog, AuditAction, RoomItem, RoomStatus, PrintLog, GuestFeedback, Attendance } from '@/lib/types';
+import { User, Room, Guest, Food, Amenity, Bill, Expense, SystemSettings, FrontdeskMemo, ClosedMonth, AuditLog, AuditAction, RoomItem, RoomStatus, PrintLog, GuestFeedback, Attendance } from '@/lib/types';
 import type { User as PrismaUser, Prisma } from '@prisma/client';
 import { dedupeRoomsByNumber } from '@/lib/rooms';
 
@@ -291,6 +291,57 @@ export async function deleteFood(id: string): Promise<boolean> {
 }
 
 // ==========================================
+// AMENITIES
+// ==========================================
+
+export async function getAmenities(): Promise<Amenity[]> {
+  return (await (prisma as any).amenity.findMany()) as Amenity[];
+}
+
+export async function saveAmenity(amenity: Amenity): Promise<Amenity> {
+  const newAmenity = { ...amenity };
+  if (!newAmenity.id) {
+    newAmenity.id = 'amenity_' + Math.random().toString(36).substr(2, 9);
+  }
+
+  const isFree = newAmenity.isFree !== undefined ? newAmenity.isFree : true;
+  const isAvailable = newAmenity.isAvailable !== undefined ? newAmenity.isAvailable : true;
+  const price = newAmenity.price !== undefined ? Number(newAmenity.price) : 0;
+
+  return (await (prisma as any).amenity.upsert({
+    where: { id: newAmenity.id },
+    create: {
+      id: newAmenity.id,
+      name: newAmenity.name,
+      category: newAmenity.category,
+      description: newAmenity.description ?? '',
+      price,
+      isFree,
+      isAvailable,
+      icon: newAmenity.icon ?? 'Sparkles',
+    },
+    update: {
+      name: newAmenity.name,
+      category: newAmenity.category,
+      description: newAmenity.description ?? '',
+      price,
+      isFree,
+      isAvailable,
+      icon: newAmenity.icon ?? 'Sparkles',
+    },
+  })) as Amenity;
+}
+
+export async function deleteAmenity(id: string): Promise<boolean> {
+  try {
+    await (prisma as any).amenity.delete({ where: { id } });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ==========================================
 // BILLS
 // ==========================================
 
@@ -354,8 +405,10 @@ export async function saveBill(bill: Bill): Promise<Bill> {
       guestId: newBill.guestId,
       guestDetails: newBill.guestDetails,
       roomItems: newBill.roomItems,
-      foodItems: newBill.foodItems,
+      foodItems: newBill.foodItems || [],
+      amenityItems: newBill.amenityItems || [],
       foodSubtotal: newBill.foodSubtotal,
+      amenitiesSubtotal: newBill.amenitiesSubtotal ?? 0,
       serviceCharge: newBill.serviceCharge,
       roomSubtotal: newBill.roomSubtotal,
       totalAmount: newBill.totalAmount,
@@ -370,8 +423,10 @@ export async function saveBill(bill: Bill): Promise<Bill> {
       guestId: newBill.guestId,
       guestDetails: newBill.guestDetails,
       roomItems: newBill.roomItems,
-      foodItems: newBill.foodItems,
+      foodItems: newBill.foodItems || [],
+      amenityItems: newBill.amenityItems || [],
       foodSubtotal: newBill.foodSubtotal,
+      amenitiesSubtotal: newBill.amenitiesSubtotal ?? 0,
       serviceCharge: newBill.serviceCharge,
       roomSubtotal: newBill.roomSubtotal,
       totalAmount: newBill.totalAmount,

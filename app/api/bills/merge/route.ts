@@ -57,16 +57,22 @@ export async function POST(request: Request) {
       }
     });
 
-    // Consolidate food items (sum quantities for same foodId & unit price)
+    // Consolidate food & amenity items (sum quantities for same foodId & unit price)
     const foodMap: Record<string, FoodItem> = {};
-    const allFoodItemsList: FoodItem[] = [...(targetBill.foodItems || [])];
+    const allItemsList: FoodItem[] = [
+      ...(targetBill.foodItems || []),
+      ...(targetBill.amenityItems || []),
+    ];
     sourceBills.forEach((sb) => {
       if (Array.isArray(sb.foodItems)) {
-        allFoodItemsList.push(...sb.foodItems);
+        allItemsList.push(...sb.foodItems);
+      }
+      if (Array.isArray(sb.amenityItems)) {
+        allItemsList.push(...sb.amenityItems);
       }
     });
 
-    allFoodItemsList.forEach((item) => {
+    allItemsList.forEach((item) => {
       const price = Number(item.price) || 0;
       const qty = Number(item.quantity) || 1;
       const key = `${item.foodId || item.foodName}_${price}`;
@@ -83,10 +89,17 @@ export async function POST(request: Request) {
       }
     });
 
-    const combinedFoodItems: FoodItem[] = Object.values(foodMap);
+    const combinedAllItems: FoodItem[] = Object.values(foodMap);
+    const combinedFoodItems = combinedAllItems.filter(
+      (item) => !item.foodId?.startsWith('amenity_') && !item.foodName?.startsWith('✨')
+    );
+    const combinedAmenityItems = combinedAllItems.filter(
+      (item) => item.foodId?.startsWith('amenity_') || item.foodName?.startsWith('✨')
+    );
 
     // Recalculate Subtotals
     const foodSubtotal = combinedFoodItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    const amenitiesSubtotal = combinedAmenityItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
     const roomSubtotal = combinedRoomItems.reduce((acc, item) => acc + item.pricePerNight * item.nights, 0);
 
     const settings = await getSettings();
@@ -95,7 +108,7 @@ export async function POST(request: Request) {
     // Check if target or any source bill had service charge applied
     const hadServiceCharge = (targetBill.serviceCharge || 0) > 0 || sourceBills.some((sb) => (sb.serviceCharge || 0) > 0);
     const serviceCharge = hadServiceCharge ? Math.round(foodSubtotal * (serviceChargePercent / 100)) : 0;
-    const totalAmount = foodSubtotal + serviceCharge + roomSubtotal;
+    const totalAmount = foodSubtotal + amenitiesSubtotal + serviceCharge + roomSubtotal;
 
     // Build consolidated bill
     const mergedNotes = [
@@ -111,7 +124,9 @@ export async function POST(request: Request) {
       ...targetBill,
       roomItems: combinedRoomItems,
       foodItems: combinedFoodItems,
+      amenityItems: combinedAmenityItems,
       foodSubtotal,
+      amenitiesSubtotal,
       roomSubtotal,
       serviceCharge,
       totalAmount,

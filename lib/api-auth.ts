@@ -116,3 +116,24 @@ export function roomDeletePermission(role: UserRole): PermissionKey {
 export function foodDeletePermission(role: UserRole): PermissionKey {
   return role === 'manager' ? 'allowManagerDeleteFoods' : 'allowReceptionistDeleteFoods';
 }
+
+/** Resolve the correct amenity permission key for add vs edit based on role. */
+export function amenityMutationPermission(
+  role: UserRole,
+  isUpdate: boolean
+): PermissionKey {
+  if (role === 'manager') {
+    return isUpdate ? 'allowManagerEditAmenities' : 'allowManagerAddAmenities';
+  }
+  return isUpdate ? 'allowReceptionistEditAmenities' : 'allowReceptionistAddAmenities';
+}
+
+/** Resolve the correct amenity delete permission key based on role. */
+export function amenityDeletePermission(role: UserRole): PermissionKey {
+  return role === 'manager' ? 'allowManagerDeleteAmenities' : 'allowReceptionistDeleteAmenities';
+}
+
+/** Resolve the correct amenity view permission key based on role. */
+export function amenityViewPermission(role: UserRole): PermissionKey {
+  return role === 'manager' ? 'allowManagerViewAmenities' : 'allowReceptionistViewAmenities';
+}

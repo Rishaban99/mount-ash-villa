@@ -4,7 +4,7 @@
  */
 
 import { getBills, saveBill, getRooms, getSettings } from '@/lib/db';
-import type { Bill, RoomItem } from '@/lib/types';
+import type { Bill, RoomItem, FoodItem } from '@/lib/types';
 import { buildUpdateDetails, recordAudit } from '@/lib/auditLog';
 import { ensureDb, errorResponse, jsonResponse } from '@/lib/api-utils';
 import { requireSession } from '@/lib/api-auth';
@@ -60,7 +60,10 @@ export async function POST(request: Request) {
       return errorResponse('Guest details are required for creating a bill', 400);
     }
 
-    let foodItems = billData.foodItems || [];
+    const rawFoodItems = billData.foodItems || [];
+    const rawAmenityItems = billData.amenityItems || [];
+    const combinedInput = [...rawFoodItems, ...rawAmenityItems];
+
     let roomItems: RoomItem[] = billData.roomItems || [];
     const requestedStatus = billData.status || 'Active';
 
@@ -80,9 +83,21 @@ export async function POST(request: Request) {
     if (existingBill?.status === 'Completed' && auth.session.role !== 'admin') {
       return errorResponse('Access denied. Only system administrators are permitted to edit completed/settled bills.', 403);
     }
+
+    let foodItems: FoodItem[];
+    let amenityItems: FoodItem[];
+
     if (existingBill?.status === 'DueLater') {
       roomItems = existingBill.roomItems;
-      foodItems = existingBill.foodItems;
+      foodItems = existingBill.foodItems || [];
+      amenityItems = existingBill.amenityItems || [];
+    } else {
+      foodItems = combinedInput.filter(
+        (item: any) => !item.foodId?.startsWith('amenity_') && !item.foodName?.startsWith('✨')
+      );
+      amenityItems = combinedInput.filter(
+        (item: any) => item.foodId?.startsWith('amenity_') || item.foodName?.startsWith('✨')
+      );
     }
 
     const restrictionError = await validateReceptionistBillRestrictions(
@@ -96,6 +111,11 @@ export async function POST(request: Request) {
     const foodSubtotal = existingBill?.status === 'DueLater'
       ? existingBill.foodSubtotal
       : foodItems.reduce((acc: number, item: { price: number; quantity: number }) => acc + item.price * item.quantity, 0);
+
+    const amenitiesSubtotal = existingBill?.status === 'DueLater'
+      ? (existingBill.amenitiesSubtotal || 0)
+      : amenityItems.reduce((acc: number, item: { price: number; quantity: number }) => acc + item.price * item.quantity, 0);
+
     const settings = await getSettings();
     const serviceChargePercent = settings?.serviceChargePercent ?? 10;
     const applyServiceCharge = billData.applyServiceCharge !== false;
@@ -107,7 +127,7 @@ export async function POST(request: Request) {
       : roomItems.reduce((acc: number, item: { pricePerNight: number; nights: number }) => acc + item.pricePerNight * item.nights, 0);
     const totalAmount = existingBill?.status === 'DueLater'
       ? existingBill.totalAmount
-      : foodSubtotal + serviceCharge + roomSubtotal;
+      : foodSubtotal + amenitiesSubtotal + serviceCharge + roomSubtotal;
 
     const dueLaterNote = typeof billData.dueLaterNote === 'string'
       ? billData.dueLaterNote.trim()
@@ -140,7 +160,9 @@ export async function POST(request: Request) {
       guestDetails: finalGuestDetails,
       roomItems,
       foodItems,
+      amenityItems,
       foodSubtotal,
+      amenitiesSubtotal,
       serviceCharge,
       roomSubtotal,
       totalAmount,

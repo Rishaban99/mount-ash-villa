@@ -413,6 +413,22 @@ export const Rooms: React.FC = () => {
                         </div>
                       )}
 
+                      {/* Amenities & Facilities */}
+                      {((activeBill.amenitiesSubtotal && activeBill.amenitiesSubtotal > 0) || (activeBill.amenityItems && activeBill.amenityItems.length > 0)) && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-slate-500 font-semibold flex items-center gap-1">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-400" />
+                            Amenities &amp; Facilities
+                            {activeBill.amenityItems && activeBill.amenityItems.length > 0 && (
+                              <span className="text-[9px] text-slate-400">({activeBill.amenityItems.reduce((s, f) => s + f.quantity, 0)} items)</span>
+                            )}
+                          </span>
+                          <span className="text-[11px] font-bold text-slate-700">
+                            Rs. {(activeBill.amenitiesSubtotal || activeBill.amenityItems?.reduce((acc, item) => acc + item.price * item.quantity, 0) || 0).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+
                       {/* Service Charge */}
                       {activeBill.serviceCharge > 0 && (
                         <div className="flex items-center justify-between">

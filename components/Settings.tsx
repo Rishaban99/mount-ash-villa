@@ -51,6 +51,7 @@ const categoryIcons: Record<PermissionCategory, LucideIcon> = {
   Report: TrendingUp,
   Staff: Users,
   Expenses: Receipt,
+  Amenity: Sparkles,
 };
 
 export const Settings: React.FC = () => {

@@ -50,6 +50,17 @@ export interface Food {
   isAvailable?: boolean;
 }
 
+export interface Amenity {
+  id: string;
+  name: string;
+  category: string;
+  description?: string;
+  price?: number;
+  isFree?: boolean;
+  isAvailable?: boolean;
+  icon?: string;
+}
+
 export interface RoomItem {
   roomId: string;
   roomNumber: string;
@@ -75,7 +86,9 @@ export interface Bill {
   guestDetails: Guest;
   roomItems: RoomItem[];
   foodItems: FoodItem[];
+  amenityItems?: FoodItem[];
   foodSubtotal: number;
+  amenitiesSubtotal?: number;
   serviceCharge: number; // 10% on food
   roomSubtotal: number;
   totalAmount: number;
@@ -151,6 +164,14 @@ export interface SystemSettings {
   allowManagerViewReports: boolean;
   allowManagerDeleteExpenses: boolean;
   allowManagerDeleteSettledBills: boolean;
+  allowReceptionistViewAmenities?: boolean;
+  allowReceptionistAddAmenities?: boolean;
+  allowReceptionistEditAmenities?: boolean;
+  allowReceptionistDeleteAmenities?: boolean;
+  allowManagerViewAmenities?: boolean;
+  allowManagerAddAmenities?: boolean;
+  allowManagerEditAmenities?: boolean;
+  allowManagerDeleteAmenities?: boolean;
   taxNumber: string;
   email: string;
   checkInTime: string;

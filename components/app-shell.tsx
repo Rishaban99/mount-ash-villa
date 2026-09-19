@@ -31,6 +31,7 @@ import {
   Download,
   Copy,
   ExternalLink,
+  Sparkles,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { useAuth } from '@/components/auth-provider';
@@ -44,6 +45,7 @@ const viewTitles: Record<string, string> = {
   billing: 'Billing & POS Terminal',
   rooms: 'Room Stock Registry',
   foods: 'Restaurant Menu Kitchen',
+  amenities: 'Amenities & Facilities Registry',
   guests: 'Guest Registration Database',
   reports: 'Admin Analytics & Auditing',
   users: 'Frontdesk Staff Registry',
@@ -108,6 +110,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     currentUser.role === 'admin' ||
     currentUser.role === 'receptionist' ||
     hasPermission(currentUser.role, 'allowManagerManageRooms', settings);
+  const canViewAmenities =
+    currentUser.role === 'admin' ||
+    hasPermission(currentUser.role, 'allowReceptionistViewAmenities', settings) ||
+    hasPermission(currentUser.role, 'allowManagerViewAmenities', settings);
 
   const formatDateString = (d: Date) =>
     d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
@@ -125,6 +131,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { id: 'billing', label: 'POS', icon: ShoppingCart },
     ...(canViewRooms ? [{ id: 'rooms', label: 'Rooms', icon: Hotel }] : []),
     { id: 'foods', label: 'Kitchen', icon: Utensils },
+    ...(canViewAmenities ? [{ id: 'amenities', label: 'Amenities', icon: Sparkles }] : []),
     ...(canViewReports ? [{ id: 'reports', label: 'Reports', icon: PieChart }] : []),
     ...(canViewUsers ? [{ id: 'users', label: 'Staff', icon: Users }] : []),
     { id: 'attendance', label: 'Attendance', icon: Clock },

@@ -11,6 +11,7 @@ import {
   Guest,
   Room,
   Food,
+  Amenity,
   RoomItem,
   FoodItem,
   BillStatus,
@@ -45,6 +46,7 @@ import {
   Coins,
   Utensils,
   Moon,
+  Sparkles,
 } from "lucide-react";
 import { Guests } from "@/components/Guests";
 import { LoadingButton } from "@/components/loading-button";
@@ -64,6 +66,7 @@ export const Billing: React.FC<BillingProps> = ({
   const [bills, setBills] = useState<Bill[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [foods, setFoods] = useState<Food[]>([]);
+  const [amenities, setAmenities] = useState<Amenity[]>([]);
 
   // Search & List Filters
   const [listStatus, setListStatus] = useState<BillStatus | "All">("All");
@@ -105,12 +108,14 @@ export const Billing: React.FC<BillingProps> = ({
   const [addRoomDiscount, setAddRoomDiscount] = useState(0);
 
   // Quick taps category state
-  const [quickTapsTab, setQuickTapsTab] = useState<"rooms" | "food" | "packages">("rooms");
+  const [quickTapsTab, setQuickTapsTab] = useState<"rooms" | "food" | "packages" | "amenities">("rooms");
   const [customVillaPriceInput, setCustomVillaPriceInput] = useState<string>("");
   const [villaNightsInput, setVillaNightsInput] = useState<number>(1);
   const [customKitchenFeeInput, setCustomKitchenFeeInput] = useState<string>("5000");
   const [packageNoServiceCharge, setPackageNoServiceCharge] = useState<boolean>(false);
   const [selectedFoodCategory, setSelectedFoodCategory] = useState<string>("All");
+  const [selectedAmenityCategory, setSelectedAmenityCategory] = useState<string>("All");
+  const [amenitySearchQuery, setAmenitySearchQuery] = useState<string>("");
   const [savingBill, setSavingBill] = useState(false);
   const [foodSearchQuery, setFoodSearchQuery] = useState("");
   const [applyServiceCharge, setApplyServiceCharge] = useState(true);
@@ -219,10 +224,13 @@ export const Billing: React.FC<BillingProps> = ({
 
     const combinedFoods = Object.values(foodMap);
     const foodSubtotal = combinedFoods.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    const kitchenMealsSubtotal = combinedFoods
+      .filter((item) => !item.foodId?.startsWith('amenity_') && !item.foodName?.startsWith('✨'))
+      .reduce((acc, item) => acc + item.price * item.quantity, 0);
     const roomSubtotal = combinedRooms.reduce((acc, item) => acc + item.pricePerNight * item.nights, 0);
     const serviceChargePercent = settings?.serviceChargePercent ?? 10;
     const hadServiceCharge = (targetMergeBill.serviceCharge || 0) > 0 || sourceMergeBills.some((sb) => (sb.serviceCharge || 0) > 0);
-    const serviceCharge = hadServiceCharge ? Math.round(foodSubtotal * (serviceChargePercent / 100)) : 0;
+    const serviceCharge = hadServiceCharge ? Math.round(kitchenMealsSubtotal * (serviceChargePercent / 100)) : 0;
     const totalAmount = foodSubtotal + serviceCharge + roomSubtotal;
 
     return {
@@ -239,6 +247,7 @@ export const Billing: React.FC<BillingProps> = ({
     fetchBills();
     fetchRooms();
     fetchFoods();
+    fetchAmenities();
 
     const fetchSettings = async () => {
       try {
@@ -279,6 +288,16 @@ export const Billing: React.FC<BillingProps> = ({
       const res = await fetch("/api/foods");
       const data = await res.json();
       if (res.ok) setFoods(data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const fetchAmenities = async () => {
+    try {
+      const res = await fetch("/api/amenities");
+      const data = await res.json();
+      if (res.ok) setAmenities(data);
     } catch (e) {
       console.error(e);
     }
@@ -332,7 +351,7 @@ export const Billing: React.FC<BillingProps> = ({
     });
 
     setSelectedRooms(populatedRoomsObj);
-    setSelectedFoods(bill.foodItems);
+    setSelectedFoods([...(bill.foodItems || []), ...(bill.amenityItems || [])]);
 
     // Prefill form states in case they want to modify
     setNewGuestName(bill.guestDetails.name);
@@ -505,6 +524,30 @@ export const Billing: React.FC<BillingProps> = ({
     }
   };
 
+  const handleQuickTapAmenity = (amenity: Amenity) => {
+    if (isDueLaterFolio) return;
+    const amenityId = `amenity_${amenity.id}`;
+    const itemPrice = amenity.isFree ? 0 : Number(amenity.price || 0);
+    const existingIndex = selectedFoods.findIndex(
+      (fi) => fi.foodId === amenityId,
+    );
+    if (existingIndex > -1) {
+      const updated = [...selectedFoods];
+      updated[existingIndex].quantity += 1;
+      setSelectedFoods(updated);
+    } else {
+      setSelectedFoods([
+        ...selectedFoods,
+        {
+          foodId: amenityId,
+          foodName: `✨ ${amenity.name}`,
+          price: itemPrice,
+          quantity: 1,
+        },
+      ]);
+    }
+  };
+
   const handleAddRoom = () => {
     if (isDueLaterFolio) return;
     if (!addRoomId) return;
@@ -608,12 +651,15 @@ export const Billing: React.FC<BillingProps> = ({
   );
   const totalRoomDiscounts = Math.max(0, totalOriginalRoomCost - roomSubtotal);
 
-  const foodSubtotal = selectedFoods.reduce(
-    (acc, fi) => acc + fi.price * fi.quantity,
-    0,
-  );
+  const kitchenMealsSubtotal = selectedFoods
+    .filter((fi) => !fi.foodId?.startsWith('amenity_') && !fi.foodName?.startsWith('✨'))
+    .reduce((acc, fi) => acc + fi.price * fi.quantity, 0);
+  const amenitiesSubtotal = selectedFoods
+    .filter((fi) => fi.foodId?.startsWith('amenity_') || fi.foodName?.startsWith('✨'))
+    .reduce((acc, fi) => acc + fi.price * fi.quantity, 0);
+  const foodSubtotal = kitchenMealsSubtotal + amenitiesSubtotal;
   const scPercent = settings?.serviceChargePercent ?? 10;
-  const serviceCharge = applyServiceCharge ? Math.round(foodSubtotal * (scPercent / 100)) : 0;
+  const serviceCharge = applyServiceCharge ? Math.round(kitchenMealsSubtotal * (scPercent / 100)) : 0;
   const grandTotal = roomSubtotal + foodSubtotal + serviceCharge;
 
   // Primary Transaction save gatekeeper
@@ -691,13 +737,18 @@ export const Billing: React.FC<BillingProps> = ({
         new Date().toISOString().split("T")[0],
     };
 
+    const kitchenMealsOnly = selectedFoods.filter((fi) => !fi.foodId?.startsWith('amenity_') && !fi.foodName?.startsWith('✨'));
+    const amenityItemsOnly = selectedFoods.filter((fi) => fi.foodId?.startsWith('amenity_') || fi.foodName?.startsWith('✨'));
+
     const previewBill: Bill = {
       id: terminalBillId || "DRAFT_PREVIEW",
       guestId: guest.id,
       guestDetails: guest,
       roomItems: selectedRooms,
-      foodItems: selectedFoods,
-      foodSubtotal,
+      foodItems: kitchenMealsOnly,
+      amenityItems: amenityItemsOnly,
+      foodSubtotal: kitchenMealsSubtotal,
+      amenitiesSubtotal,
       serviceCharge,
       roomSubtotal,
       totalAmount: grandTotal,
@@ -718,12 +769,16 @@ export const Billing: React.FC<BillingProps> = ({
       const activeGuest = await ensureGuestRegistered();
       if (!activeGuest) return;
 
+      const kitchenMealsOnly = selectedFoods.filter((fi) => !fi.foodId?.startsWith('amenity_') && !fi.foodName?.startsWith('✨'));
+      const amenityItemsOnly = selectedFoods.filter((fi) => fi.foodId?.startsWith('amenity_') || fi.foodName?.startsWith('✨'));
+
       const payload = {
         id: terminalBillId || undefined,
         guestId: activeGuest.id,
         guestDetails: activeGuest,
         roomItems: selectedRooms,
-        foodItems: selectedFoods,
+        foodItems: kitchenMealsOnly,
+        amenityItems: amenityItemsOnly,
         applyServiceCharge,
         status,
         dueLaterNote: dueLaterNote.trim() || undefined,
@@ -2143,6 +2198,18 @@ export const Billing: React.FC<BillingProps> = ({
                       >
                         🏰 Villa & Kitchen
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => setQuickTapsTab("amenities")}
+                        disabled={folioLocked}
+                        className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all border-0 cursor-pointer disabled:opacity-50 ${
+                          quickTapsTab === "amenities"
+                            ? "bg-indigo-600 text-white font-extrabold shadow-xs"
+                            : "text-indigo-300 hover:text-white"
+                        }`}
+                      >
+                        ✨ Amenities & Facilities
+                      </button>
                     </div>
                   </div>
 
@@ -2231,7 +2298,7 @@ export const Billing: React.FC<BillingProps> = ({
 
                       {/* Food Category Quick Filter Pills */}
                       <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-thin">
-                        {["All", ...Array.from(new Set(foods.map((f) => f.category).filter(Boolean)))].map((cat) => (
+                        {["All", ...Array.from(new Set(foods.map((f) => f.category).filter((c) => c && c.trim().toLowerCase() !== "all")))].map((cat) => (
                           <button
                             key={cat}
                             type="button"
@@ -2285,6 +2352,95 @@ export const Billing: React.FC<BillingProps> = ({
                                     countSelected > 0 ? "text-amber-200" : "text-emerald-300"
                                   }`}>
                                     Rs. {f.price}
+                                  </span>
+                                  {countSelected > 0 && (
+                                    <span className="bg-slate-950 text-yellow-400 text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-md">
+                                      {countSelected}x
+                                    </span>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  ) : quickTapsTab === "amenities" ? (
+                    <div className="p-4 space-y-2 max-h-[380px] overflow-y-auto">
+                      <p className="text-[10px] text-slate-300 uppercase tracking-widest font-bold mb-2">
+                        Tap Amenity / Facility to Append Service
+                      </p>
+
+                      <div className="mb-3">
+                        <input
+                          type="text"
+                          value={amenitySearchQuery}
+                          onChange={(e) => setAmenitySearchQuery(e.target.value)}
+                          placeholder="Search amenity by name or category..."
+                          disabled={folioLocked}
+                          className="w-full px-3 py-2 text-xs bg-slate-50/50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500 font-mono"
+                        />
+                      </div>
+
+                      {/* Amenity Category Quick Filter Pills */}
+                      <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-thin">
+                        {["All", ...Array.from(new Set(amenities.map((a) => a.category).filter((c) => c && c.trim().toLowerCase() !== "all")))].map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => setSelectedAmenityCategory(cat)}
+                            disabled={folioLocked}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap cursor-pointer disabled:opacity-50 ${
+                              selectedAmenityCategory === cat
+                                ? "bg-indigo-600 text-white border-indigo-500 shadow-2xs"
+                                : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700"
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        {amenities
+                          .filter((a) => a.isAvailable !== false)
+                          .filter((a) => selectedAmenityCategory === "All" || a.category === selectedAmenityCategory)
+                          .filter((a) => {
+                            if (!amenitySearchQuery.trim()) return true;
+                            const query = amenitySearchQuery.toLowerCase();
+                            return (
+                              a.name.toLowerCase().includes(query) ||
+                              (a.category && a.category.toLowerCase().includes(query)) ||
+                              (a.description && a.description.toLowerCase().includes(query))
+                            );
+                          })
+                          .map((a) => {
+                            const amenityId = `amenity_${a.id}`;
+                            const countSelected =
+                              selectedFoods.find((sf) => sf.foodId === amenityId)?.quantity || 0;
+                            const itemPrice = a.isFree ? 0 : Number(a.price || 0);
+
+                            return (
+                              <button
+                                key={a.id}
+                                type="button"
+                                onClick={() => handleQuickTapAmenity(a)}
+                                disabled={folioLocked}
+                                className={`p-2.5 rounded-xl text-left transition-all border border-transparent relative flex flex-col justify-between h-14 cursor-pointer disabled:opacity-50 ${
+                                  countSelected > 0
+                                    ? "bg-indigo-600 text-white shadow-md scale-[1.01]"
+                                    : "bg-slate-800 hover:bg-slate-755 text-slate-200"
+                                }`}
+                              >
+                                <span className={`text-[11px] font-extrabold line-clamp-1 block leading-tight ${
+                                  countSelected > 0 ? "text-white" : "text-indigo-100"
+                                }`}>
+                                  {a.name}
+                                </span>
+                                <div className="flex items-center justify-between mt-1 w-full shrink-0">
+                                  <span className={`text-[10px] font-mono font-bold ${
+                                    a.isFree ? "text-emerald-400" : countSelected > 0 ? "text-indigo-200" : "text-emerald-300"
+                                  }`}>
+                                    {a.isFree ? "FREE" : `Rs. ${itemPrice}`}
                                   </span>
                                   {countSelected > 0 && (
                                     <span className="bg-slate-950 text-yellow-400 text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-md">
@@ -2679,73 +2835,159 @@ export const Billing: React.FC<BillingProps> = ({
                       })}
                     </div>
 
-                    {/* Selected Cuisine Meals Sub-List */}
-                    <div className="space-y-2 pt-2 border-t border-slate-200">
-                      <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1 flex items-center gap-1">
-                        <Coffee className="h-3 w-3 text-amber-600" />
-                        Kitchen Meals ({selectedFoods.length})
-                      </div>
+                    {/* Selected Cuisine Meals & Amenities Sub-Lists */}
+                    {(() => {
+                      const kitchenMealItems = selectedFoods.filter(
+                        (fd) => !fd.foodId.startsWith('amenity_') && !fd.foodName.startsWith('✨')
+                      );
+                      const amenityItems = selectedFoods.filter(
+                        (fd) => fd.foodId.startsWith('amenity_') || fd.foodName.startsWith('✨')
+                      );
 
-                      {selectedFoods.map((fd) => (
-                        <div
-                          key={fd.foodId}
-                          className="bg-amber-50 border border-amber-200 p-2.5 rounded-xl flex items-center justify-between gap-2"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <span className="font-bold text-xs text-slate-900 block truncate">
-                              {fd.foodName}
-                            </span>
-                            <span className="text-slate-600 text-[10px] font-mono">
-                              Unit: Rs. {fd.price}
-                            </span>
-                          </div>
+                      return (
+                        <>
+                          {/* Kitchen Meals Sub-List */}
+                          {kitchenMealItems.length > 0 && (
+                            <div className="space-y-2 pt-2 border-t border-slate-200">
+                              <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1 flex items-center gap-1">
+                                <Coffee className="h-3 w-3 text-amber-600" />
+                                Kitchen Meals ({kitchenMealItems.length})
+                              </div>
 
-                          <div className="flex items-center gap-2.5 shrink-0">
-                            {/* Qty Controls */}
-                            <div className="flex items-center border border-amber-200 bg-white rounded-lg p-0.5">
-                              <button
-                                type="button"
-                                onClick={() => updateFoodQty(fd.foodId, -1)}
-                                disabled={folioLocked}
-                                className="px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:text-slate-900 hover:bg-amber-100 transition-colors bg-transparent border-0 cursor-pointer disabled:opacity-50"
-                              >
-                                -
-                              </button>
-                              <span className="px-2 text-[10px] font-bold font-mono text-slate-700">
-                                {fd.quantity}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => updateFoodQty(fd.foodId, 1)}
-                                disabled={folioLocked}
-                                className="px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:text-slate-900 hover:bg-amber-100 transition-colors bg-transparent border-0 cursor-pointer disabled:opacity-50"
-                              >
-                                +
-                              </button>
+                              {kitchenMealItems.map((fd) => (
+                                <div
+                                  key={fd.foodId}
+                                  className="bg-amber-50 border border-amber-200 p-2.5 rounded-xl flex items-center justify-between gap-2"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <span className="font-bold text-xs text-slate-900 block truncate">
+                                      {fd.foodName}
+                                    </span>
+                                    <span className="text-slate-600 text-[10px] font-mono">
+                                      Unit: Rs. {fd.price}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-2.5 shrink-0">
+                                    {/* Qty Controls */}
+                                    <div className="flex items-center border border-amber-200 bg-white rounded-lg p-0.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => updateFoodQty(fd.foodId, -1)}
+                                        disabled={folioLocked}
+                                        className="px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:text-slate-900 hover:bg-amber-100 transition-colors bg-transparent border-0 cursor-pointer disabled:opacity-50"
+                                      >
+                                        -
+                                      </button>
+                                      <span className="px-2 text-[10px] font-bold font-mono text-slate-700">
+                                        {fd.quantity}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => updateFoodQty(fd.foodId, 1)}
+                                        disabled={folioLocked}
+                                        className="px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:text-slate-900 hover:bg-amber-100 transition-colors bg-transparent border-0 cursor-pointer disabled:opacity-50"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+
+                                    <span className="font-mono font-bold text-slate-900 text-xs w-16 text-right">
+                                      Rs. {fd.price * fd.quantity}
+                                    </span>
+
+                                    {/* Item Delete Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveFood(fd.foodId)}
+                                      disabled={folioLocked || !canDeleteBill}
+                                      className={`text-slate-400 hover:text-red-600 transition-colors bg-transparent border-0 cursor-pointer p-1 disabled:opacity-50 ${
+                                        !canDeleteBill || isDueLaterFolio
+                                          ? "opacity-30 cursor-not-allowed"
+                                          : ""
+                                      }`}
+                                      title={isDueLaterFolio ? "Folio locked after trust checkout" : !canDeleteBill ? "Deletion restricted by Administrator" : "Delete food item"}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
+                          )}
 
-                            <span className="font-mono font-bold text-slate-900 text-xs w-16 text-right">
-                              Rs. {fd.price * fd.quantity}
-                            </span>
+                          {/* Amenities & Facilities Sub-List */}
+                          {amenityItems.length > 0 && (
+                            <div className="space-y-2 pt-2 border-t border-slate-200">
+                              <div className="text-[9px] font-bold uppercase tracking-wider text-indigo-700 mb-1 flex items-center gap-1">
+                                <Sparkles className="h-3 w-3 text-indigo-600" />
+                                Amenities & Facilities ({amenityItems.length})
+                              </div>
 
-                            {/* Item Delete Button */}
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveFood(fd.foodId)}
-                              disabled={folioLocked || !canDeleteBill}
-                              className={`text-slate-400 hover:text-red-600 transition-colors bg-transparent border-0 cursor-pointer p-1 disabled:opacity-50 ${
-                                !canDeleteBill || isDueLaterFolio
-                                  ? "opacity-30 cursor-not-allowed"
-                                  : ""
-                              }`}
-                              title={isDueLaterFolio ? "Folio locked after trust checkout" : !canDeleteBill ? "Deletion restricted by Administrator" : "Delete food item"}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                              {amenityItems.map((fd) => (
+                                <div
+                                  key={fd.foodId}
+                                  className="bg-indigo-50 border border-indigo-200 p-2.5 rounded-xl flex items-center justify-between gap-2"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <span className="font-bold text-xs text-slate-900 block truncate">
+                                      {fd.foodName.replace(/^✨\s*/, '')}
+                                    </span>
+                                    <span className="text-slate-600 text-[10px] font-mono">
+                                      Unit: {fd.price > 0 ? `Rs. ${fd.price}` : 'Free'}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-2.5 shrink-0">
+                                    {/* Qty Controls */}
+                                    <div className="flex items-center border border-indigo-200 bg-white rounded-lg p-0.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => updateFoodQty(fd.foodId, -1)}
+                                        disabled={folioLocked}
+                                        className="px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:text-slate-900 hover:bg-indigo-100 transition-colors bg-transparent border-0 cursor-pointer disabled:opacity-50"
+                                      >
+                                        -
+                                      </button>
+                                      <span className="px-2 text-[10px] font-bold font-mono text-slate-700">
+                                        {fd.quantity}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => updateFoodQty(fd.foodId, 1)}
+                                        disabled={folioLocked}
+                                        className="px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:text-slate-900 hover:bg-indigo-100 transition-colors bg-transparent border-0 cursor-pointer disabled:opacity-50"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+
+                                    <span className="font-mono font-bold text-slate-900 text-xs w-16 text-right">
+                                      {fd.price * fd.quantity > 0 ? `Rs. ${fd.price * fd.quantity}` : 'Free'}
+                                    </span>
+
+                                    {/* Item Delete Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveFood(fd.foodId)}
+                                      disabled={folioLocked || !canDeleteBill}
+                                      className={`text-slate-400 hover:text-red-600 transition-colors bg-transparent border-0 cursor-pointer p-1 disabled:opacity-50 ${
+                                        !canDeleteBill || isDueLaterFolio
+                                          ? "opacity-30 cursor-not-allowed"
+                                          : ""
+                                      }`}
+                                      title={isDueLaterFolio ? "Folio locked after trust checkout" : !canDeleteBill ? "Deletion restricted by Administrator" : "Delete amenity item"}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
 
                     {selectedRooms.length === 0 && selectedFoods.length === 0 && (
                       <p className="text-center py-8 text-[11px] text-slate-500 italic font-sans">
@@ -2769,18 +3011,29 @@ export const Billing: React.FC<BillingProps> = ({
                 </div>
 
                 <div className="text-xs font-sans space-y-2.5">
-                  <div className="flex justify-between text-slate-550">
-                    <span>Food Base Price</span>
-                    <span className="font-semibold text-slate-800">
-                      Rs. {foodSubtotal.toLocaleString()}
-                    </span>
-                  </div>
+                  {kitchenMealsSubtotal > 0 && (
+                    <div className="flex justify-between text-slate-550">
+                      <span>Kitchen Meals Base Price</span>
+                      <span className="font-semibold text-slate-800">
+                        Rs. {kitchenMealsSubtotal.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
 
-                  {foodSubtotal > 0 && (
+                  {kitchenMealsSubtotal > 0 && serviceCharge > 0 && (
                     <div className="flex justify-between text-[11px] text-slate-450 px-2 py-1 bg-yellow-50/60 border border-yellow-100 rounded-sm">
                       <span>Food service charge ({settings?.serviceChargePercent ?? 10}%)</span>
                       <span className="font-bold text-yellow-700">
                         Rs. {serviceCharge.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+
+                  {amenitiesSubtotal > 0 && (
+                    <div className="flex justify-between text-slate-550">
+                      <span>Amenities &amp; Facilities Rate</span>
+                      <span className="font-semibold text-slate-800">
+                        Rs. {amenitiesSubtotal.toLocaleString()}
                       </span>
                     </div>
                   )}

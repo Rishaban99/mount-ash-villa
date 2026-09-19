@@ -5,10 +5,10 @@
 
 import type { SystemSettings, UserRole } from '@/lib/types';
 
-export type PermissionCategory = 'Room' | 'Food' | 'Report' | 'Staff' | 'Expenses';
+export type PermissionCategory = 'Room' | 'Food' | 'Report' | 'Staff' | 'Expenses' | 'Amenity';
 
 export type PermissionKey = {
-  [K in keyof SystemSettings]: SystemSettings[K] extends boolean
+  [K in keyof SystemSettings]: SystemSettings[K] extends boolean | undefined
     ? K extends `allow${string}`
       ? K
       : never
@@ -51,6 +51,14 @@ export const PERMISSION_KEYS: PermissionKey[] = [
   'allowReceptionistAddExpenses',
   'allowManagerDeleteExpenses',
   'allowManagerDeleteSettledBills',
+  'allowReceptionistViewAmenities',
+  'allowReceptionistAddAmenities',
+  'allowReceptionistEditAmenities',
+  'allowReceptionistDeleteAmenities',
+  'allowManagerViewAmenities',
+  'allowManagerAddAmenities',
+  'allowManagerEditAmenities',
+  'allowManagerDeleteAmenities',
 ];
 
 export const permissionDefinitions: PermissionDef[] = [
@@ -225,6 +233,64 @@ export const permissionDefinitions: PermissionDef[] = [
     category: 'Expenses',
     sensitive: true,
   },
+  {
+    key: 'allowReceptionistViewAmenities',
+    title: 'View Hotel Amenities & Facilities',
+    description: 'Allow receptionists to open and view the amenities and hotel facilities directory.',
+    role: 'receptionist',
+    category: 'Amenity',
+  },
+  {
+    key: 'allowReceptionistAddAmenities',
+    title: 'Add New Hotel Amenities',
+    description: 'Allow receptionists to create new amenities or facility options.',
+    role: 'receptionist',
+    category: 'Amenity',
+  },
+  {
+    key: 'allowReceptionistEditAmenities',
+    title: 'Edit Amenities & Availability',
+    description: 'Allow receptionists to update details, pricing, or status of active amenities.',
+    role: 'receptionist',
+    category: 'Amenity',
+  },
+  {
+    key: 'allowReceptionistDeleteAmenities',
+    title: 'Delete Amenity Records',
+    description: 'Allow receptionists to permanently remove amenities from the hotel directory.',
+    role: 'receptionist',
+    category: 'Amenity',
+    sensitive: true,
+  },
+  {
+    key: 'allowManagerViewAmenities',
+    title: 'Manager: View Amenities Directory',
+    description: 'Allow managers to access and review the hotel amenities list.',
+    role: 'manager',
+    category: 'Amenity',
+  },
+  {
+    key: 'allowManagerAddAmenities',
+    title: 'Manager: Add Hotel Amenities',
+    description: 'Enable managers to add new amenities and guest services.',
+    role: 'manager',
+    category: 'Amenity',
+  },
+  {
+    key: 'allowManagerEditAmenities',
+    title: 'Manager: Edit Amenities & Rates',
+    description: 'Permit managers to modify descriptions, pricing, and availability of amenities.',
+    role: 'manager',
+    category: 'Amenity',
+  },
+  {
+    key: 'allowManagerDeleteAmenities',
+    title: 'Manager: Delete Amenity Records',
+    description: 'Permit managers to remove amenity records from system logs.',
+    role: 'manager',
+    category: 'Amenity',
+    sensitive: true,
+  },
 ];
 
 export const PERMISSION_CATEGORIES: PermissionCategory[] = [
@@ -233,6 +299,7 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
   'Report',
   'Staff',
   'Expenses',
+  'Amenity',
 ];
 
 function permissionAppliesToRole(key: PermissionKey, role: UserRole): boolean {

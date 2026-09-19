@@ -575,28 +575,68 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
                 })}
               </div>
 
-              {/* Foods detail list */}
-              {bill.foodItems.length > 0 && (
-                <>
-                  <div className="border-b border-dashed border-slate-400 my-3" />
-                  <div className="text-[10px] leading-normal font-mono">
-                    <p className="font-bold underline uppercase mb-1.5 flex items-center gap-1 font-sans">
-                      Food Orders
-                    </p>
-                    {bill.foodItems.map((item, idx) => (
-                      <div key={idx} className="mb-1.5">
-                        <div className="flex justify-between font-bold text-slate-900">
-                          <span>{item.foodName}</span>
-                          <span>{activeCurrency} {(item.price * item.quantity).toLocaleString()}</span>
+              {/* Foods and Amenities detail lists */}
+              {(() => {
+                const allItems = [...(bill.foodItems || []), ...(bill.amenityItems || [])];
+                const foodMeals = allItems.filter(
+                  (item) => !item.foodId?.startsWith('amenity_') && !item.foodName.startsWith('✨')
+                );
+                const amenityServices = allItems.filter(
+                  (item) => item.foodId?.startsWith('amenity_') || item.foodName.startsWith('✨')
+                );
+
+                return (
+                  <>
+                    {foodMeals.length > 0 && (
+                      <>
+                        <div className="border-b border-dashed border-slate-400 my-3" />
+                        <div className="text-[10px] leading-normal font-mono">
+                          <p className="font-bold underline uppercase mb-1.5 flex items-center gap-1 font-sans">
+                            Food Orders
+                          </p>
+                          {foodMeals.map((item, idx) => (
+                            <div key={idx} className="mb-1.5">
+                              <div className="flex justify-between font-bold text-slate-900">
+                                <span>{item.foodName}</span>
+                                <span>{activeCurrency} {(item.price * item.quantity).toLocaleString()}</span>
+                              </div>
+                              <div className="text-slate-600 text-[9px]">
+                                {item.quantity} x {activeCurrency} {item.price.toLocaleString()}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                        <div className="text-slate-600 text-[9px]">
-                          {item.quantity} x {activeCurrency} {item.price.toLocaleString()}
+                      </>
+                    )}
+
+                    {amenityServices.length > 0 && (
+                      <>
+                        <div className="border-b border-dashed border-slate-400 my-3" />
+                        <div className="text-[10px] leading-normal font-mono">
+                          <p className="font-bold underline uppercase mb-1.5 flex items-center gap-1 font-sans text-indigo-900">
+                            Amenities & Facilities
+                          </p>
+                          {amenityServices.map((item, idx) => (
+                            <div key={idx} className="mb-1.5">
+                              <div className="flex justify-between font-bold text-slate-900">
+                                <span>{item.foodName.replace(/^✨\s*/, '')}</span>
+                                <span>
+                                  {item.price * item.quantity > 0
+                                    ? `${activeCurrency} ${(item.price * item.quantity).toLocaleString()}`
+                                    : 'Free'}
+                                </span>
+                              </div>
+                              <div className="text-slate-600 text-[9px]">
+                                {item.quantity} x {item.price > 0 ? `${activeCurrency} ${item.price.toLocaleString()}` : 'Free'}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
+                      </>
+                    )}
+                  </>
+                );
+              })()}
 
               <div className="border-b border-dashed border-slate-400 my-3" />
 
@@ -626,10 +666,16 @@ export const Receipt: React.FC<ReceiptProps> = ({ bill, onClose }) => {
                     <span>{activeCurrency} {bill.foodSubtotal.toLocaleString()}</span>
                   </div>
                 )}
+                {((bill.amenityItems && bill.amenityItems.length > 0) || (bill.amenitiesSubtotal && bill.amenitiesSubtotal > 0)) && (
+                  <div className="flex justify-between font-bold">
+                    <span>Amenities Subtotal:</span>
+                    <span>{activeCurrency} {(bill.amenitiesSubtotal || bill.amenityItems?.reduce((acc, item) => acc + item.price * item.quantity, 0) || 0).toLocaleString()}</span>
+                  </div>
+                )}
                 
                 
                   <>
-                    {bill.foodItems.length > 0 && (
+                    {bill.foodItems.length > 0 && bill.serviceCharge > 0 && (
                       <div className="flex justify-between text-slate-600 text-[9px]">
                         <span>Cuisine Service Chg ({settings?.serviceChargePercent || 10}%):</span>
                         <span>{activeCurrency} {bill.serviceCharge.toLocaleString()}</span>

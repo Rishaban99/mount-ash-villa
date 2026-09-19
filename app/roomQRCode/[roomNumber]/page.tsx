@@ -40,6 +40,7 @@ interface RoomItem {
 }
 
 interface FoodItem {
+  foodId?: string;
   foodName: string;
   price: number;
   quantity: number;
@@ -50,7 +51,9 @@ interface BillInfo {
   guestDetails: GuestDetails;
   roomItems: RoomItem[];
   foodItems: FoodItem[];
+  amenityItems?: FoodItem[];
   foodSubtotal: number;
+  amenitiesSubtotal?: number;
   serviceCharge: number;
   roomSubtotal: number;
   totalAmount: number;
@@ -427,7 +430,8 @@ export function FoodMenuModal({
 
   if (!mounted) return null;
 
-  const categories = ['All', ...Array.from(new Set(foods.map((f) => f.category)))];
+  const rawCategories = foods.map((f) => f.category).filter((c) => c && c.trim().toLowerCase() !== 'all');
+  const categories = ['All', ...Array.from(new Set(rawCategories))];
 
   const filteredFoods = foods.filter((food) => {
     const matchesCategory = selectedCategory === 'All' || food.category === selectedCategory;
@@ -527,6 +531,170 @@ export function FoodMenuModal({
   );
 }
 
+// ─── Amenities Modal ──────────────────────────────────────────────────────────
+
+interface AmenityMenuItem {
+  id: string;
+  name: string;
+  category: string;
+  description?: string;
+  price?: number;
+  isFree?: boolean;
+}
+
+export function AmenitiesModal({
+  hotelName,
+  currency = 'LKR',
+  onClose,
+}: {
+  hotelName: string;
+  currency?: string;
+  onClose: () => void;
+}) {
+  const [amenities, setAmenities] = useState<AmenityMenuItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    async function loadAmenities() {
+      try {
+        const res = await fetch('/api/guest/amenities');
+        if (!res.ok) throw new Error('Failed to load amenities');
+        const data = await res.json();
+        setAmenities(data);
+      } catch (err) {
+        setError('Unable to load amenities list at this time.');
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadAmenities();
+
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  if (!mounted) return null;
+
+  const rawCategories = amenities.map((a) => a.category).filter((c) => c && c.trim().toLowerCase() !== 'all');
+  const categories = ['All', ...Array.from(new Set(rawCategories))];
+
+  const filteredAmenities = amenities.filter((item) => {
+    const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
+    const matchesSearch =
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchesCategory && matchesSearch;
+  });
+
+  return createPortal(
+    <div className="fb-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="fb-modal fm-modal" role="dialog" aria-modal="true" aria-labelledby="am-title">
+        <button className="fb-close" onClick={onClose} aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+
+        <div className="fb-header">
+          <div className="fb-header-icon" style={{ background: 'rgba(196, 163, 90, 0.12)', color: 'var(--champagne)' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 className="fb-title" id="am-title">Amenities & Facilities</h3>
+            <p className="fb-subtitle">{hotelName}</p>
+          </div>
+        </div>
+
+        {/* Search */}
+        <div className="fm-search-wrap">
+          <input
+            type="text"
+            className="fm-search-input"
+            placeholder="Search amenities or facilities..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+
+        {/* Category Pills */}
+        <div className="fb-chips fm-chips">
+          {categories.map((c) => (
+            <button
+              key={c}
+              className={`fb-chip ${selectedCategory === c ? 'fb-chip-on' : ''}`}
+              onClick={() => setSelectedCategory(c)}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+
+        {/* List */}
+        {loading ? (
+          <div className="fm-loading">
+            <span className="fb-spinner" />
+            <p>Loading amenities & facilities...</p>
+          </div>
+        ) : error ? (
+          <div className="fm-error">
+            <p>{error}</p>
+          </div>
+        ) : filteredAmenities.length === 0 ? (
+          <div className="fm-empty">
+            <p>No amenities found matching your search.</p>
+          </div>
+        ) : (
+          <div className="fm-list">
+            {filteredAmenities.map((item) => (
+              <div key={item.id} className="fm-item">
+                <div className="fm-item-left">
+                  <div className="fm-item-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                  </div>
+                  <div className="fm-item-details">
+                    <h4 className="fm-item-name">{item.name}</h4>
+                    <span className="fm-item-cat">{item.category}</span>
+                    {item.description && (
+                      <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        {item.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="fm-item-price-tag">
+                  {item.isFree ? (
+                    <span className="fm-price-val" style={{ color: '#4ade80' }}>Free</span>
+                  ) : (
+                    <>
+                      <span className="fm-price-cur">{currency}</span>
+                      <span className="fm-price-val">{item.price?.toLocaleString()}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 // ─── Bill Header ──────────────────────────────────────────────────────────────
 
 function BillHeader({
@@ -566,6 +734,7 @@ function BillPage({ data }: { data: ApiResponse }) {
   const [visible, setVisible] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showFoodMenu, setShowFoodMenu] = useState(false);
+  const [showAmenities, setShowAmenities] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 60);
@@ -593,7 +762,7 @@ function BillPage({ data }: { data: ApiResponse }) {
           </h2>
           <p className="no-bill-sub">
             {isReception
-              ? 'We are delighted to have you with us. Explore our food & beverage menu, contact our front desk, or share your feedback below.'
+              ? 'We are delighted to have you with us. Explore our food & beverage menu, check hotel amenities, contact our front desk, or share your feedback below.'
               : 'This room has no open billing session right now. Our front desk will be glad to assist you.'}
           </p>
           <div className="cta-stack">
@@ -604,6 +773,16 @@ function BillPage({ data }: { data: ApiResponse }) {
             >
               <IconUtensils />
               <span>Food Menu</span>
+            </button>
+            <button
+              type="button"
+              className="cta-btn cta-menu-btn"
+              onClick={() => setShowAmenities(true)}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+              <span>Amenities</span>
             </button>
             {settings.phone && (
               <a href={`tel:${settings.phone}`} className="cta-btn cta-call-btn">
@@ -625,6 +804,13 @@ function BillPage({ data }: { data: ApiResponse }) {
               hotelName={settings.hotelName}
               currency={currency}
               onClose={() => setShowFoodMenu(false)}
+            />
+          )}
+          {showAmenities && (
+            <AmenitiesModal
+              hotelName={settings.hotelName}
+              currency={currency}
+              onClose={() => setShowAmenities(false)}
             />
           )}
           {showFeedback && (
@@ -700,32 +886,58 @@ function BillPage({ data }: { data: ApiResponse }) {
           </div>
         )}
 
-        {/* ── Food & Beverage ── */}
-        {foodItems.length > 0 && (
-          <div className="section-card">
-            <div className="section-head">
-              <span className="section-title">Food &amp; Beverage</span>
-            </div>
-            {foodItems.map((item, i) => (
-              <LineItem
-                key={i}
-                name={item.foodName}
-                meta={`${currency} ${item.price.toLocaleString()} × ${item.quantity}`}
-                amount={item.price * item.quantity}
-                currency={currency}
-              />
-            ))}
-            <SubtotalRow label="Food Subtotal" amount={foodSubtotal} currency={currency} />
-            {serviceCharge > 0 && (
-              <SubtotalRow
-                label={`Service Charge (${settings.serviceChargePercent}%)`}
-                amount={serviceCharge}
-                currency={currency}
-                accent
-              />
-            )}
-          </div>
-        )}
+        {(() => {
+          const allItems = [...(foodItems || []), ...(bill.amenityItems || [])];
+          const mealItems = allItems.filter((item) => !item.foodName.startsWith('✨') && !item.foodId?.startsWith('amenity_'));
+          const amenityItems = allItems.filter((item) => item.foodName.startsWith('✨') || item.foodId?.startsWith('amenity_'));
+
+          return (
+            <>
+              {mealItems.length > 0 && (
+                <div className="section-card">
+                  <div className="section-head">
+                    <span className="section-title">Food &amp; Beverage</span>
+                  </div>
+                  {mealItems.map((item, i) => (
+                    <LineItem
+                      key={i}
+                      name={item.foodName}
+                      meta={`${currency} ${item.price.toLocaleString()} × ${item.quantity}`}
+                      amount={item.price * item.quantity}
+                      currency={currency}
+                    />
+                  ))}
+                  <SubtotalRow label="Food Subtotal" amount={mealItems.reduce((acc, f) => acc + f.price * f.quantity, 0)} currency={currency} />
+                  {serviceCharge > 0 && (
+                    <SubtotalRow
+                      label={`Service Charge (${settings.serviceChargePercent}%)`}
+                      amount={serviceCharge}
+                      currency={currency}
+                      accent
+                    />
+                  )}
+                </div>
+              )}
+
+              {amenityItems.length > 0 && (
+                <div className="section-card">
+                  <div className="section-head">
+                    <span className="section-title">Amenities &amp; Facilities</span>
+                  </div>
+                  {amenityItems.map((item, i) => (
+                    <LineItem
+                      key={i}
+                      name={item.foodName.replace(/^✨\s*/, '')}
+                      meta={item.price > 0 ? `${currency} ${item.price.toLocaleString()} × ${item.quantity}` : 'Included / Free'}
+                      amount={item.price * item.quantity}
+                      currency={currency}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         {/* ── Total Card ── */}
         <div className="total-card">
@@ -754,6 +966,16 @@ function BillPage({ data }: { data: ApiResponse }) {
             <IconUtensils />
             <span>Food Menu</span>
           </button>
+          <button
+            type="button"
+            className="cta-btn cta-menu-btn"
+            onClick={() => setShowAmenities(true)}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+            <span>Amenities</span>
+          </button>
           {settings.phone && (
             <a href={`tel:${settings.phone}`} className="cta-btn cta-call-btn">
               <IconPhone />
@@ -772,6 +994,15 @@ function BillPage({ data }: { data: ApiResponse }) {
             hotelName={settings.hotelName}
             currency={currency}
             onClose={() => setShowFoodMenu(false)}
+          />
+        )}
+
+        {/* ── Amenities Modal ── */}
+        {showAmenities && (
+          <AmenitiesModal
+            hotelName={settings.hotelName}
+            currency={currency}
+            onClose={() => setShowAmenities(false)}
           />
         )}
 
