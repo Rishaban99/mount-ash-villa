@@ -61,6 +61,7 @@ interface ReportDetails {
   month?: string;
   revenue: number;
   foodRevenue: number;
+  amenitiesRevenue?: number;
   serviceCharge?: number;
   roomRevenue: number;
   billsCount: number;
@@ -81,9 +82,10 @@ export const Reports: React.FC = () => {
   const { user: currentUser } = useAuth();
 
   // Daily Cashbook & Reports Core States
-  const [activeTab, setActiveTab] = useState<'analytics' | 'rooms' | 'foods' | 'cashbook'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'rooms' | 'foods' | 'amenities' | 'cashbook'>('analytics');
   const [expenses, setExpenses] = useState<any[]>([]);
   const [foods, setFoods] = useState<any[]>([]);
+  const [amenities, setAmenities] = useState<any[]>([]);
   const [closedMonths, setClosedMonths] = useState<ClosedMonth[]>([]);
   const [cashbookMonth, setCashbookMonth] = useState<string>('all');
   const [settings, setSettings] = useState<any>(null);
@@ -105,7 +107,7 @@ export const Reports: React.FC = () => {
 
   // Chart Interactive State Managers
   const [chartType, setChartType] = useState<'area' | 'bar'>('area');
-  const [activeSeries, setActiveSeries] = useState<'revenue' | 'roomRevenue' | 'foodRevenue' | 'serviceCharge' | 'expenses' | 'netProfit' | 'all'>('revenue');
+  const [activeSeries, setActiveSeries] = useState<'revenue' | 'roomRevenue' | 'foodRevenue' | 'amenitiesRevenue' | 'serviceCharge' | 'expenses' | 'netProfit' | 'all'>('revenue');
   const [chartRange, setChartRange] = useState<number>(30);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
@@ -121,12 +123,13 @@ export const Reports: React.FC = () => {
 
   const fetchReports = async () => {
     try {
-      const [reportsRes, billsRes, expensesRes, closedRes, foodsRes] = await Promise.all([
+      const [reportsRes, billsRes, expensesRes, closedRes, foodsRes, amenitiesRes] = await Promise.all([
         fetch('/api/reports'),
         fetch('/api/bills'),
         fetch('/api/expenses'),
         fetch('/api/closed-months'),
-        fetch('/api/foods')
+        fetch('/api/foods'),
+        fetch('/api/amenities')
       ]);
 
       if (reportsRes.ok) {
@@ -153,6 +156,11 @@ export const Reports: React.FC = () => {
       if (foodsRes && foodsRes.ok) {
         const foodsData = await foodsRes.json();
         setFoods(foodsData);
+      }
+
+      if (amenitiesRes && amenitiesRes.ok) {
+        const amenitiesData = await amenitiesRes.json();
+        setAmenities(amenitiesData);
       }
     } catch (e) {
       console.error('Failed to load report analytics:', e);
@@ -321,6 +329,7 @@ export const Reports: React.FC = () => {
   const thisMonthRevenue = selectedMonthData ? selectedMonthData.revenue : 0;
   const thisMonthRoomRevenue = selectedMonthData ? selectedMonthData.roomRevenue : 0;
   const thisMonthFoodSales = selectedMonthData ? selectedMonthData.foodRevenue : 0;
+  const thisMonthAmenitiesSales = selectedMonthData ? (selectedMonthData.amenitiesRevenue || 0) : 0;
   const thisMonthServiceCharge = selectedMonthData ? (selectedMonthData.serviceCharge || 0) : 0;
   const thisMonthBills = selectedMonthData ? selectedMonthData.billsCount : 0;
   const curMonthLabel = selectedMonth
@@ -640,6 +649,131 @@ export const Reports: React.FC = () => {
     };
   }, [filteredCompletedBills, foods]);
 
+  // Comprehensive Amenities & Services Sales Telemetry & Performance Aggregator
+  const amenitiesSalesAnalysis = React.useMemo(() => {
+    const amenityLookup: Record<string, any> = {};
+    (amenities || []).forEach((a: any) => {
+      amenityLookup[a.id] = a;
+      if (a.name) amenityLookup[a.name.toLowerCase()] = a;
+    });
+
+    const itemMap: Record<string, {
+      amenityId: string;
+      amenityName: string;
+      category: string;
+      price: number;
+      totalQuantity: number;
+      totalRevenue: number;
+      billsCount: number;
+    }> = {};
+
+    const categoryMap: Record<string, {
+      category: string;
+      totalQuantity: number;
+      totalRevenue: number;
+    }> = {};
+
+    let overallAmenitiesRevenue = 0;
+    let overallAmenitiesQuantity = 0;
+
+    const allAmenityLogs: {
+      billId: string;
+      guestName: string;
+      amenityItemsSummary: string;
+      amenitiesSubtotal: number;
+      date: string;
+      items: { name: string; quantity: number; price: number }[];
+    }[] = [];
+
+    filteredCompletedBills.forEach(bill => {
+      const billDate = bill.updatedAt || bill.createdAt || '';
+      const guestName = bill.guestDetails?.name || 'Walk-in Guest';
+      const amenityItems = [
+        ...(bill.amenityItems || []),
+        ...((bill.foodItems || []).filter((item: any) => item.foodId?.startsWith('amenity_') || item.foodName?.startsWith('✨'))),
+      ];
+
+      if (amenityItems.length > 0) {
+        const summaryArr: string[] = [];
+        let billAmenityTotal = 0;
+
+        amenityItems.forEach((item: any) => {
+          const matchedAmenity = item.foodId ? amenityLookup[item.foodId] : null;
+          const rawName = (item.foodName || item.name || matchedAmenity?.name || '').replace(/^✨\s*/, '');
+          const name = rawName.trim() || 'Facility Service';
+          const category = item.category || matchedAmenity?.category || (amenityLookup[name.toLowerCase()]?.category) || 'General Amenities';
+          const key = item.foodId || name;
+          const price = Number(item.price) || (matchedAmenity ? Number(matchedAmenity.price) : 0);
+          const quantity = Number(item.quantity) || 1;
+          const itemRevenue = price * quantity;
+
+          summaryArr.push(`${quantity}x ${name}`);
+          billAmenityTotal += itemRevenue;
+
+          if (!itemMap[key]) {
+            itemMap[key] = {
+              amenityId: item.foodId || key,
+              amenityName: name,
+              category,
+              price,
+              totalQuantity: 0,
+              totalRevenue: 0,
+              billsCount: 0,
+            };
+          }
+
+          itemMap[key].totalQuantity += quantity;
+          itemMap[key].totalRevenue += itemRevenue;
+          itemMap[key].billsCount += 1;
+
+          if (!categoryMap[category]) {
+            categoryMap[category] = {
+              category,
+              totalQuantity: 0,
+              totalRevenue: 0,
+            };
+          }
+          categoryMap[category].totalQuantity += quantity;
+          categoryMap[category].totalRevenue += itemRevenue;
+
+          overallAmenitiesRevenue += itemRevenue;
+          overallAmenitiesQuantity += quantity;
+        });
+
+        allAmenityLogs.push({
+          billId: bill.id,
+          guestName,
+          amenityItemsSummary: summaryArr.join(', '),
+          amenitiesSubtotal: bill.amenitiesSubtotal || billAmenityTotal,
+          date: billDate,
+          items: amenityItems.map((item: any) => {
+            const matchedAmenity = item.foodId ? amenityLookup[item.foodId] : null;
+            const rawName = (item.foodName || item.name || matchedAmenity?.name || '').replace(/^✨\s*/, '');
+            return {
+              name: rawName.trim() || 'Facility Service',
+              quantity: Number(item.quantity) || 1,
+              price: Number(item.price) || 0,
+            };
+          }),
+        });
+      }
+    });
+
+    const itemsList = Object.values(itemMap).sort((a, b) => b.totalRevenue - a.totalRevenue);
+    const categoriesList = Object.values(categoryMap).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    return {
+      itemsList,
+      categoriesList,
+      allAmenityLogs: allAmenityLogs.sort((a, b) => b.date.localeCompare(a.date)),
+      overallAmenitiesRevenue,
+      overallAmenitiesQuantity,
+      totalAmenityOrders: allAmenityLogs.length,
+      distinctItemsCount: itemsList.length,
+      avgSpendPerOrder: allAmenityLogs.length > 0 ? Math.round(overallAmenitiesRevenue / allAmenityLogs.length) : 0,
+    };
+  }, [filteredCompletedBills, amenities]);
+
   const cashbookDaysFiltered = cashbookDays.filter(day => {
     if (cashbookMonth === 'all') return true;
     return day.date.startsWith(cashbookMonth);
@@ -647,12 +781,13 @@ export const Reports: React.FC = () => {
 
   // CSV Export for Daily Report
   const exportDailyCSV = () => {
-    const headers = ['Date', 'Total Revenue (Rs.)', 'Room Revenue (Rs.)', 'Food Revenue (Rs.)', 'Service Charge (Rs.)', 'Expenses (Rs.)', 'Net Profit (Rs.)', 'Invoices Settled'];
+    const headers = ['Date', 'Total Revenue (Rs.)', 'Room Revenue (Rs.)', 'Food Revenue (Rs.)', 'Amenities Revenue (Rs.)', 'Service Charge (Rs.)', 'Expenses (Rs.)', 'Net Profit (Rs.)', 'Invoices Settled'];
     const rows = enrichedDailyAnalytics.map(item => [
       item.date,
       item.revenue,
       item.roomRevenue,
       item.foodRevenue,
+      item.amenitiesRevenue || 0,
       item.serviceCharge || 0,
       item.expenses || 0,
       item.netProfit || 0,
@@ -673,12 +808,13 @@ export const Reports: React.FC = () => {
 
   // CSV Export for Monthly Report
   const exportMonthlyCSV = () => {
-    const headers = ['Month', 'Total Revenue (Rs.)', 'Room Revenue (Rs.)', 'Food Revenue (Rs.)', 'Service Charge (Rs.)', 'Completed Billings'];
+    const headers = ['Month', 'Total Revenue (Rs.)', 'Room Revenue (Rs.)', 'Food Revenue (Rs.)', 'Amenities Revenue (Rs.)', 'Service Charge (Rs.)', 'Completed Billings'];
     const rows = filteredMonthlyAnalytics.map(item => [
       item.month,
       item.revenue,
       item.roomRevenue,
       item.foodRevenue,
+      item.amenitiesRevenue || 0,
       item.serviceCharge || 0,
       item.billsCount
     ]);
@@ -821,6 +957,7 @@ export const Reports: React.FC = () => {
           revenue: existing.revenue,
           roomRevenue: existing.roomRevenue,
           foodRevenue: existing.foodRevenue,
+          amenitiesRevenue: existing.amenitiesRevenue || 0,
           serviceCharge: existing.serviceCharge || 0,
           billsCount: existing.billsCount,
           expenses: exp,
@@ -833,6 +970,7 @@ export const Reports: React.FC = () => {
           revenue: 0,
           roomRevenue: 0,
           foodRevenue: 0,
+          amenitiesRevenue: 0,
           serviceCharge: 0,
           billsCount: 0,
           expenses: exp,
@@ -865,6 +1003,7 @@ export const Reports: React.FC = () => {
         netProfit: 0,
         roomRevenue: 0,
         foodRevenue: 0,
+        amenitiesRevenue: 0,
         serviceCharge: 0,
         totalBills: 0,
         avgDailyRevenue: 0,
@@ -877,6 +1016,7 @@ export const Reports: React.FC = () => {
     let totalExpenses = 0;
     let roomRevenue = 0;
     let foodRevenue = 0;
+    let amenitiesRevenue = 0;
     let serviceCharge = 0;
     let totalBills = 0;
     let peakDay: { date: string; amount: number } | null = null;
@@ -886,6 +1026,7 @@ export const Reports: React.FC = () => {
       totalExpenses += (d.expenses || 0);
       roomRevenue += d.roomRevenue;
       foodRevenue += d.foodRevenue;
+      amenitiesRevenue += (d.amenitiesRevenue || 0);
       serviceCharge += (d.serviceCharge || 0);
       totalBills += d.billsCount;
 
@@ -904,6 +1045,7 @@ export const Reports: React.FC = () => {
       netProfit,
       roomRevenue,
       foodRevenue,
+      amenitiesRevenue,
       serviceCharge,
       totalBills,
       avgDailyRevenue,
@@ -940,10 +1082,11 @@ export const Reports: React.FC = () => {
       if (activeSeries === 'revenue') return d.revenue;
       if (activeSeries === 'roomRevenue') return d.roomRevenue;
       if (activeSeries === 'foodRevenue') return d.foodRevenue;
+      if (activeSeries === 'amenitiesRevenue') return d.amenitiesRevenue || 0;
       if (activeSeries === 'serviceCharge') return d.serviceCharge || 0;
       if (activeSeries === 'expenses') return d.expenses || 0;
       if (activeSeries === 'netProfit') return Math.max(0, d.netProfit || 0);
-      return Math.max(d.revenue, d.roomRevenue, d.foodRevenue, d.expenses || 0);
+      return Math.max(d.revenue, d.roomRevenue, d.foodRevenue, d.amenitiesRevenue || 0, d.expenses || 0);
     }),
     1000
   );
@@ -965,6 +1108,7 @@ export const Reports: React.FC = () => {
       activeSeries === 'revenue' ? day.revenue :
       activeSeries === 'roomRevenue' ? day.roomRevenue :
       activeSeries === 'foodRevenue' ? day.foodRevenue :
+      activeSeries === 'amenitiesRevenue' ? (day.amenitiesRevenue || 0) :
       activeSeries === 'serviceCharge' ? (day.serviceCharge || 0) :
       activeSeries === 'expenses' ? (day.expenses || 0) :
       activeSeries === 'netProfit' ? (day.netProfit || 0) :
@@ -987,16 +1131,19 @@ export const Reports: React.FC = () => {
     const revPts = getPts((d) => d.revenue);
     const roomPts = getPts((d) => d.roomRevenue);
     const foodPts = getPts((d) => d.foodRevenue);
+    const amenityPts = getPts((d) => d.amenitiesRevenue || 0);
     const expPts = getPts((d) => d.expenses || 0);
 
     return {
       revPts,
       roomPts,
       foodPts,
+      amenityPts,
       expPts,
       revPath: getSvgSmoothPath(revPts),
       roomPath: getSvgSmoothPath(roomPts),
       foodPath: getSvgSmoothPath(foodPts),
+      amenityPath: getSvgSmoothPath(amenityPts),
       expPath: getSvgSmoothPath(expPts),
     };
   }, [activeSeries, chartData, chartWidth, chartHeight, maxSeriesValue, paddingLeft, paddingTop]);
@@ -1005,6 +1152,7 @@ export const Reports: React.FC = () => {
     activeSeries === 'revenue' ? '#4f46e5' :
     activeSeries === 'roomRevenue' ? '#10b981' :
     activeSeries === 'foodRevenue' ? '#f59e0b' :
+    activeSeries === 'amenitiesRevenue' ? '#9333ea' :
     activeSeries === 'serviceCharge' ? '#a855f7' :
     activeSeries === 'expenses' ? '#f43f5e' :
     activeSeries === 'netProfit' ? '#06b6d4' : '#4f46e5';
@@ -1157,6 +1305,19 @@ export const Reports: React.FC = () => {
 
             <button
               type="button"
+              onClick={() => { setActiveTab('amenities'); setSalesModalSubTab('summary'); setSalesModalSearch(''); }}
+              className={`px-3.5 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                activeTab === 'amenities'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              <Sparkles className="h-4 w-4" />
+              <span>Amenities Sales</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveTab('cashbook')}
               className={`px-3.5 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 activeTab === 'cashbook'
@@ -1216,7 +1377,7 @@ export const Reports: React.FC = () => {
           {activeTab === 'analytics' && (
             <>
               {/* Aggregate stats cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
                 
                 <div 
                   onClick={() => setActiveTab('analytics')}
@@ -1271,6 +1432,30 @@ export const Reports: React.FC = () => {
                   <div className="flex items-center justify-between mt-1 text-[10px]">
                     <span className="text-slate-400">This month's dining/orders</span>
                     <span className="text-amber-600 font-bold flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                      View Page ↗
+                    </span>
+                  </div>
+                </div>
+
+                {/* AMENITIES SALES CARD (Navigates to Amenities Sales View) */}
+                <div 
+                  onClick={() => { setActiveTab('amenities'); setSalesModalSubTab('summary'); setSalesModalSearch(''); }}
+                  className="bg-white p-5 rounded-2xl border border-slate-100 hover:border-purple-300 hover:shadow-lg hover:scale-[1.015] shadow-xs relative overflow-hidden transition-all duration-200 cursor-pointer group"
+                  title="Click to view Amenities & Facilities Sales page"
+                >
+                  <div className="absolute top-0 left-0 h-1 w-full bg-purple-500 group-hover:h-1.5 transition-all"></div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-bold text-purple-650 uppercase tracking-widest font-sans">Amenities Sales</p>
+                    <span className="p-1 rounded-lg bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-all">
+                      <Sparkles className="h-3.5 w-3.5" />
+                    </span>
+                  </div>
+                  <p className="text-2xl font-display font-bold text-slate-800 mt-2 group-hover:text-purple-700 transition-colors">
+                    Rs. {thisMonthAmenitiesSales.toLocaleString()}
+                  </p>
+                  <div className="flex items-center justify-between mt-1 text-[10px]">
+                    <span className="text-slate-400">This month's facility &amp; services</span>
+                    <span className="text-purple-600 font-bold flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
                       View Page ↗
                     </span>
                   </div>
@@ -1420,6 +1605,20 @@ export const Reports: React.FC = () => {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setActiveSeries('amenitiesRevenue')}
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                    activeSeries === 'amenitiesRevenue'
+                      ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${activeSeries === 'amenitiesRevenue' ? 'bg-white' : 'bg-purple-500'}`} />
+                    Amenities
+                  </span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setActiveSeries('serviceCharge')}
                   className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
                     activeSeries === 'serviceCharge'
@@ -1556,7 +1755,10 @@ export const Reports: React.FC = () => {
                       <span className="w-2.5 h-1 bg-emerald-600 rounded-full" /> Room Stay
                     </span>
                     <span className="flex items-center gap-1 text-amber-600">
-                      <span className="w-2.5 h-1 bg-amber-600 rounded-full" /> Food & Beverage
+                      <span className="w-2.5 h-1 bg-amber-600 rounded-full" /> Food &amp; Beverage
+                    </span>
+                    <span className="flex items-center gap-1 text-purple-600">
+                      <span className="w-2.5 h-1 bg-purple-600 rounded-full" /> Amenities &amp; Facilities
                     </span>
                     <span className="flex items-center gap-1 text-rose-600">
                       <span className="w-2.5 h-1 bg-rose-600 rounded-full" /> Expenses
@@ -1583,6 +1785,10 @@ export const Reports: React.FC = () => {
                       <linearGradient id="chartFoodGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.22" />
                         <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.00" />
+                      </linearGradient>
+                      <linearGradient id="chartAmenitiesGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#9333ea" stopOpacity="0.22" />
+                        <stop offset="100%" stopColor="#9333ea" stopOpacity="0.00" />
                       </linearGradient>
                       <linearGradient id="chartServiceGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#a855f7" stopOpacity="0.22" />
@@ -1656,6 +1862,8 @@ export const Reports: React.FC = () => {
                         <path d={multiSeries.roomPath} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" />
                         {/* Food sales line */}
                         <path d={multiSeries.foodPath} fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" />
+                        {/* Amenities line */}
+                        <path d={multiSeries.amenityPath} fill="none" stroke="#9333ea" strokeWidth="2.5" strokeLinecap="round" />
                         {/* Expense line */}
                         <path d={multiSeries.expPath} fill="none" stroke="#f43f5e" strokeWidth="2" strokeDasharray="3,3" strokeLinecap="round" />
 
@@ -1680,6 +1888,7 @@ export const Reports: React.FC = () => {
                             activeSeries === 'revenue' ? 'chartGradient' : 
                             activeSeries === 'roomRevenue' ? 'chartRoomGradient' : 
                             activeSeries === 'foodRevenue' ? 'chartFoodGradient' : 
+                            activeSeries === 'amenitiesRevenue' ? 'chartAmenitiesGradient' :
                             activeSeries === 'serviceCharge' ? 'chartServiceGradient' :
                             activeSeries === 'expenses' ? 'chartExpenseGradient' : 'chartProfitGradient'
                           })`}
@@ -1813,6 +2022,7 @@ export const Reports: React.FC = () => {
                     <th className="py-3 px-4">Date</th>
                     <th className="py-3 px-4">Room Revenue</th>
                     <th className="py-3 px-4">Food Sales</th>
+                    <th className="py-3 px-4">Amenities</th>
                     <th className="py-3 px-4">Service Charge</th>
                     <th className="py-3 px-4">Expenses</th>
                     <th className="py-3 px-4 font-bold text-slate-800">Total Settled</th>
@@ -1831,6 +2041,7 @@ export const Reports: React.FC = () => {
                         </td>
                         <td className="py-3 px-4 text-slate-600">Rs. {day.roomRevenue.toLocaleString()}</td>
                         <td className="py-3 px-4 text-slate-600">Rs. {day.foodRevenue.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-slate-600">Rs. {(day.amenitiesRevenue || 0).toLocaleString()}</td>
                         <td className="py-3 px-4 text-slate-500">Rs. {(day.serviceCharge || 0).toLocaleString()}</td>
                         <td className="py-3 px-4 text-rose-500 font-mono">
                           {(day.expenses || 0) > 0 ? `-Rs. ${(day.expenses || 0).toLocaleString()}` : '—'}
@@ -1853,7 +2064,7 @@ export const Reports: React.FC = () => {
                   })}
                   {enrichedDailyAnalytics.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                      <td colSpan={9} className="py-8 text-center text-slate-400">
                         No checked-out receipt data available for {curMonthLabel}.
                       </td>
                     </tr>
@@ -1868,6 +2079,9 @@ export const Reports: React.FC = () => {
                       </td>
                       <td className="py-3 px-4 text-slate-700">
                         Rs. {enrichedDailyAnalytics.reduce((s, d) => s + d.foodRevenue, 0).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-4 text-slate-700">
+                        Rs. {enrichedDailyAnalytics.reduce((s, d) => s + (d.amenitiesRevenue || 0), 0).toLocaleString()}
                       </td>
                       <td className="py-3 px-4 text-slate-700">
                         Rs. {enrichedDailyAnalytics.reduce((s, d) => s + (d.serviceCharge || 0), 0).toLocaleString()}
@@ -2057,6 +2271,7 @@ export const Reports: React.FC = () => {
                     <th className="py-3 px-4">Settled On</th>
                     <th className="py-3 px-4">Rooms Rev</th>
                     <th className="py-3 px-4">Food Rev</th>
+                    <th className="py-3 px-4">Amenities Rev</th>
                     <th className="py-3 px-4">S.C. Rev</th>
                     <th className="py-3 px-4 font-bold text-slate-800">Total Settled</th>
                     {canDeleteSettledBills && (
@@ -2065,74 +2280,83 @@ export const Reports: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 font-sans">
-                  {filteredCompletedBills.map((bill) => (
-                    <tr key={bill.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-indigo-600">
-                        {bill.id}
-                      </td>
-                      <td className="py-3 px-4">
-                        <p className="font-semibold text-slate-800">{bill.guestDetails?.name || 'N/A'}</p>
-                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">NIC: {bill.guestDetails?.nic || ''}</p>
-                      </td>
-                      <td className="py-3 px-4 text-slate-500 font-mono">
-                        {bill.updatedAt ? new Date(bill.updatedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'N/A'}
-                      </td>
-                      <td className="py-3 px-4 text-slate-600 font-medium font-mono">
-                        Rs. {(bill.roomSubtotal || 0).toLocaleString()}
-                      </td>
-                      <td className="py-3 px-4 text-slate-600 font-medium font-mono">
-                        Rs. {(bill.foodSubtotal || 0).toLocaleString()}
-                      </td>
-                      <td className="py-3 px-4 text-slate-600 font-medium font-mono">
-                        Rs. {(bill.serviceCharge || 0).toLocaleString()}
-                      </td>
-                      <td className="py-3 px-4 font-bold text-slate-900 font-mono">
-                        Rs. {bill.totalAmount?.toLocaleString()}
-                      </td>
-                      {canDeleteSettledBills && (
-                      <td className="py-3 px-4 shrink-0 no-print">
-                        <div className="flex justify-center">
-                          {deleteConfirmId === bill.id ? (
-                            <div className="flex items-center gap-1.5">
+                  {filteredCompletedBills.map((bill) => {
+                    const billAmenitySubtotal = bill.amenitiesSubtotal || 
+                      (bill.amenityItems || []).reduce((acc: number, i: any) => acc + (Number(i.price || 0) * (Number(i.quantity) || 1)), 0) ||
+                      (bill.foodItems || []).filter((i: any) => i.foodId?.startsWith('amenity_') || i.foodName?.startsWith('✨')).reduce((acc: number, i: any) => acc + (Number(i.price || 0) * (Number(i.quantity) || 1)), 0) || 0;
+
+                    return (
+                      <tr key={bill.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-3 px-4 font-mono font-bold text-indigo-600">
+                          {bill.id}
+                        </td>
+                        <td className="py-3 px-4">
+                          <p className="font-semibold text-slate-800">{bill.guestDetails?.name || 'N/A'}</p>
+                          <p className="text-[10px] text-slate-400 font-mono mt-0.5">NIC: {bill.guestDetails?.nic || ''}</p>
+                        </td>
+                        <td className="py-3 px-4 text-slate-500 font-mono">
+                          {bill.updatedAt ? new Date(bill.updatedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'N/A'}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600 font-medium font-mono">
+                          Rs. {(bill.roomSubtotal || 0).toLocaleString()}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600 font-medium font-mono">
+                          Rs. {(bill.foodSubtotal || 0).toLocaleString()}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600 font-medium font-mono">
+                          Rs. {billAmenitySubtotal.toLocaleString()}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600 font-medium font-mono">
+                          Rs. {(bill.serviceCharge || 0).toLocaleString()}
+                        </td>
+                        <td className="py-3 px-4 font-bold text-slate-900 font-mono">
+                          Rs. {bill.totalAmount?.toLocaleString()}
+                        </td>
+                        {canDeleteSettledBills && (
+                        <td className="py-3 px-4 shrink-0 no-print">
+                          <div className="flex justify-center">
+                            {deleteConfirmId === bill.id ? (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteBill(bill.id)}
+                                  disabled={deletingBillId === bill.id}
+                                  className="px-2.5 py-1 bg-red-650 hover:bg-red-700 text-white font-bold text-[9px] uppercase tracking-wide rounded-md border-0 cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1"
+                                >
+                                  {deletingBillId === bill.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : null}
+                                  Confirm
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteConfirmId(null)}
+                                  disabled={deletingBillId === bill.id}
+                                  className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-605 font-bold text-[9px] uppercase tracking-wide rounded-md border-0 cursor-pointer disabled:opacity-50"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
                               <button
                                 type="button"
-                                onClick={() => handleDeleteBill(bill.id)}
-                                disabled={deletingBillId === bill.id}
-                                className="px-2.5 py-1 bg-red-650 hover:bg-red-700 text-white font-bold text-[9px] uppercase tracking-wide rounded-md border-0 cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1"
+                                onClick={() => setDeleteConfirmId(bill.id)}
+                                disabled={deletingBillId !== null}
+                                className="p-1.5 text-slate-400 hover:text-red-500 transition-colors rounded-sm hover:bg-red-50 border-y-0 border-x-0 cursor-pointer disabled:opacity-50"
+                                title="Delete ledger record"
                               >
-                                {deletingBillId === bill.id ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : null}
-                                Confirm
+                                <Trash2 className="h-4 w-4" />
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => setDeleteConfirmId(null)}
-                                disabled={deletingBillId === bill.id}
-                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-605 font-bold text-[9px] uppercase tracking-wide rounded-md border-0 cursor-pointer disabled:opacity-50"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setDeleteConfirmId(bill.id)}
-                              disabled={deletingBillId !== null}
-                              className="p-1.5 text-slate-400 hover:text-red-500 transition-colors rounded-sm hover:bg-red-50 border-y-0 border-x-0 cursor-pointer disabled:opacity-50"
-                              title="Delete ledger record"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                      )}
-                    </tr>
-                  ))}
+                            )}
+                          </div>
+                        </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                   {filteredCompletedBills.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-400 italic">
+                      <td colSpan={9} className="py-8 text-center text-slate-400 italic">
                         No checked-out receipts to view for {curMonthLabel}.
                       </td>
                     </tr>
@@ -2691,6 +2915,277 @@ export const Reports: React.FC = () => {
             </div>
           )}
 
+          {activeTab === 'amenities' && (
+            <div className="space-y-6">
+              {/* TOP BANNER */}
+              <div className="bg-gradient-to-r from-slate-900 via-purple-950 to-slate-900 p-6 rounded-2xl text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+                <div className="flex items-center gap-3.5">
+                  <div className="p-3 bg-purple-500/20 border border-purple-400/30 text-purple-300 rounded-2xl">
+                    <Sparkles className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2.5">
+                      <h2 className="text-xl font-display font-bold text-white">Amenities &amp; Facilities Sales Breakdown</h2>
+                      <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-purple-400/20 text-purple-300 border border-purple-400/30">
+                        {curMonthLabel}
+                      </span>
+                    </div>
+                    <p className="text-xs text-purple-200/80 mt-1">
+                      Comprehensive facility usage, laundry, transport, and ancillary service performance telemetry
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('analytics')}
+                    className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <BarChart2 className="h-4 w-4" />
+                    <span>Back to Analytics</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* KPI STATS ROW */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs space-y-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Total Amenities Sales</span>
+                  <p className="text-2xl font-bold font-display text-purple-600">
+                    Rs. {amenitiesSalesAnalysis.overallAmenitiesRevenue.toLocaleString()}
+                  </p>
+                  <span className="text-[10px] text-slate-400 block">{curMonthLabel} facility revenue</span>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs space-y-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Services Provided</span>
+                  <p className="text-2xl font-bold font-display text-slate-800">
+                    {amenitiesSalesAnalysis.overallAmenitiesQuantity} Units
+                  </p>
+                  <span className="text-[10px] text-slate-400 block">Total services &amp; rentals fulfilled</span>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs space-y-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Distinct Services</span>
+                  <p className="text-2xl font-bold font-display text-slate-800">
+                    {amenitiesSalesAnalysis.distinctItemsCount} Offerings
+                  </p>
+                  <span className="text-[10px] text-slate-400 block">Unique active facility catalog items</span>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs space-y-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Avg Spend / Service Folio</span>
+                  <p className="text-2xl font-bold font-display text-emerald-600">
+                    Rs. {amenitiesSalesAnalysis.avgSpendPerOrder.toLocaleString()}
+                  </p>
+                  <span className="text-[10px] text-slate-400 block">Mean amenity yield per bill</span>
+                </div>
+              </div>
+
+              {/* SUB-TABS & ITEM / CATEGORY / LOGS LISTINGS */}
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
+                  <div className="flex items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setSalesModalSubTab('summary')}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                        salesModalSubTab === 'summary' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Top Amenities
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSalesModalSubTab('categories')}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                        salesModalSubTab === 'categories' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Categories
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSalesModalSubTab('logs')}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                        salesModalSubTab === 'logs' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Service Logs
+                    </button>
+                  </div>
+
+                  <div className="relative max-w-xs w-full">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search amenity or guest..."
+                      value={salesModalSearch}
+                      onChange={(e) => setSalesModalSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-purple-500 font-sans"
+                    />
+                  </div>
+                </div>
+
+                {salesModalSubTab === 'summary' && (
+                  <div className="overflow-x-auto rounded-xl border border-slate-100">
+                    <table className="w-full text-left text-xs text-slate-700">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                          <th className="py-3.5 px-4">Amenity / Service Name</th>
+                          <th className="py-3.5 px-4">Category</th>
+                          <th className="py-3.5 px-4 text-right">Unit Rate</th>
+                          <th className="py-3.5 px-4 text-center font-bold text-slate-800">Quantity Fulfilled</th>
+                          <th className="py-3.5 px-4 text-right font-bold text-slate-800">Total Revenue</th>
+                          <th className="py-3.5 px-4 text-right">% Revenue Share</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50 font-sans">
+                        {amenitiesSalesAnalysis.itemsList
+                          .filter((item) => {
+                            if (!salesModalSearch.trim()) return true;
+                            const q = salesModalSearch.toLowerCase();
+                            return (
+                              item.amenityName.toLowerCase().includes(q) ||
+                              item.category.toLowerCase().includes(q)
+                            );
+                          })
+                          .map((item) => {
+                            const share = amenitiesSalesAnalysis.overallAmenitiesRevenue > 0
+                              ? Math.round((item.totalRevenue / amenitiesSalesAnalysis.overallAmenitiesRevenue) * 100)
+                              : 0;
+                            return (
+                              <tr key={item.amenityId} className="hover:bg-slate-50/60 transition-colors">
+                                <td className="py-3.5 px-4 font-bold text-slate-900 flex items-center gap-2">
+                                  <Sparkles className="h-4 w-4 text-purple-500" />
+                                  {item.amenityName}
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className="px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100 text-[10px] font-semibold">
+                                    {item.category}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-mono text-slate-600">
+                                  Rs. {item.price.toLocaleString()}
+                                </td>
+                                <td className="py-3.5 px-4 text-center font-mono font-extrabold text-purple-600 bg-purple-50/30">
+                                  {item.totalQuantity}x
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
+                                  Rs. {item.totalRevenue.toLocaleString()}
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-mono text-slate-500">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <div className="w-16 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                      <div className="bg-purple-600 h-1.5 rounded-full" style={{ width: `${Math.min(100, share)}%` }} />
+                                    </div>
+                                    <span className="font-bold text-slate-700">{share}%</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        {amenitiesSalesAnalysis.itemsList.length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="py-16 text-center text-slate-400 italic">
+                              No amenity service charges recorded for {curMonthLabel}.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {salesModalSubTab === 'categories' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {amenitiesSalesAnalysis.categoriesList.map((cat) => {
+                      const share = amenitiesSalesAnalysis.overallAmenitiesRevenue > 0
+                        ? Math.round((cat.totalRevenue / amenitiesSalesAnalysis.overallAmenitiesRevenue) * 100)
+                        : 0;
+                      return (
+                        <div key={cat.category} className="p-4 bg-slate-50/80 rounded-2xl border border-slate-100 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-800">{cat.category}</span>
+                            <span className="text-[10px] font-extrabold px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
+                              {share}% Share
+                            </span>
+                          </div>
+                          <p className="text-xl font-bold font-display text-purple-700">
+                            Rs. {cat.totalRevenue.toLocaleString()}
+                          </p>
+                          <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                            <div className="bg-purple-600 h-1.5 rounded-full" style={{ width: `${Math.min(100, share)}%` }} />
+                          </div>
+                          <p className="text-[11px] text-slate-400">
+                            {cat.totalQuantity} items / services fulfilled
+                          </p>
+                        </div>
+                      );
+                    })}
+                    {amenitiesSalesAnalysis.categoriesList.length === 0 && (
+                      <div className="col-span-full py-16 text-center text-slate-400 italic">
+                        No amenity category telemetry recorded for {curMonthLabel}.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {salesModalSubTab === 'logs' && (
+                  <div className="overflow-x-auto rounded-xl border border-slate-100">
+                    <table className="w-full text-left text-xs text-slate-700">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                          <th className="py-3.5 px-4">Invoice ID</th>
+                          <th className="py-3.5 px-4">Guest Name</th>
+                          <th className="py-3.5 px-4">Services Fulfilled</th>
+                          <th className="py-3.5 px-4 text-right font-bold text-slate-800">Amenities Subtotal</th>
+                          <th className="py-3.5 px-4 text-right">Settled Date</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50 font-sans">
+                        {amenitiesSalesAnalysis.allAmenityLogs
+                          .filter(log => {
+                            if (!salesModalSearch.trim()) return true;
+                            const q = salesModalSearch.toLowerCase();
+                            return (
+                              log.billId.toLowerCase().includes(q) ||
+                              log.guestName.toLowerCase().includes(q) ||
+                              log.amenityItemsSummary.toLowerCase().includes(q)
+                            );
+                          })
+                          .map((log, idx) => (
+                            <tr key={`${log.billId}_${idx}`} className="hover:bg-slate-50/60 transition-colors">
+                              <td className="py-3.5 px-4 font-mono font-bold text-indigo-600">{log.billId}</td>
+                              <td className="py-3.5 px-4 font-bold text-slate-800">{log.guestName}</td>
+                              <td className="py-3.5 px-4">
+                                <p className="text-slate-700 text-xs line-clamp-2">{log.amenityItemsSummary}</p>
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono font-bold text-purple-700">
+                                Rs. {log.amenitiesSubtotal.toLocaleString()}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono text-slate-400 text-[11px]">
+                                {log.date ? new Date(log.date).toLocaleDateString() : 'N/A'}
+                              </td>
+                            </tr>
+                          ))}
+
+                        {amenitiesSalesAnalysis.allAmenityLogs.length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="py-16 text-center text-slate-400 italic">
+                              No guest amenity service logs recorded for {curMonthLabel}.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* TAB 2: DAILY CASHBOOK LEDGER (DYNAMIC RECONCILIATION) */}
           {activeTab === 'cashbook' && (
             <div className="space-y-6">
@@ -2900,6 +3395,10 @@ export const Reports: React.FC = () => {
           <div className="flex justify-between">
             <span>Food Sales Revenue:</span>
             <span>Rs. {totalFoodSales}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Amenities Sales Revenue:</span>
+            <span>Rs. {monthlyData.reduce((acc, item) => acc + (item.amenitiesRevenue || 0), 0)}</span>
           </div>
           <div className="flex justify-between">
             <span>Service Charge Proceeds:</span>

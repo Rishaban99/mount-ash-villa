@@ -13,6 +13,7 @@ interface AIInsightRequest {
     totalRevenue: number;
     roomRevenue: number;
     foodRevenue: number;
+    amenitiesRevenue?: number;
     serviceCharge: number;
     totalExpenses: number;
     netProfit: number;
@@ -25,6 +26,7 @@ interface AIInsightRequest {
     revenue: number;
     roomRevenue: number;
     foodRevenue: number;
+    amenitiesRevenue?: number;
     serviceCharge: number;
     expenses?: number;
     netProfit?: number;
@@ -52,6 +54,7 @@ Summary Metrics:
 - Total Settled Revenue: Rs. ${periodSummary?.totalRevenue?.toLocaleString() || 0}
 - Room Accommodation Revenue: Rs. ${periodSummary?.roomRevenue?.toLocaleString() || 0}
 - Food & Beverage Sales: Rs. ${periodSummary?.foodRevenue?.toLocaleString() || 0}
+- Amenities & Facilities Sales: Rs. ${periodSummary?.amenitiesRevenue?.toLocaleString() || 0}
 - Service Charges Collected: Rs. ${periodSummary?.serviceCharge?.toLocaleString() || 0}
 - Total Operational Expenses: Rs. ${periodSummary?.totalExpenses?.toLocaleString() || 0}
 - Net Profit: Rs. ${periodSummary?.netProfit?.toLocaleString() || 0}
@@ -60,7 +63,7 @@ Summary Metrics:
 - Peak Revenue Day: ${periodSummary?.peakDay ? `${periodSummary.peakDay.date} (Rs. ${periodSummary.peakDay.amount.toLocaleString()})` : 'N/A'}
 
 Recent Daily Trajectory (${dailyData.length} records):
-${dailyData.slice(-10).map(d => `${d.date}: Rev Rs. ${d.revenue.toLocaleString()} (Room: ${d.roomRevenue}, F&B: ${d.foodRevenue}, Bills: ${d.billsCount}, Exp: ${d.expenses || 0})`).join('\n')}
+${dailyData.slice(-10).map(d => `${d.date}: Rev Rs. ${d.revenue.toLocaleString()} (Room: ${d.roomRevenue}, F&B: ${d.foodRevenue}, Amenities: ${d.amenitiesRevenue || 0}, Bills: ${d.billsCount}, Exp: ${d.expenses || 0})`).join('\n')}
 
 Provide an insightful, structured executive briefing in strict JSON format matching this schema:
 {
