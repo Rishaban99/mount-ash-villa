@@ -336,3 +336,19 @@ model ScanSession {
 
   @@map("scan_sessions")
 }
+
+model DailyNote {
+  id          String   @id @map("_id")
+  date        String
+  title       String
+  content     String
+  category    String?
+  priority    String?
+  isCompleted Boolean  @default(false)
+  authorName  String
+  authorRole  String?
+  createdAt   String
+  updatedAt   String?
+
+  @@map("daily_notes")
+}

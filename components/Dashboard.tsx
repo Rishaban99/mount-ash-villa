@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
+import { DayCalendarNotebook } from '@/components/DayCalendarNotebook';
 
 export const Dashboard: React.FC = () => {
   const router = useRouter();
@@ -170,6 +171,9 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* DAY CALENDAR & NOTEBOOK MODULE (RED LINE AREA - STORED IN DB) */}
+      <DayCalendarNotebook />
 
       {loading ? (
         <div className="bg-white p-16 text-center rounded-2xl border border-slate-150">

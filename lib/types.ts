@@ -281,5 +281,19 @@ export interface Attendance {
   updatedAt?: string;
 }
 
+export interface DailyNote {
+  id: string;
+  date: string; // YYYY-MM-DD
+  title: string;
+  content: string;
+  category?: 'Frontdesk' | 'Reminder' | 'Maintenance' | 'General' | 'VIP Guest';
+  priority?: 'Low' | 'Medium' | 'High' | 'Urgent';
+  isCompleted: boolean;
+  authorName: string;
+  authorRole?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 
 

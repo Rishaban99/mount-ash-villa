@@ -5,7 +5,7 @@
 
 import { prisma } from './prisma';
 import { DEFAULT_SETTINGS } from '../prisma/defaults';
-import { User, Room, Guest, Food, Amenity, Bill, Expense, SystemSettings, FrontdeskMemo, ClosedMonth, AuditLog, AuditAction, RoomItem, RoomStatus, PrintLog, GuestFeedback, Attendance } from '@/lib/types';
+import { User, Room, Guest, Food, Amenity, Bill, Expense, SystemSettings, FrontdeskMemo, ClosedMonth, AuditLog, AuditAction, RoomItem, RoomStatus, PrintLog, GuestFeedback, Attendance, DailyNote } from '@/lib/types';
 import type { User as PrismaUser, Prisma } from '@prisma/client';
 import { dedupeRoomsByNumber } from '@/lib/rooms';
 
@@ -1002,4 +1002,132 @@ export async function deleteAttendanceRecord(id: string): Promise<boolean> {
     return false;
   }
 }
+
+// ==========================================
+// DAILY NOTES / NOTEBOOK DB OPERATIONS
+// ==========================================
+
+export async function getDailyNotes(date?: string): Promise<DailyNote[]> {
+  try {
+    // @ts-ignore
+    if (prisma.dailyNote) {
+      // @ts-ignore
+      const where = date ? { date } : {};
+      // @ts-ignore
+      return await prisma.dailyNote.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+      }) as DailyNote[];
+    }
+    const filter = date ? { date } : {};
+    const result = await prisma.$runCommandRaw({
+      find: 'daily_notes',
+      filter,
+      sort: { createdAt: -1 },
+    });
+    const batch = (result as any)?.cursor?.firstBatch || [];
+    return batch.map((item: any) => ({
+      ...item,
+      id: String(item._id || item.id),
+    })) as DailyNote[];
+  } catch (error) {
+    console.error('Error fetching daily notes:', error);
+    return [];
+  }
+}
+
+export async function createDailyNote(noteData: Partial<DailyNote>): Promise<DailyNote> {
+  const id = noteData.id || `note_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+  const now = new Date().toISOString();
+  const payload: DailyNote = {
+    id,
+    date: noteData.date || new Date().toISOString().split('T')[0],
+    title: noteData.title || 'Untitled Note',
+    content: noteData.content || '',
+    category: noteData.category || 'General',
+    priority: noteData.priority || 'Medium',
+    isCompleted: noteData.isCompleted ?? false,
+    authorName: noteData.authorName || 'Frontdesk Staff',
+    authorRole: noteRoleToString(noteData.authorRole),
+    createdAt: noteData.createdAt || now,
+    updatedAt: now,
+  };
+
+  function noteRoleToString(role?: string): string {
+    return role || 'Staff';
+  }
+
+  try {
+    // @ts-ignore
+    if (prisma.dailyNote) {
+      // @ts-ignore
+      return await prisma.dailyNote.create({
+        data: payload as any,
+      }) as DailyNote;
+    }
+  } catch (e) {
+    console.warn('Prisma dailyNote model not ready yet, falling back to raw command', e);
+  }
+
+  await prisma.$runCommandRaw({
+    insert: 'daily_notes',
+    documents: [{ ...payload, _id: payload.id }],
+  });
+
+  return payload;
+}
+
+export async function updateDailyNote(id: string, updates: Partial<DailyNote>): Promise<DailyNote | null> {
+  const now = new Date().toISOString();
+  try {
+    // @ts-ignore
+    if (prisma.dailyNote) {
+      // @ts-ignore
+      return await prisma.dailyNote.update({
+        where: { id },
+        data: { ...updates, updatedAt: now } as any,
+      }) as DailyNote;
+    }
+  } catch (e) {
+    // Fallback to raw update
+  }
+
+  await prisma.$runCommandRaw({
+    update: 'daily_notes',
+    updates: [
+      {
+        q: { _id: id },
+        u: { $set: { ...updates, updatedAt: now } },
+      },
+    ],
+  });
+
+  const notes = await getDailyNotes();
+  return notes.find((n) => n.id === id) || null;
+}
+
+export async function deleteDailyNote(id: string): Promise<boolean> {
+  try {
+    // @ts-ignore
+    if (prisma.dailyNote) {
+      // @ts-ignore
+      await prisma.dailyNote.delete({ where: { id } });
+      return true;
+    }
+  } catch (e) {
+    // Fallback
+  }
+
+  try {
+    await prisma.$runCommandRaw({
+      delete: 'daily_notes',
+      deletes: [{ q: { _id: id }, limit: 1 }],
+    });
+    return true;
+  } catch (error) {
+    console.error('Failed to delete daily note:', error);
+    return false;
+  }
+}
+
 
