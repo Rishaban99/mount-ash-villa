@@ -890,9 +890,26 @@ export const Billing: React.FC<BillingProps> = ({
 
   const totalPages = Math.ceil(sortedBills.length / itemsPerPage);
 
+  const paginationPages = useMemo(() => {
+    const maxPages = 10;
+    const startPage = Math.floor((currentPage - 1) / maxPages) * maxPages + 1;
+    const endPage = Math.min(startPage + maxPages - 1, totalPages);
+    const pages: number[] = [];
+    for (let p = startPage; p <= endPage; p++) {
+      pages.push(p);
+    }
+    return pages;
+  }, [currentPage, totalPages]);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [term, listStatus, sortField, sortOrder]);
+
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const handleSort = (field: 'date' | 'name' | 'amount' | 'status') => {
     if (sortField === field) {
@@ -1490,8 +1507,7 @@ export const Billing: React.FC<BillingProps> = ({
                               >
                                 &laquo; Prev
                               </button>
-                              {Array.from({ length: totalPages }).map((_, idx) => {
-                                const pageNum = idx + 1;
+                              {paginationPages.map((pageNum) => {
                                 const isCurrent = currentPage === pageNum;
                                 return (
                                   <button
